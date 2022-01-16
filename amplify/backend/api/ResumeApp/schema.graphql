@@ -1,0 +1,43 @@
+type SkillsAndSummary @model @auth(rules: [{allow: public}]) {
+  id: ID!
+  Skills: [AWSJSON]
+  ProfessionalSummary: String
+}
+
+type Employment @model @auth(rules: [{allow: public}]) {
+  id: ID!
+  EmployerName: String
+  StartDate: String
+  EndDate: String
+  IsOngoing: String
+  Location: String
+  Position: String
+  WorkDuty: AWSJSON
+  ownerdetailsID: ID @index(name: "byOwnerDetails")
+}
+
+type Education @model @auth(rules: [{allow: public}]) {
+  id: ID!
+  SchoolNam: String
+  StartDate: AWSDate
+  GraduationDate: String
+  IsOnGoing: Boolean
+  SchoolLocation: String
+  Degree: String
+  GPA: String
+  ownerdetailsID: ID @index(name: "byOwnerDetails")
+}
+
+type OwnerDetails @model @auth(rules: [{allow: public}]) {
+  id: ID!
+  FirstName: String
+  LastName: String
+  DOB: AWSDate
+  Location: String
+  PhoneNumber: AWSPhone
+  Email: AWSEmail
+  Website: AWSURL
+  OwnerEducations: [Education] @hasMany(indexName: "byOwnerDetails", fields: ["id"])
+  OwnerEmployments: [Employment] @hasMany(indexName: "byOwnerDetails", fields: ["id"])
+  OwnerSkillsAndSummary: SkillsAndSummary @hasOne
+}
