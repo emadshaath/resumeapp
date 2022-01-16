@@ -13,6 +13,10 @@
   }
 }
 
+.emoji-icon{
+  font-size: calc(100px + 2vmin) !important;
+}
+
 .App-header {
   background-color: #282c34;
   min-height: 100vh;

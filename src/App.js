@@ -1,13 +1,13 @@
-import logo from './logo.svg';
 import './App.css';
+import Emoji from 'a11y-react-emoji';
 
 function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
+        <p className='emoji-icon'><Emoji symbol="🖕" label="fuck-you" /></p>
         <p>
-          Fuck you Gehad and Fadi
+          Fuck you Gehad & Fadi
         </p>
       </header>
     </div>
