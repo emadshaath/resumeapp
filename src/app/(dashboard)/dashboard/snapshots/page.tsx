@@ -407,7 +407,7 @@ export default function SnapshotsPage() {
                         )}
 
                         {/* Actions */}
-                        <div className="flex items-center justify-between pt-2">
+                        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between pt-2">
                           <Button
                             variant="ghost"
                             size="sm"

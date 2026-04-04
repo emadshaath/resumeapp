@@ -279,7 +279,7 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
         <Card key={item.id} className="bg-zinc-50 dark:bg-zinc-900">
           <CardContent className="p-4 space-y-3">
             <div className="flex justify-between items-start">
-              <div className="grid grid-cols-2 gap-3 flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
                 <div className="space-y-1">
                   <Label className="text-xs">Company</Label>
                   <Input
@@ -304,7 +304,7 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
                     placeholder="City, State"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Start</Label>
                     <Input
@@ -413,7 +413,7 @@ function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
         <Card key={item.id} className="bg-zinc-50 dark:bg-zinc-900">
           <CardContent className="p-4 space-y-3">
             <div className="flex justify-between items-start">
-              <div className="grid grid-cols-2 gap-3 flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
                 <div className="space-y-1">
                   <Label className="text-xs">Institution</Label>
                   <Input
@@ -446,7 +446,7 @@ function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
                     placeholder="e.g. 3.8/4.0"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Start</Label>
                     <Input
@@ -532,33 +532,35 @@ function SkillsEditor({ section, onUpdate }: SectionContentEditorProps) {
   return (
     <div className="space-y-3">
       {items.map((item) => (
-        <div key={item.id} className="flex items-center gap-2">
+        <div key={item.id} className="flex flex-col sm:flex-row gap-2">
           <Input
             value={item.name}
             onChange={(e) => updateItem(item.id, { name: e.target.value })}
             placeholder="Skill name"
             className="flex-1"
           />
-          <Input
-            value={item.category || ""}
-            onChange={(e) => updateItem(item.id, { category: e.target.value })}
-            placeholder="Category"
-            className="w-36"
-          />
-          <select
-            value={item.proficiency || ""}
-            onChange={(e) => updateItem(item.id, { proficiency: (e.target.value || null) as Skill["proficiency"] })}
-            className="h-10 rounded-md border border-zinc-300 bg-white px-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-          >
-            <option value="">Level</option>
-            <option value="beginner">Beginner</option>
-            <option value="intermediate">Intermediate</option>
-            <option value="advanced">Advanced</option>
-            <option value="expert">Expert</option>
-          </select>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => deleteItem(item.id)}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Input
+              value={item.category || ""}
+              onChange={(e) => updateItem(item.id, { category: e.target.value })}
+              placeholder="Category"
+              className="w-full sm:w-36"
+            />
+            <select
+              value={item.proficiency || ""}
+              onChange={(e) => updateItem(item.id, { proficiency: (e.target.value || null) as Skill["proficiency"] })}
+              className="h-10 rounded-md border border-zinc-300 bg-white px-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            >
+              <option value="">Level</option>
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced</option>
+              <option value="expert">Expert</option>
+            </select>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 shrink-0" onClick={() => deleteItem(item.id)}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       ))}
       <Button variant="outline" size="sm" onClick={addItem}>
@@ -619,7 +621,7 @@ function CertificationsEditor({ section, onUpdate }: SectionContentEditorProps) 
         <Card key={item.id} className="bg-zinc-50 dark:bg-zinc-900">
           <CardContent className="p-4 space-y-3">
             <div className="flex justify-between items-start">
-              <div className="grid grid-cols-2 gap-3 flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
                 <div className="space-y-1">
                   <Label className="text-xs">Certification Name</Label>
                   <Input
@@ -724,7 +726,7 @@ function ProjectsEditor({ section, onUpdate }: SectionContentEditorProps) {
         <Card key={item.id} className="bg-zinc-50 dark:bg-zinc-900">
           <CardContent className="p-4 space-y-3">
             <div className="flex justify-between items-start">
-              <div className="grid grid-cols-2 gap-3 flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
                 <div className="space-y-1">
                   <Label className="text-xs">Project Name</Label>
                   <Input

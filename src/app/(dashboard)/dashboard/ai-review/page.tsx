@@ -129,7 +129,7 @@ function ReviewResults({ review }: { review: FullReviewResult }) {
   return (
     <div className="space-y-6">
       {/* Scores */}
-      <div className="flex justify-center gap-12">
+      <div className="flex justify-center gap-8 sm:gap-12">
         <ScoreRing score={review.overall_score} label="Overall Score" />
         <ScoreRing score={review.ats_score} label="ATS Score" />
       </div>
