@@ -287,7 +287,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
                 {section.section_type === "certifications" && (
                   <div className="space-y-4">
                     {sectionCerts.map((cert) => (
-                      <div key={cert.id} className="flex items-start justify-between">
+                      <div key={cert.id} className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1">
                         <div>
                           <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                             {cert.name}
@@ -307,7 +307,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
                           )}
                         </div>
                         {cert.issue_date && (
-                          <span className="text-sm text-zinc-500 whitespace-nowrap ml-4">{formatDate(cert.issue_date)}</span>
+                          <span className="text-sm text-zinc-500 whitespace-nowrap">{formatDate(cert.issue_date)}</span>
                         )}
                       </div>
                     ))}

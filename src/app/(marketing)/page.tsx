@@ -135,14 +135,14 @@ export default function LandingPage() {
             Get a platform email and phone number that protect your personal details.
             Let AI review and improve your resume.
           </p>
-          <div className="mt-8 flex items-center justify-center gap-4">
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
             <Link href="/signup">
-              <Button size="lg" className="px-8">
+              <Button size="lg" className="px-8 w-full sm:w-auto">
                 Create Your Profile
               </Button>
             </Link>
             <a href="#features">
-              <Button variant="outline" size="lg">
+              <Button variant="outline" size="lg" className="w-full sm:w-auto">
                 See Features
               </Button>
             </a>
@@ -200,7 +200,7 @@ export default function LandingPage() {
                 key={plan.name}
                 className={
                   plan.highlighted
-                    ? "border-zinc-900 dark:border-zinc-100 shadow-lg scale-105"
+                    ? "border-zinc-900 dark:border-zinc-100 shadow-lg md:scale-105"
                     : "border-zinc-200 dark:border-zinc-800"
                 }
               >
