@@ -212,7 +212,7 @@ export default function SnapshotsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Version History</h1>
           <p className="text-zinc-500 mt-1">
@@ -220,7 +220,7 @@ export default function SnapshotsPage() {
             <span className="ml-1 text-zinc-400">({total} snapshot{total !== 1 ? "s" : ""})</span>
           </p>
         </div>
-        <Button onClick={() => setShowCreate(!showCreate)}>
+        <Button onClick={() => setShowCreate(!showCreate)} className="shrink-0 self-start">
           <Save className="h-4 w-4 mr-2" />
           Save Snapshot
         </Button>

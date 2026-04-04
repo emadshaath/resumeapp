@@ -133,7 +133,7 @@ export default function VoicemailsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
             Voicemails
@@ -143,7 +143,7 @@ export default function VoicemailsPage() {
           </h1>
           <p className="text-zinc-500 mt-1">Listen to and manage your voicemail messages.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as typeof filter)}

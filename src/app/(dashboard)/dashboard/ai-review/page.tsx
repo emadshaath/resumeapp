@@ -281,12 +281,12 @@ export default function AIReviewPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">AI Resume Review</h1>
           <p className="text-zinc-500 mt-1">Get AI-powered analysis with actionable recommendations.</p>
         </div>
-        <Button onClick={runReview} disabled={loading}>
+        <Button onClick={runReview} disabled={loading} className="shrink-0 self-start">
           {loading ? (
             <>
               <RefreshCw className="h-4 w-4 mr-2 animate-spin" />

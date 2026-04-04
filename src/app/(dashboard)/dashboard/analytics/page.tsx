@@ -116,12 +116,12 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Visitor Analytics</h1>
           <p className="text-zinc-500 mt-1">Track who views your profile.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
