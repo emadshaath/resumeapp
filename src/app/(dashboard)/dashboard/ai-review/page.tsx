@@ -111,7 +111,7 @@ function SectionCard({ section }: { section: SectionReview }) {
                 <ul className="space-y-1">
                   {section.recommendations.map((rec, i) => (
                     <li key={i} className="text-sm text-zinc-600 dark:text-zinc-400 flex items-start gap-2">
-                      <span className="text-blue-500 mt-1 shrink-0">•</span>
+                      <span className="text-brand mt-1 shrink-0">•</span>
                       {rec}
                     </li>
                   ))}
@@ -193,12 +193,12 @@ function ReviewResults({ review }: { review: FullReviewResult }) {
       {review.missing_sections.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold flex items-center gap-2 mb-2">
-            <Target className="h-4 w-4 text-blue-500" /> Recommended Missing Sections
+            <Target className="h-4 w-4 text-brand" /> Recommended Missing Sections
           </h3>
           <ul className="space-y-1">
             {review.missing_sections.map((s, i) => (
               <li key={i} className="text-sm text-zinc-600 dark:text-zinc-400 flex items-start gap-2">
-                <span className="text-blue-500 mt-0.5 shrink-0">+</span> {s}
+                <span className="text-brand mt-0.5 shrink-0">+</span> {s}
               </li>
             ))}
           </ul>
@@ -366,7 +366,7 @@ export default function AIReviewPage() {
                 onClick={() => viewHistorical(item)}
                 className={`w-full text-left p-3 rounded-lg border transition-colors ${
                   viewingHistory === item.id
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-950"
+                    ? "border-brand bg-brand-muted"
                     : "border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-900"
                 }`}
               >

@@ -142,7 +142,7 @@ export default function EmailInboxPage() {
               <Card
                 key={msg.id}
                 className={`cursor-pointer transition-shadow hover:shadow-md ${
-                  !msg.is_read && !msg.is_spam ? "border-l-4 border-l-blue-500" : ""
+                  !msg.is_read && !msg.is_spam ? "border-l-4 border-l-brand" : ""
                 } ${msg.is_spam ? "opacity-70" : ""}`}
               >
                 <div

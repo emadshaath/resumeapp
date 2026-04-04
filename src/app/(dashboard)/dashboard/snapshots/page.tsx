@@ -61,7 +61,7 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  manual: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+  manual: "bg-brand-muted text-brand",
   auto_linkedin: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
   auto_job_optimizer: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
   auto_variant: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
@@ -309,10 +309,10 @@ export default function SnapshotsPage() {
               <div key={snap.id} className="relative pl-12">
                 {/* Timeline dot */}
                 <div className={`absolute left-3.5 top-4 h-3 w-3 rounded-full border-2 border-white dark:border-zinc-950 ${
-                  i === 0 ? "bg-blue-500" : "bg-zinc-400 dark:bg-zinc-500"
+                  i === 0 ? "bg-brand" : "bg-zinc-400 dark:bg-zinc-500"
                 }`} />
 
-                <Card className={expanded === snap.id ? "ring-1 ring-blue-500 border-blue-500" : ""}>
+                <Card className={expanded === snap.id ? "ring-1 ring-brand border-brand" : ""}>
                   <CardContent className="p-4">
                     <button
                       onClick={() => toggleExpand(snap.id)}

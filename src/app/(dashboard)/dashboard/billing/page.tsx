@@ -232,13 +232,13 @@ export default function BillingPage() {
               key={plan.id}
               className={`relative ${
                 isCurrent
-                  ? "border-blue-500 dark:border-blue-400 ring-1 ring-blue-500"
+                  ? "border-brand ring-1 ring-brand"
                   : ""
               }`}
             >
               {plan.popular && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <Badge className="bg-blue-600 text-white">Most Popular</Badge>
+                  <Badge>Most Popular</Badge>
                 </div>
               )}
               <CardHeader className="pb-3">

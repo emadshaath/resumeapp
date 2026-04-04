@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* ============================================
+   Base tokens (light mode defaults)
+   ============================================ */
 :root {
   --background: #ffffff;
   --foreground: #09090b;
@@ -26,6 +29,211 @@
   }
 }
 
+/* ============================================
+   Theme: Midnight Indigo (default)
+   ============================================ */
+:root[data-theme="midnight-indigo"],
+:root:not([data-theme]) {
+  --brand: #4F46E5;
+  --brand-hover: #4338CA;
+  --brand-foreground: #ffffff;
+  --brand-muted: #EEF2FF;
+  --brand-subtle: #C7D2FE;
+  --brand-accent: #F59E0B;
+  --brand-accent-hover: #D97706;
+  --brand-accent-foreground: #ffffff;
+  --sidebar-bg: #312E81;
+  --sidebar-bg-hover: rgba(255, 255, 255, 0.08);
+  --sidebar-bg-active: rgba(255, 255, 255, 0.15);
+  --sidebar-text: rgba(255, 255, 255, 0.7);
+  --sidebar-text-active: #ffffff;
+  --sidebar-border: #3730A3;
+  --sidebar-logo: #ffffff;
+  --hero-from: #312E81;
+  --hero-to: #4F46E5;
+  --ring: #4F46E5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="midnight-indigo"],
+  :root:not([data-theme]) {
+    --brand: #818CF8;
+    --brand-hover: #6366F1;
+    --brand-foreground: #1e1b4b;
+    --brand-muted: #1e1b4b;
+    --brand-subtle: #312E81;
+    --brand-accent: #FBBF24;
+    --brand-accent-hover: #F59E0B;
+    --brand-accent-foreground: #18181b;
+    --sidebar-bg: #1e1b4b;
+    --sidebar-border: #312E81;
+    --ring: #818CF8;
+  }
+}
+
+/* ============================================
+   Theme: Ocean Teal
+   ============================================ */
+:root[data-theme="ocean-teal"] {
+  --brand: #0D9488;
+  --brand-hover: #0F766E;
+  --brand-foreground: #ffffff;
+  --brand-muted: #F0FDFA;
+  --brand-subtle: #99F6E4;
+  --brand-accent: #F43F5E;
+  --brand-accent-hover: #E11D48;
+  --brand-accent-foreground: #ffffff;
+  --sidebar-bg: #115E59;
+  --sidebar-bg-hover: rgba(255, 255, 255, 0.08);
+  --sidebar-bg-active: rgba(255, 255, 255, 0.15);
+  --sidebar-text: rgba(255, 255, 255, 0.7);
+  --sidebar-text-active: #ffffff;
+  --sidebar-border: #0F766E;
+  --sidebar-logo: #ffffff;
+  --hero-from: #115E59;
+  --hero-to: #0D9488;
+  --ring: #0D9488;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="ocean-teal"] {
+    --brand: #2DD4BF;
+    --brand-hover: #14B8A6;
+    --brand-foreground: #042f2e;
+    --brand-muted: #042f2e;
+    --brand-subtle: #115E59;
+    --brand-accent: #FB7185;
+    --brand-accent-hover: #F43F5E;
+    --brand-accent-foreground: #18181b;
+    --sidebar-bg: #042f2e;
+    --sidebar-border: #115E59;
+    --ring: #2DD4BF;
+  }
+}
+
+/* ============================================
+   Theme: Emerald Pro
+   ============================================ */
+:root[data-theme="emerald-pro"] {
+  --brand: #059669;
+  --brand-hover: #047857;
+  --brand-foreground: #ffffff;
+  --brand-muted: #ECFDF5;
+  --brand-subtle: #A7F3D0;
+  --brand-accent: #7C3AED;
+  --brand-accent-hover: #6D28D9;
+  --brand-accent-foreground: #ffffff;
+  --sidebar-bg: #064E3B;
+  --sidebar-bg-hover: rgba(255, 255, 255, 0.08);
+  --sidebar-bg-active: rgba(255, 255, 255, 0.15);
+  --sidebar-text: rgba(255, 255, 255, 0.7);
+  --sidebar-text-active: #ffffff;
+  --sidebar-border: #047857;
+  --sidebar-logo: #ffffff;
+  --hero-from: #064E3B;
+  --hero-to: #059669;
+  --ring: #059669;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="emerald-pro"] {
+    --brand: #34D399;
+    --brand-hover: #10B981;
+    --brand-foreground: #022c22;
+    --brand-muted: #022c22;
+    --brand-subtle: #064E3B;
+    --brand-accent: #A78BFA;
+    --brand-accent-hover: #7C3AED;
+    --brand-accent-foreground: #18181b;
+    --sidebar-bg: #022c22;
+    --sidebar-border: #064E3B;
+    --ring: #34D399;
+  }
+}
+
+/* ============================================
+   Theme: Electric Blue
+   ============================================ */
+:root[data-theme="electric-blue"] {
+  --brand: #2563EB;
+  --brand-hover: #1D4ED8;
+  --brand-foreground: #ffffff;
+  --brand-muted: #EFF6FF;
+  --brand-subtle: #BFDBFE;
+  --brand-accent: #06B6D4;
+  --brand-accent-hover: #0891B2;
+  --brand-accent-foreground: #ffffff;
+  --sidebar-bg: #1E3A8A;
+  --sidebar-bg-hover: rgba(255, 255, 255, 0.08);
+  --sidebar-bg-active: rgba(255, 255, 255, 0.15);
+  --sidebar-text: rgba(255, 255, 255, 0.7);
+  --sidebar-text-active: #ffffff;
+  --sidebar-border: #1D4ED8;
+  --sidebar-logo: #ffffff;
+  --hero-from: #1E3A8A;
+  --hero-to: #2563EB;
+  --ring: #2563EB;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="electric-blue"] {
+    --brand: #60A5FA;
+    --brand-hover: #3B82F6;
+    --brand-foreground: #172554;
+    --brand-muted: #172554;
+    --brand-subtle: #1E3A8A;
+    --brand-accent: #22D3EE;
+    --brand-accent-hover: #06B6D4;
+    --brand-accent-foreground: #18181b;
+    --sidebar-bg: #0c1929;
+    --sidebar-border: #1E3A8A;
+    --ring: #60A5FA;
+  }
+}
+
+/* ============================================
+   Theme: Warm Neutral
+   ============================================ */
+:root[data-theme="warm-neutral"] {
+  --brand: #292524;
+  --brand-hover: #1C1917;
+  --brand-foreground: #ffffff;
+  --brand-muted: #FAFAF9;
+  --brand-subtle: #E7E5E4;
+  --brand-accent: #EA580C;
+  --brand-accent-hover: #C2410C;
+  --brand-accent-foreground: #ffffff;
+  --sidebar-bg: #1C1917;
+  --sidebar-bg-hover: rgba(255, 255, 255, 0.08);
+  --sidebar-bg-active: rgba(255, 255, 255, 0.15);
+  --sidebar-text: rgba(255, 255, 255, 0.7);
+  --sidebar-text-active: #ffffff;
+  --sidebar-border: #292524;
+  --sidebar-logo: #ffffff;
+  --hero-from: #292524;
+  --hero-to: #44403C;
+  --ring: #292524;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="warm-neutral"] {
+    --brand: #D6D3D1;
+    --brand-hover: #A8A29E;
+    --brand-foreground: #1C1917;
+    --brand-muted: #1C1917;
+    --brand-subtle: #292524;
+    --brand-accent: #FB923C;
+    --brand-accent-hover: #EA580C;
+    --brand-accent-foreground: #1C1917;
+    --sidebar-bg: #0c0a09;
+    --sidebar-border: #292524;
+    --ring: #D6D3D1;
+  }
+}
+
+/* ============================================
+   Register theme tokens for Tailwind v4
+   ============================================ */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -36,6 +244,29 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+
+  /* Brand palette */
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-muted: var(--brand-muted);
+  --color-brand-subtle: var(--brand-subtle);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-hover: var(--brand-accent-hover);
+  --color-brand-accent-foreground: var(--brand-accent-foreground);
+
+  /* Sidebar palette */
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-bg-hover: var(--sidebar-bg-hover);
+  --color-sidebar-bg-active: var(--sidebar-bg-active);
+  --color-sidebar-text: var(--sidebar-text);
+  --color-sidebar-text-active: var(--sidebar-text-active);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-logo: var(--sidebar-logo);
+
+  /* Ring */
+  --color-ring: var(--ring);
+
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }

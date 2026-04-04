@@ -83,7 +83,7 @@ export default function MessagesPage() {
             return (
               <Card
                 key={msg.id}
-                className={`cursor-pointer transition-shadow hover:shadow-md ${!msg.is_read ? "border-l-4 border-l-blue-500" : ""}`}
+                className={`cursor-pointer transition-shadow hover:shadow-md ${!msg.is_read ? "border-l-4 border-l-brand" : ""}`}
               >
                 <div
                   className="px-4 py-3"

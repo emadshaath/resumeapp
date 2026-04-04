@@ -126,7 +126,7 @@ export default function LandingPage() {
           </Badge>
           <h1 className="text-4xl font-bold tracking-tight md:text-6xl">
             One link for your{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-zinc-600 to-zinc-900 dark:from-zinc-300 dark:to-white">
+            <span className="text-brand">
               entire resume
             </span>
           </h1>
@@ -169,7 +169,7 @@ export default function LandingPage() {
             {features.map((feature) => (
               <Card key={feature.title} className="border-zinc-200 dark:border-zinc-800">
                 <CardHeader>
-                  <feature.icon className="h-8 w-8 text-zinc-700 dark:text-zinc-300 mb-2" />
+                  <feature.icon className="h-8 w-8 text-brand mb-2" />
                   <CardTitle className="text-lg">{feature.title}</CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -200,7 +200,7 @@ export default function LandingPage() {
                 key={plan.name}
                 className={
                   plan.highlighted
-                    ? "border-zinc-900 dark:border-zinc-100 shadow-lg md:scale-105"
+                    ? "border-brand shadow-lg md:scale-105"
                     : "border-zinc-200 dark:border-zinc-800"
                 }
               >
@@ -221,7 +221,7 @@ export default function LandingPage() {
                   <ul className="space-y-2">
                     {plan.features.map((feature) => (
                       <li key={feature} className="flex items-start gap-2 text-sm">
-                        <Check className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                        <Check className="h-4 w-4 text-brand mt-0.5 flex-shrink-0" />
                         <span>{feature}</span>
                       </li>
                     ))}
@@ -242,16 +242,16 @@ export default function LandingPage() {
       </section>
 
       {/* CTA */}
-      <section className="py-20 bg-zinc-900 dark:bg-zinc-50">
+      <section className="py-20" style={{ background: "linear-gradient(135deg, var(--hero-from), var(--hero-to))" }}>
         <div className="mx-auto max-w-4xl px-6 text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-white dark:text-zinc-900">
+          <h2 className="text-3xl font-bold tracking-tight text-white">
             Ready to build your professional profile?
           </h2>
-          <p className="mt-4 text-zinc-400 dark:text-zinc-600">
+          <p className="mt-4 text-white/70">
             Join thousands of professionals who trust ResumeProfile for their online presence.
           </p>
           <Link href="/signup">
-            <Button size="lg" className="mt-8 bg-white text-zinc-900 hover:bg-zinc-100 dark:bg-zinc-900 dark:text-white dark:hover:bg-zinc-800">
+            <Button size="lg" className="mt-8 bg-white text-brand hover:bg-zinc-100">
               Get Started for Free
             </Button>
           </Link>

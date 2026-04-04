@@ -184,7 +184,7 @@ export default function VoicemailsPage() {
           <Card
             key={vm.id}
             className={`cursor-pointer transition-colors ${
-              !vm.is_read ? "border-blue-200 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-950/20" : ""
+              !vm.is_read ? "border-brand-subtle bg-brand-muted/30" : ""
             }`}
           >
             <CardContent className="p-4">
@@ -194,7 +194,7 @@ export default function VoicemailsPage() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-3 min-w-0">
-                    <div className={`h-2 w-2 rounded-full shrink-0 mt-1.5 ${vm.is_read ? "bg-transparent" : "bg-blue-500"}`} />
+                    <div className={`h-2 w-2 rounded-full shrink-0 mt-1.5 ${vm.is_read ? "bg-transparent" : "bg-brand"}`} />
                     <div className="min-w-0">
                       <p className="font-medium text-sm flex items-center gap-2">
                         <Phone className="h-3.5 w-3.5 text-zinc-400 shrink-0" />

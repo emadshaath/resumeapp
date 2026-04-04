@@ -61,7 +61,7 @@ function MiniBarChart({ data }: { data: { date: string; views: number }[] }) {
               {d.date}: {d.views} view{d.views !== 1 ? "s" : ""}
             </div>
             <div
-              className="w-full bg-blue-500 dark:bg-blue-400 rounded-t-sm hover:bg-blue-600 transition-colors cursor-default"
+              className="w-full bg-brand rounded-t-sm hover:bg-brand-hover transition-colors cursor-default"
               style={{ height: `${height}%` }}
             />
           </div>
@@ -79,7 +79,7 @@ function DeviceIcon({ device }: { device: string }) {
   }
 }
 
-function ProgressBar({ value, max, color = "bg-blue-500" }: { value: number; max: number; color?: string }) {
+function ProgressBar({ value, max, color = "bg-brand" }: { value: number; max: number; color?: string }) {
   const pct = max > 0 ? (value / max) * 100 : 0;
   return (
     <div className="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
@@ -163,15 +163,15 @@ export default function AnalyticsPage() {
 
           {/* Free tier upgrade prompt */}
           {data.tier === "free" && (
-            <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/30">
+            <Card className="border-brand-subtle bg-brand-muted">
               <CardContent className="p-4 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Unlock Full Analytics</p>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                  <p className="text-sm font-medium text-brand">Unlock Full Analytics</p>
+                  <p className="text-xs text-brand/70 mt-0.5">
                     Upgrade to Pro to see referrers, devices, geography, daily trends, and campaign tracking.
                   </p>
                 </div>
-                <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">Pro</Badge>
+                <Badge>Pro</Badge>
               </CardContent>
             </Card>
           )}

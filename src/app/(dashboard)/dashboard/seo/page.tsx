@@ -157,7 +157,7 @@ export default function SeoPage() {
               <p className="text-sm text-green-700 dark:text-green-400 truncate">
                 {profileSlug}.resumeprofile.com
               </p>
-              <p className="text-lg text-blue-700 dark:text-blue-400 font-medium mt-0.5 truncate">
+              <p className="text-lg text-brand font-medium mt-0.5 truncate">
                 {seo.meta_title || `${profileName} | ResumeProfile`}
               </p>
               <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1 line-clamp-2">

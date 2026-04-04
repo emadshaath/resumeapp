@@ -120,7 +120,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
       />
 
       {/* Header */}
-      <header className="bg-gradient-to-br from-zinc-900 to-zinc-800 dark:from-zinc-950 dark:to-zinc-900 text-white print:bg-white print:text-black">
+      <header className="text-white print:bg-white print:text-black" style={{ background: "linear-gradient(135deg, var(--hero-from), var(--hero-to))" }}>
         <div className="mx-auto max-w-3xl px-6 py-16 md:py-20">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
             {profile.avatar_url ? (

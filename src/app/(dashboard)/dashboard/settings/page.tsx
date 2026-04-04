@@ -51,7 +51,7 @@ export default function SettingsPage() {
         <form onSubmit={handlePasswordUpdate}>
           <CardContent className="space-y-4">
             {message && (
-              <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+              <div className="rounded-md bg-brand-muted p-3 text-sm text-brand">
                 {message}
               </div>
             )}
