@@ -15,6 +15,9 @@ import {
   Mail,
   Phone,
   Search,
+  Inbox,
+  MessageSquare,
+  Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -25,7 +28,9 @@ const navigation = [
   { name: "AI Review", href: "/dashboard/ai-review", icon: Sparkles },
   { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "SEO", href: "/dashboard/seo", icon: Search },
-  { name: "Messages", href: "/dashboard/messages", icon: Mail },
+  { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
+  { name: "Email", href: "/dashboard/communication", icon: Mail },
+  { name: "Inbox", href: "/dashboard/inbox", icon: Inbox },
   { name: "Phone", href: "/dashboard/phone", icon: Phone },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rateLimit } from "@/lib/rate-limit";
 import { calculateSpamScore } from "@/lib/spam-filter";
+import { sendContactNotification } from "@/lib/resend/send";
 import { z } from "zod";
 
 const contactSchema = z.object({
@@ -98,7 +99,7 @@ export async function POST(request: Request) {
     // Verify the profile exists and is published
     const { data: profile } = await supabase
       .from("profiles")
-      .select("id, is_published")
+      .select("id, is_published, first_name, email")
       .eq("id", profile_id)
       .eq("is_published", true)
       .single();
@@ -128,6 +129,23 @@ export async function POST(request: Request) {
         { error: "Failed to send message" },
         { status: 500 }
       );
+    }
+
+    // Send email notification to profile owner (non-spam only)
+    if (!isSpam && profile.email) {
+      try {
+        await sendContactNotification({
+          to: profile.email,
+          profileFirstName: profile.first_name,
+          senderName: sender_name,
+          senderEmail: sender_email,
+          subject,
+          message,
+        });
+      } catch (emailError) {
+        // Don't fail the request if notification fails
+        console.error("Contact notification email error:", emailError);
+      }
     }
 
     return NextResponse.json(
