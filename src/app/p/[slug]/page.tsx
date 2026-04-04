@@ -8,6 +8,7 @@ import { MapPin, Globe, Briefcase, GraduationCap, Wrench, Award, FolderOpen, Ext
 import { generatePersonJsonLd, generateBreadcrumbJsonLd } from "@/lib/seo/json-ld";
 import { generateProfileMetadata } from "@/lib/seo/meta";
 import { ContactForm } from "@/components/profile/contact-form";
+import { VisitorTracker } from "@/components/profile/visitor-tracker";
 
 // ISR: revalidate every 5 minutes
 export const revalidate = 300;
@@ -105,6 +106,9 @@ export default async function PublicProfilePage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-white dark:bg-zinc-950">
+      {/* Visitor Tracking */}
+      <VisitorTracker profileId={profile.id} />
+
       {/* JSON-LD Structured Data */}
       <script
         type="application/ld+json"
