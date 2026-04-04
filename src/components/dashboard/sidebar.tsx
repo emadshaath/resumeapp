@@ -18,6 +18,7 @@ import {
   Inbox,
   MessageSquare,
   Radio,
+  Voicemail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -32,6 +33,7 @@ const navigation = [
   { name: "Email", href: "/dashboard/communication", icon: Mail },
   { name: "Inbox", href: "/dashboard/inbox", icon: Inbox },
   { name: "Phone", href: "/dashboard/phone", icon: Phone },
+  { name: "Voicemails", href: "/dashboard/voicemails", icon: Voicemail },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 

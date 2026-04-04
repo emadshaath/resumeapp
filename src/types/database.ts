@@ -158,6 +158,39 @@ export interface AIReview {
   created_at: string;
 }
 
+export interface PlatformPhone {
+  id: string;
+  profile_id: string;
+  phone_number: string;
+  twilio_sid: string;
+  friendly_name: string | null;
+  routing_mode: "forward" | "voicemail" | "both";
+  forward_to: string | null;
+  custom_greeting_url: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VoicemailRecord {
+  id: string;
+  profile_id: string;
+  phone_id: string;
+  caller_number: string;
+  caller_city: string | null;
+  caller_state: string | null;
+  caller_country: string | null;
+  call_sid: string;
+  recording_url: string | null;
+  recording_sid: string | null;
+  recording_duration: number | null;
+  transcription: string | null;
+  transcription_status: "pending" | "completed" | "failed";
+  is_read: boolean;
+  is_spam: boolean;
+  created_at: string;
+}
+
 export interface SeoSettings {
   id: string;
   profile_id: string;
