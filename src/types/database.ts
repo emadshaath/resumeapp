@@ -191,6 +191,16 @@ export interface VoicemailRecord {
   created_at: string;
 }
 
+export interface ProfileSnapshot {
+  id: string;
+  profile_id: string;
+  label: string;
+  snapshot_type: "manual" | "auto_linkedin" | "auto_job_optimizer" | "auto_variant" | "auto_restore";
+  snapshot_data: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
 export interface SeoSettings {
   id: string;
   profile_id: string;

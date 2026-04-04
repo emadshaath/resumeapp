@@ -20,6 +20,7 @@ import {
   Radio,
   Voicemail,
   CreditCard,
+  History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -35,6 +36,7 @@ const navigation = [
   { name: "Inbox", href: "/dashboard/inbox", icon: Inbox },
   { name: "Phone", href: "/dashboard/phone", icon: Phone },
   { name: "Voicemails", href: "/dashboard/voicemails", icon: Voicemail },
+  { name: "Version History", href: "/dashboard/snapshots", icon: History },
   { name: "Billing", href: "/dashboard/billing", icon: CreditCard },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
