@@ -192,16 +192,16 @@ export default function VoicemailsPage() {
                 onClick={() => toggleExpand(vm.id)}
                 className="w-full text-left"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`h-2 w-2 rounded-full shrink-0 ${vm.is_read ? "bg-transparent" : "bg-blue-500"}`} />
-                    <div>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className={`h-2 w-2 rounded-full shrink-0 mt-1.5 ${vm.is_read ? "bg-transparent" : "bg-blue-500"}`} />
+                    <div className="min-w-0">
                       <p className="font-medium text-sm flex items-center gap-2">
-                        <Phone className="h-3.5 w-3.5 text-zinc-400" />
-                        {formatPhone(vm.caller_number)}
-                        {vm.is_spam && <Badge variant="destructive" className="text-xs">Spam</Badge>}
+                        <Phone className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+                        <span className="truncate">{formatPhone(vm.caller_number)}</span>
+                        {vm.is_spam && <Badge variant="destructive" className="text-xs shrink-0">Spam</Badge>}
                       </p>
-                      <div className="flex items-center gap-3 mt-0.5 text-xs text-zinc-500">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-xs text-zinc-500">
                         {(vm.caller_city || vm.caller_state) && (
                           <span className="flex items-center gap-1">
                             <MapPin className="h-3 w-3" />
@@ -219,7 +219,7 @@ export default function VoicemailsPage() {
                     </div>
                   </div>
                   {vm.transcription_status === "completed" && (
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="secondary" className="text-xs shrink-0 hidden sm:flex">
                       <FileText className="h-3 w-3 mr-1" />
                       Transcribed
                     </Badge>

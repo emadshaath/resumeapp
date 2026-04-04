@@ -49,14 +49,14 @@ export default function MessagesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Messages</h1>
           <p className="text-zinc-500 mt-1">
             Contact form submissions from your profile visitors.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           {unreadCount > 0 && (
             <Badge variant="default">{unreadCount} unread</Badge>
           )}
@@ -104,7 +104,7 @@ export default function MessagesPage() {
                           <span className={`text-sm truncate ${!msg.is_read ? "font-semibold" : ""}`}>
                             {msg.sender_name}
                           </span>
-                          <span className="text-xs text-zinc-400 truncate">{msg.sender_email}</span>
+                          <span className="text-xs text-zinc-400 truncate hidden sm:inline">{msg.sender_email}</span>
                         </div>
                         <p className="text-sm text-zinc-600 dark:text-zinc-400 truncate">
                           {msg.subject ? <span className="font-medium">{msg.subject} &ndash; </span> : null}
@@ -112,7 +112,7 @@ export default function MessagesPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                    <div className="flex items-center gap-2 ml-2 sm:ml-4 flex-shrink-0">
                       <span className="text-xs text-zinc-400">
                         {formatRelativeTime(msg.created_at)}
                       </span>
@@ -129,7 +129,7 @@ export default function MessagesPage() {
                   <>
                     <Separator />
                     <div className="px-4 py-4 space-y-3">
-                      <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm">
                         <div>
                           <span className="text-zinc-500">From:</span>{" "}
                           <span className="font-medium">{msg.sender_name}</span>{" "}

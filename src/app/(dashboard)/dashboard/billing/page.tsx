@@ -187,7 +187,7 @@ export default function BillingPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <Badge
                 variant={currentTier === "premium" ? "default" : currentTier === "pro" ? "secondary" : "outline"}
@@ -209,6 +209,7 @@ export default function BillingPage() {
                 size="sm"
                 onClick={handlePortal}
                 disabled={portalLoading}
+                className="self-start sm:self-auto"
               >
                 {portalLoading ? "Opening..." : "Manage Subscription"}
                 <ExternalLink className="h-3.5 w-3.5 ml-1" />

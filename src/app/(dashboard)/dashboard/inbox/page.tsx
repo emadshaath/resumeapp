@@ -100,12 +100,12 @@ export default function EmailInboxPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Email Inbox</h1>
           <p className="text-zinc-500 mt-1">Emails received at your platform address.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           {unreadCount > 0 && <Badge variant="default">{unreadCount} unread</Badge>}
           <Button
             variant={showSpam ? "default" : "outline"}
@@ -162,16 +162,16 @@ export default function EmailInboxPage() {
                           <span className={`text-sm truncate ${!msg.is_read ? "font-semibold" : ""}`}>
                             {displayName}
                           </span>
-                          <span className="text-xs text-zinc-400 truncate">{msg.from_address}</span>
-                          {msg.is_spam && <Badge variant="destructive" className="text-xs">Spam</Badge>}
+                          <span className="text-xs text-zinc-400 truncate hidden sm:inline">{msg.from_address}</span>
+                          {msg.is_spam && <Badge variant="destructive" className="text-xs shrink-0">Spam</Badge>}
                         </div>
                         <p className="text-sm text-zinc-600 dark:text-zinc-400 truncate">
                           {msg.subject || "(no subject)"}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                      <span className="text-xs text-zinc-400">
+                    <div className="flex items-center gap-2 ml-2 sm:ml-4 flex-shrink-0">
+                      <span className="text-xs text-zinc-400 hidden sm:inline">
                         {new Date(msg.received_at).toLocaleDateString("en-US", {
                           month: "short",
                           day: "numeric",
