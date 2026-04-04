@@ -7,33 +7,170 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Trash2, Sparkles, X } from "lucide-react";
 import type { ResumeSection, Experience, Education, Skill, Certification, Project } from "@/types/database";
+import type { SuggestionItem } from "@/lib/claude/schemas";
 
 interface SectionContentEditorProps {
   section: ResumeSection;
   onUpdate: () => void;
 }
 
-export function SectionContentEditor({ section, onUpdate }: SectionContentEditorProps) {
-  switch (section.section_type) {
-    case "summary":
-      return <SummaryEditor section={section} onUpdate={onUpdate} />;
-    case "experience":
-      return <ExperienceEditor section={section} onUpdate={onUpdate} />;
-    case "education":
-      return <EducationEditor section={section} onUpdate={onUpdate} />;
-    case "skills":
-      return <SkillsEditor section={section} onUpdate={onUpdate} />;
-    case "certifications":
-      return <CertificationsEditor section={section} onUpdate={onUpdate} />;
-    case "projects":
-      return <ProjectsEditor section={section} onUpdate={onUpdate} />;
-    case "custom":
-      return <CustomEditor section={section} onUpdate={onUpdate} />;
-    default:
-      return null;
+function AISuggestButton({ section }: { section: ResumeSection }) {
+  const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const supabase = createClient();
+
+  async function getSuggestions() {
+    setLoading(true);
+    setError(null);
+    setSuggestions([]);
+    setOpen(true);
+
+    try {
+      // Gather section content for the prompt
+      let content = "";
+      const table =
+        section.section_type === "experience" ? "experiences" :
+        section.section_type === "education" ? "educations" :
+        section.section_type === "skills" ? "skills" :
+        section.section_type === "certifications" ? "certifications" :
+        section.section_type === "projects" ? "projects" : "custom_sections";
+
+      const { data: items } = await supabase
+        .from(table)
+        .select("*")
+        .eq("section_id", section.id)
+        .order("display_order");
+
+      if (!items || items.length === 0) {
+        setError("Add some content to this section first.");
+        setLoading(false);
+        return;
+      }
+
+      content = items.map((item) => {
+        return Object.entries(item)
+          .filter(([k, v]) => !["id", "section_id", "profile_id", "created_at", "updated_at", "display_order"].includes(k) && v != null && v !== "")
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+          .join("\n");
+      }).join("\n---\n");
+
+      const res = await fetch("/api/ai/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          section_title: section.title,
+          section_type: section.section_type,
+          content,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Failed to get suggestions.");
+      } else {
+        setSuggestions(data.suggestions || []);
+      }
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
+
+  const typeColors: Record<string, string> = {
+    improve: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+    add: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+    rewrite: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+    remove: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+  };
+
+  return (
+    <div>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={getSuggestions}
+        disabled={loading}
+        className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950"
+      >
+        {loading ? (
+          <>
+            <Sparkles className="h-3.5 w-3.5 mr-1 animate-pulse" />
+            Getting suggestions...
+          </>
+        ) : (
+          <>
+            <Sparkles className="h-3.5 w-3.5 mr-1" />
+            AI Suggestions
+          </>
+        )}
+      </Button>
+
+      {open && (suggestions.length > 0 || error) && (
+        <div className="mt-3 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/30 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-purple-600 dark:text-purple-400 flex items-center gap-1">
+              <Sparkles className="h-3 w-3" /> AI Suggestions
+            </span>
+            <button onClick={() => setOpen(false)} className="text-zinc-400 hover:text-zinc-600">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {suggestions.map((s, i) => (
+            <div key={i} className="mb-2 last:mb-0">
+              <div className="flex items-start gap-2">
+                <Badge className={`text-xs shrink-0 mt-0.5 ${typeColors[s.type] || ""}`}>
+                  {s.type}
+                </Badge>
+                <div className="text-sm text-zinc-700 dark:text-zinc-300">
+                  <p>{s.text}</p>
+                  {s.example && (
+                    <p className="mt-1 text-xs text-zinc-500 italic border-l-2 border-purple-300 pl-2">
+                      Example: {s.example}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function SectionContentEditor({ section, onUpdate }: SectionContentEditorProps) {
+  return (
+    <div className="space-y-4">
+      {(() => {
+        switch (section.section_type) {
+          case "summary":
+            return <SummaryEditor section={section} onUpdate={onUpdate} />;
+          case "experience":
+            return <ExperienceEditor section={section} onUpdate={onUpdate} />;
+          case "education":
+            return <EducationEditor section={section} onUpdate={onUpdate} />;
+          case "skills":
+            return <SkillsEditor section={section} onUpdate={onUpdate} />;
+          case "certifications":
+            return <CertificationsEditor section={section} onUpdate={onUpdate} />;
+          case "projects":
+            return <ProjectsEditor section={section} onUpdate={onUpdate} />;
+          case "custom":
+            return <CustomEditor section={section} onUpdate={onUpdate} />;
+          default:
+            return null;
+        }
+      })()}
+      <AISuggestButton section={section} />
+    </div>
+  );
 }
 
 // === SUMMARY EDITOR ===

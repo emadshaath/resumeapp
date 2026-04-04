@@ -146,6 +146,18 @@ export interface PageView {
   viewed_at: string;
 }
 
+export interface AIReview {
+  id: string;
+  profile_id: string;
+  review_type: "full" | "section";
+  overall_score: number | null;
+  ats_score: number | null;
+  recommendations: Record<string, unknown>;
+  model_used: string | null;
+  tokens_used: number | null;
+  created_at: string;
+}
+
 export interface SeoSettings {
   id: string;
   profile_id: string;
