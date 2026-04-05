@@ -21,6 +21,7 @@ import {
   Voicemail,
   CreditCard,
   History,
+  Briefcase,
   Menu,
   X,
 } from "lucide-react";
@@ -37,6 +38,7 @@ const navigation = [
   { name: "Inbox", href: "/dashboard/inbox", icon: Inbox },
   { name: "Phone", href: "/dashboard/phone", icon: Phone },
   { name: "Voicemails", href: "/dashboard/voicemails", icon: Voicemail },
+  { name: "Job Tracker", href: "/dashboard/jobs", icon: Briefcase },
   { name: "Version History", href: "/dashboard/snapshots", icon: History },
   { name: "Billing", href: "/dashboard/billing", icon: CreditCard },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },

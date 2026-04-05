@@ -25,7 +25,9 @@ export type Feature =
   | "analytics_export"
   | "profile_variants"
   | "linkedin_integration"
-  | "job_optimizer";
+  | "job_optimizer"
+  | "job_tracker"
+  | "smart_apply";
 
 const FEATURE_MIN_TIER: Record<Feature, Tier> = {
   unlimited_sections: "pro",
@@ -42,6 +44,8 @@ const FEATURE_MIN_TIER: Record<Feature, Tier> = {
   profile_variants: "pro",
   linkedin_integration: "premium",
   job_optimizer: "premium",
+  job_tracker: "free",
+  smart_apply: "pro",
 };
 
 export function hasFeature(tier: Tier, feature: Feature): boolean {
@@ -61,6 +65,7 @@ export const TIER_LIMITS = {
   snapshots_max: { free: 5, pro: 50, premium: 999 },
   variants_max: { free: 0, pro: 3, premium: 999 },
   job_optimizations_per_month: { free: 0, pro: 0, premium: 10 },
+  jobs_max: { free: 5, pro: 50, premium: 999 },
 } as const;
 
 export function getLimit(tier: Tier, limit: keyof typeof TIER_LIMITS): number {

@@ -201,6 +201,43 @@ export interface ProfileSnapshot {
   created_at: string;
 }
 
+export type JobStatus = "saved" | "applied" | "screening" | "interview" | "offer" | "accepted" | "rejected" | "withdrawn";
+export type RemoteType = "onsite" | "remote" | "hybrid";
+
+export interface JobApplication {
+  id: string;
+  profile_id: string;
+  company_name: string;
+  job_title: string;
+  job_url: string | null;
+  status: JobStatus;
+  applied_date: string | null;
+  source: string;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_currency: string;
+  location: string | null;
+  remote_type: RemoteType | null;
+  parsed_data: Record<string, unknown>;
+  match_score: number | null;
+  notes: string | null;
+  follow_up_date: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  resume_variant: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface JobApplicationEvent {
+  id: string;
+  job_application_id: string;
+  from_status: string | null;
+  to_status: string;
+  notes: string | null;
+  created_at: string;
+}
+
 export interface SeoSettings {
   id: string;
   profile_id: string;
