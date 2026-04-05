@@ -65,4 +65,4 @@ CREATE INDEX idx_voicemails_call_sid ON voicemails(call_sid);
 CREATE TRIGGER set_platform_phones_updated_at
   BEFORE UPDATE ON platform_phones
   FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
+  EXECUTE FUNCTION update_updated_at();

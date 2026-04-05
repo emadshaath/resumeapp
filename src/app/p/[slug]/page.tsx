@@ -9,6 +9,8 @@ import { generatePersonJsonLd, generateBreadcrumbJsonLd } from "@/lib/seo/json-l
 import { generateProfileMetadata } from "@/lib/seo/meta";
 import { ContactForm } from "@/components/profile/contact-form";
 import { VisitorTracker } from "@/components/profile/visitor-tracker";
+import { PdfDownloadButton } from "@/components/profile/pdf-download-button";
+import type { PdfSettings } from "@/lib/pdf/types";
 
 // ISR: revalidate every 5 minutes
 export const revalidate = 300;
@@ -29,7 +31,7 @@ async function getProfile(slug: string) {
 
   if (!profile) return null;
 
-  const [sectionsResult, seoResult] = await Promise.all([
+  const [sectionsResult, seoResult, pdfResult] = await Promise.all([
     supabase
       .from("resume_sections")
       .select("*")
@@ -38,6 +40,11 @@ async function getProfile(slug: string) {
       .order("display_order"),
     supabase
       .from("seo_settings")
+      .select("*")
+      .eq("profile_id", profile.id)
+      .single(),
+    supabase
+      .from("pdf_settings")
       .select("*")
       .eq("profile_id", profile.id)
       .single(),
@@ -58,6 +65,7 @@ async function getProfile(slug: string) {
       projects: [] as Project[],
       customSections: [] as CustomSection[],
       seoSettings: (seoResult.data || null) as SeoSettings | null,
+      pdfSettings: (pdfResult.data || null) as PdfSettings | null,
     };
   }
 
@@ -81,6 +89,7 @@ async function getProfile(slug: string) {
     projects: (projects.data || []) as Project[],
     customSections: (customSections.data || []) as CustomSection[],
     seoSettings: (seoResult.data || null) as SeoSettings | null,
+    pdfSettings: (pdfResult.data || null) as PdfSettings | null,
   };
 }
 
@@ -97,7 +106,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
   const data = await getProfile(slug);
   if (!data) notFound();
 
-  const { profile, sections, experiences, educations, skills, certifications, projects, customSections, seoSettings } = data;
+  const { profile, sections, experiences, educations, skills, certifications, projects, customSections, seoSettings, pdfSettings } = data;
   const fullName = `${profile.first_name} ${profile.last_name}`;
 
   // Generate JSON-LD structured data
@@ -158,6 +167,11 @@ export default async function PublicProfilePage({ params }: PageProps) {
                   </a>
                 )}
               </div>
+              {pdfSettings?.show_on_profile && (
+                <div className="mt-4">
+                  <PdfDownloadButton slug={profile.slug} />
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -24,6 +24,7 @@ import {
   Briefcase,
   Menu,
   X,
+  FileText,
   FileUp,
 } from "lucide-react";
 
@@ -32,6 +33,7 @@ const navigation = [
   { name: "Import Resume", href: "/dashboard/import", icon: FileUp },
   { name: "Profile", href: "/dashboard/profile", icon: User },
   { name: "Sections", href: "/dashboard/sections", icon: Layers },
+  { name: "PDF Resume", href: "/dashboard/pdf", icon: FileText },
   { name: "AI Review", href: "/dashboard/ai-review", icon: Sparkles },
   { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "SEO", href: "/dashboard/seo", icon: Search },

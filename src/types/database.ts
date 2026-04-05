@@ -238,6 +238,16 @@ export interface JobApplicationEvent {
   created_at: string;
 }
 
+export interface PdfSettings {
+  id: string;
+  profile_id: string;
+  layout: "classic" | "modern" | "minimal" | "executive";
+  color_theme: "navy" | "teal" | "charcoal";
+  show_on_profile: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SeoSettings {
   id: string;
   profile_id: string;

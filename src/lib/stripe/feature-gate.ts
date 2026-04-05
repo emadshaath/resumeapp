@@ -27,7 +27,8 @@ export type Feature =
   | "linkedin_integration"
   | "job_optimizer"
   | "job_tracker"
-  | "smart_apply";
+  | "smart_apply"
+  | "pdf_resume";
 
 const FEATURE_MIN_TIER: Record<Feature, Tier> = {
   unlimited_sections: "pro",
@@ -46,6 +47,7 @@ const FEATURE_MIN_TIER: Record<Feature, Tier> = {
   job_optimizer: "premium",
   job_tracker: "free",
   smart_apply: "pro",
+  pdf_resume: "free",
 };
 
 export function hasFeature(tier: Tier, feature: Feature): boolean {
