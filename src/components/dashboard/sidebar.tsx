@@ -24,10 +24,12 @@ import {
   Briefcase,
   Menu,
   X,
+  FileUp,
 } from "lucide-react";
 
 const navigation = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Import Resume", href: "/dashboard/import", icon: FileUp },
   { name: "Profile", href: "/dashboard/profile", icon: User },
   { name: "Sections", href: "/dashboard/sections", icon: Layers },
   { name: "AI Review", href: "/dashboard/ai-review", icon: Sparkles },
