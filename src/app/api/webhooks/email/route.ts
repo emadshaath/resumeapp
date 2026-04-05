@@ -21,7 +21,7 @@ export async function POST(request: Request) {
 
     // Expected payload format (from Cloudflare Email Workers or similar):
     const {
-      to,           // recipient email (e.g., john@rezm.ai)
+      to,           // recipient email (e.g., john@resmail.ai)
       from,         // sender email address
       from_name,    // sender display name
       subject,      // email subject

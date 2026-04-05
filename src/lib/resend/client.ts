@@ -19,4 +19,4 @@ export const EMAIL_FROM =
 
 // Domain for platform emails (user@domain)
 export const EMAIL_DOMAIN =
-  process.env.EMAIL_DOMAIN || "rezm.ai";
+  process.env.EMAIL_DOMAIN || "resmail.ai";
