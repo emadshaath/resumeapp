@@ -99,13 +99,13 @@ export function EmailLayout({
       <Preview>{preview}</Preview>
       <Body style={baseStyles.body}>
         <Container style={baseStyles.container}>
-          <Text style={baseStyles.logo}>ResumeProfile</Text>
+          <Text style={baseStyles.logo}>rezm.ai</Text>
           {children}
           <Hr style={baseStyles.hr} />
           <Text style={baseStyles.footer}>
-            &copy; {new Date().getFullYear()} ResumeProfile. All rights reserved.
+            &copy; {new Date().getFullYear()} rezm.ai. All rights reserved.
             <br />
-            You&apos;re receiving this because you have an account on ResumeProfile.
+            You&apos;re receiving this because you have an account on rezm.ai.
           </Text>
         </Container>
       </Body>

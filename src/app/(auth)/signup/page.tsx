@@ -141,7 +141,7 @@ export default function SignupPage() {
             </div>
             <p className="text-xs text-zinc-500">
               Your profile will be at{" "}
-              <span className="font-mono font-medium">{slug || "your-name"}.resumeprofile.com</span>
+              <span className="font-mono font-medium">{slug || "your-name"}.rezm.ai</span>
             </p>
           </div>
           <div className="space-y-2">

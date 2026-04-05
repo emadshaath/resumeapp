@@ -11,7 +11,7 @@ export function MagicLinkEmail({ email, magicLinkUrl }: MagicLinkEmailProps) {
   return (
     <EmailLayout preview="Your sign-in link">
       <Heading style={baseStyles.heading}>
-        Sign in to ResumeProfile
+        Sign in to rezm.ai
       </Heading>
       <Text style={baseStyles.text}>
         Click the button below to sign in to your account ({email}).

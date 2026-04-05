@@ -180,7 +180,7 @@ export default function ProfileEditorPage() {
                 required
                 className="max-w-xs font-mono"
               />
-              <span className="text-sm text-zinc-500">.resumeprofile.com</span>
+              <span className="text-sm text-zinc-500">.rezm.ai</span>
             </div>
           </CardContent>
         </Card>

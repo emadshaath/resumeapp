@@ -6,7 +6,7 @@ import { WelcomeEmail } from "@/emails/welcome";
 import { ContactNotificationEmail } from "@/emails/contact-notification";
 import { EmailChangedEmail } from "@/emails/email-changed";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://resumeprofile.com";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://rezm.ai";
 
 export async function sendConfirmEmail(params: {
   to: string;
@@ -67,7 +67,7 @@ export async function sendWelcomeEmail(params: {
   return resend.emails.send({
     from: EMAIL_FROM,
     to: params.to,
-    subject: `Welcome to ResumeProfile, ${params.firstName}!`,
+    subject: `Welcome to rezm.ai, ${params.firstName}!`,
     react: WelcomeEmail({
       firstName: params.firstName,
       slug: params.slug,

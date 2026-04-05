@@ -11,18 +11,18 @@ interface WelcomeEmailProps {
 
 export function WelcomeEmail({ firstName, slug, dashboardUrl, profileUrl }: WelcomeEmailProps) {
   return (
-    <EmailLayout preview={`Welcome to ResumeProfile, ${firstName}!`}>
+    <EmailLayout preview={`Welcome to rezm.ai, ${firstName}!`}>
       <Heading style={baseStyles.heading}>
-        Welcome to ResumeProfile!
+        Welcome to rezm.ai!
       </Heading>
       <Text style={baseStyles.text}>
-        Hi {firstName}, thanks for joining ResumeProfile. Your professional
+        Hi {firstName}, thanks for joining rezm.ai. Your professional
         profile is ready to be built.
       </Text>
       <Text style={baseStyles.text}>
         Your profile URL:{" "}
         <Link href={profileUrl} style={baseStyles.link}>
-          {slug}.resumeprofile.com
+          {slug}.rezm.ai
         </Link>
       </Text>
       <Section style={{ marginBottom: "24px", marginTop: "24px" }}>

@@ -69,7 +69,7 @@ export async function POST() {
     // Purchase the number and configure webhooks
     const purchased = await twilioClient.incomingPhoneNumbers.create({
       phoneNumber: available[0].phoneNumber,
-      friendlyName: `ResumeProfile - ${profile.first_name} ${profile.last_name}`,
+      friendlyName: `rezm.ai - ${profile.first_name} ${profile.last_name}`,
       voiceUrl: `${baseUrl}/api/webhooks/twilio/voice`,
       voiceMethod: "POST",
       statusCallback: `${baseUrl}/api/webhooks/twilio/status`,

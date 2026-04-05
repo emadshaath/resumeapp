@@ -25,7 +25,7 @@ const features = [
   {
     icon: Globe,
     title: "Custom Subdomain",
-    description: "Get your own professional URL like yourname.resumeprofile.com. Share it anywhere.",
+    description: "Get your own professional URL like yourname.rezm.ai. Share it anywhere.",
   },
   {
     icon: Shield,
@@ -40,7 +40,7 @@ const features = [
   {
     icon: Mail,
     title: "Platform Email",
-    description: "Receive emails at yourname@resumeprofile.com. Forward to your inbox or read in-app.",
+    description: "Receive emails at yourname@rezm.ai. Forward to your inbox or read in-app.",
   },
   {
     icon: Phone,
@@ -379,7 +379,7 @@ export default function LandingPage() {
               Ready to build your professional profile?
             </h2>
             <p className="mt-4 text-white/70">
-              Join thousands of professionals who trust ResumeProfile for their online presence.
+              Join thousands of professionals who trust rezm.ai for their online presence.
             </p>
             <Link href="/signup">
               <Button size="lg" className="mt-8 bg-white text-brand hover:bg-zinc-100">

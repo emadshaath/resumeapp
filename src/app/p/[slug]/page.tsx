@@ -382,7 +382,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
               href={process.env.NEXT_PUBLIC_APP_URL || "/"}
               className="text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
             >
-              ResumeProfile
+              rezm.ai
             </a>
           </p>
         </footer>
