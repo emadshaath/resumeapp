@@ -25,10 +25,12 @@ import {
   Menu,
   X,
   FileText,
+  FileUp,
 } from "lucide-react";
 
 const navigation = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Import Resume", href: "/dashboard/import", icon: FileUp },
   { name: "Profile", href: "/dashboard/profile", icon: User },
   { name: "Sections", href: "/dashboard/sections", icon: Layers },
   { name: "PDF Resume", href: "/dashboard/pdf", icon: FileText },
