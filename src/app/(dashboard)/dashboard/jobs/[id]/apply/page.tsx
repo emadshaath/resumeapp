@@ -86,14 +86,22 @@ export default function QuickApplyPage({ params }: { params: Promise<{ id: strin
   const [marked, setMarked] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      fetch(`/api/jobs/${id}`).then((r) => r.json()),
-      fetch("/api/autofill/profile").then((r) => r.json()),
-    ]).then(([jobData, profileData]) => {
-      setJob(jobData.job);
-      setFields(profileData.fields);
-      setLoading(false);
-    });
+    // First fetch job details (which may include variant_id)
+    fetch(`/api/jobs/${id}`)
+      .then((r) => r.json())
+      .then((jobData) => {
+        setJob(jobData.job);
+        // Use the variant-aware autofill if a variant is linked
+        const variantParam = jobData.job?.variant_id
+          ? `?variant=${jobData.job.variant_id}`
+          : "";
+        return fetch(`/api/autofill/profile${variantParam}`);
+      })
+      .then((r) => r.json())
+      .then((profileData) => {
+        setFields(profileData.fields);
+        setLoading(false);
+      });
   }, [id]);
 
   async function markApplied() {
@@ -195,7 +203,7 @@ export default function QuickApplyPage({ params }: { params: Promise<{ id: strin
       <Card>
         <CardContent className="p-4">
           <a
-            href="/api/autofill/resume.pdf"
+            href={job.variant_id ? `/api/autofill/resume.pdf?variant=${job.variant_id}` : "/api/autofill/resume.pdf"}
             download
             className="flex items-center gap-3 text-sm font-medium text-brand hover:text-brand-hover transition-colors"
           >

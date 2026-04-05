@@ -225,6 +225,7 @@ export interface JobApplication {
   contact_name: string | null;
   contact_email: string | null;
   resume_variant: string | null;
+  variant_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -255,6 +256,36 @@ export interface SeoSettings {
   meta_description: string | null;
   og_image_url: string | null;
   custom_keywords: string[] | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VariantData {
+  headline: string;
+  summary: string;
+  skill_order: string[];
+  hidden_skills: string[];
+  experience_rewrites: {
+    id: string;
+    description?: string;
+    highlights?: string[];
+    emphasis: "high" | "normal" | "low";
+  }[];
+  section_order: string[];
+  hidden_sections: string[];
+  ai_reasoning: string;
+  top_priorities: string[];
+}
+
+export interface ProfileVariant {
+  id: string;
+  profile_id: string;
+  job_application_id: string | null;
+  name: string;
+  variant_data: VariantData;
+  match_score: number | null;
+  source: "ai" | "manual";
+  is_default: boolean;
   created_at: string;
   updated_at: string;
 }
