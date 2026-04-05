@@ -7,33 +7,170 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Trash2, Sparkles, X } from "lucide-react";
 import type { ResumeSection, Experience, Education, Skill, Certification, Project } from "@/types/database";
+import type { SuggestionItem } from "@/lib/claude/schemas";
 
 interface SectionContentEditorProps {
   section: ResumeSection;
   onUpdate: () => void;
 }
 
-export function SectionContentEditor({ section, onUpdate }: SectionContentEditorProps) {
-  switch (section.section_type) {
-    case "summary":
-      return <SummaryEditor section={section} onUpdate={onUpdate} />;
-    case "experience":
-      return <ExperienceEditor section={section} onUpdate={onUpdate} />;
-    case "education":
-      return <EducationEditor section={section} onUpdate={onUpdate} />;
-    case "skills":
-      return <SkillsEditor section={section} onUpdate={onUpdate} />;
-    case "certifications":
-      return <CertificationsEditor section={section} onUpdate={onUpdate} />;
-    case "projects":
-      return <ProjectsEditor section={section} onUpdate={onUpdate} />;
-    case "custom":
-      return <CustomEditor section={section} onUpdate={onUpdate} />;
-    default:
-      return null;
+function AISuggestButton({ section }: { section: ResumeSection }) {
+  const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const supabase = createClient();
+
+  async function getSuggestions() {
+    setLoading(true);
+    setError(null);
+    setSuggestions([]);
+    setOpen(true);
+
+    try {
+      // Gather section content for the prompt
+      let content = "";
+      const table =
+        section.section_type === "experience" ? "experiences" :
+        section.section_type === "education" ? "educations" :
+        section.section_type === "skills" ? "skills" :
+        section.section_type === "certifications" ? "certifications" :
+        section.section_type === "projects" ? "projects" : "custom_sections";
+
+      const { data: items } = await supabase
+        .from(table)
+        .select("*")
+        .eq("section_id", section.id)
+        .order("display_order");
+
+      if (!items || items.length === 0) {
+        setError("Add some content to this section first.");
+        setLoading(false);
+        return;
+      }
+
+      content = items.map((item) => {
+        return Object.entries(item)
+          .filter(([k, v]) => !["id", "section_id", "profile_id", "created_at", "updated_at", "display_order"].includes(k) && v != null && v !== "")
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+          .join("\n");
+      }).join("\n---\n");
+
+      const res = await fetch("/api/ai/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          section_title: section.title,
+          section_type: section.section_type,
+          content,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Failed to get suggestions.");
+      } else {
+        setSuggestions(data.suggestions || []);
+      }
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
+
+  const typeColors: Record<string, string> = {
+    improve: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+    add: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+    rewrite: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+    remove: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+  };
+
+  return (
+    <div>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={getSuggestions}
+        disabled={loading}
+        className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950"
+      >
+        {loading ? (
+          <>
+            <Sparkles className="h-3.5 w-3.5 mr-1 animate-pulse" />
+            Getting suggestions...
+          </>
+        ) : (
+          <>
+            <Sparkles className="h-3.5 w-3.5 mr-1" />
+            AI Suggestions
+          </>
+        )}
+      </Button>
+
+      {open && (suggestions.length > 0 || error) && (
+        <div className="mt-3 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/30 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-purple-600 dark:text-purple-400 flex items-center gap-1">
+              <Sparkles className="h-3 w-3" /> AI Suggestions
+            </span>
+            <button onClick={() => setOpen(false)} className="text-zinc-400 hover:text-zinc-600">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {suggestions.map((s, i) => (
+            <div key={i} className="mb-2 last:mb-0">
+              <div className="flex items-start gap-2">
+                <Badge className={`text-xs shrink-0 mt-0.5 ${typeColors[s.type] || ""}`}>
+                  {s.type}
+                </Badge>
+                <div className="text-sm text-zinc-700 dark:text-zinc-300">
+                  <p>{s.text}</p>
+                  {s.example && (
+                    <p className="mt-1 text-xs text-zinc-500 italic border-l-2 border-purple-300 pl-2">
+                      Example: {s.example}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function SectionContentEditor({ section, onUpdate }: SectionContentEditorProps) {
+  return (
+    <div className="space-y-4">
+      {(() => {
+        switch (section.section_type) {
+          case "summary":
+            return <SummaryEditor section={section} onUpdate={onUpdate} />;
+          case "experience":
+            return <ExperienceEditor section={section} onUpdate={onUpdate} />;
+          case "education":
+            return <EducationEditor section={section} onUpdate={onUpdate} />;
+          case "skills":
+            return <SkillsEditor section={section} onUpdate={onUpdate} />;
+          case "certifications":
+            return <CertificationsEditor section={section} onUpdate={onUpdate} />;
+          case "projects":
+            return <ProjectsEditor section={section} onUpdate={onUpdate} />;
+          case "custom":
+            return <CustomEditor section={section} onUpdate={onUpdate} />;
+          default:
+            return null;
+        }
+      })()}
+      <AISuggestButton section={section} />
+    </div>
+  );
 }
 
 // === SUMMARY EDITOR ===
@@ -142,7 +279,7 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
         <Card key={item.id} className="bg-zinc-50 dark:bg-zinc-900">
           <CardContent className="p-4 space-y-3">
             <div className="flex justify-between items-start">
-              <div className="grid grid-cols-2 gap-3 flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
                 <div className="space-y-1">
                   <Label className="text-xs">Company</Label>
                   <Input
@@ -167,7 +304,7 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
                     placeholder="City, State"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Start</Label>
                     <Input
@@ -276,7 +413,7 @@ function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
         <Card key={item.id} className="bg-zinc-50 dark:bg-zinc-900">
           <CardContent className="p-4 space-y-3">
             <div className="flex justify-between items-start">
-              <div className="grid grid-cols-2 gap-3 flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
                 <div className="space-y-1">
                   <Label className="text-xs">Institution</Label>
                   <Input
@@ -309,7 +446,7 @@ function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
                     placeholder="e.g. 3.8/4.0"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Start</Label>
                     <Input
@@ -395,33 +532,35 @@ function SkillsEditor({ section, onUpdate }: SectionContentEditorProps) {
   return (
     <div className="space-y-3">
       {items.map((item) => (
-        <div key={item.id} className="flex items-center gap-2">
+        <div key={item.id} className="flex flex-col sm:flex-row gap-2">
           <Input
             value={item.name}
             onChange={(e) => updateItem(item.id, { name: e.target.value })}
             placeholder="Skill name"
             className="flex-1"
           />
-          <Input
-            value={item.category || ""}
-            onChange={(e) => updateItem(item.id, { category: e.target.value })}
-            placeholder="Category"
-            className="w-36"
-          />
-          <select
-            value={item.proficiency || ""}
-            onChange={(e) => updateItem(item.id, { proficiency: (e.target.value || null) as Skill["proficiency"] })}
-            className="h-10 rounded-md border border-zinc-300 bg-white px-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-          >
-            <option value="">Level</option>
-            <option value="beginner">Beginner</option>
-            <option value="intermediate">Intermediate</option>
-            <option value="advanced">Advanced</option>
-            <option value="expert">Expert</option>
-          </select>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => deleteItem(item.id)}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Input
+              value={item.category || ""}
+              onChange={(e) => updateItem(item.id, { category: e.target.value })}
+              placeholder="Category"
+              className="w-full sm:w-36"
+            />
+            <select
+              value={item.proficiency || ""}
+              onChange={(e) => updateItem(item.id, { proficiency: (e.target.value || null) as Skill["proficiency"] })}
+              className="h-10 rounded-md border border-zinc-300 bg-white px-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            >
+              <option value="">Level</option>
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced</option>
+              <option value="expert">Expert</option>
+            </select>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 shrink-0" onClick={() => deleteItem(item.id)}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       ))}
       <Button variant="outline" size="sm" onClick={addItem}>
@@ -482,7 +621,7 @@ function CertificationsEditor({ section, onUpdate }: SectionContentEditorProps) 
         <Card key={item.id} className="bg-zinc-50 dark:bg-zinc-900">
           <CardContent className="p-4 space-y-3">
             <div className="flex justify-between items-start">
-              <div className="grid grid-cols-2 gap-3 flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
                 <div className="space-y-1">
                   <Label className="text-xs">Certification Name</Label>
                   <Input
@@ -587,7 +726,7 @@ function ProjectsEditor({ section, onUpdate }: SectionContentEditorProps) {
         <Card key={item.id} className="bg-zinc-50 dark:bg-zinc-900">
           <CardContent className="p-4 space-y-3">
             <div className="flex justify-between items-start">
-              <div className="grid grid-cols-2 gap-3 flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
                 <div className="space-y-1">
                   <Label className="text-xs">Project Name</Label>
                   <Input

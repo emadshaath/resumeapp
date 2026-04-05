@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ResumeProfile - Theme Proposals</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f4f5; color: #18181b; padding: 40px 20px; }
+  h1 { text-align: center; font-size: 28px; margin-bottom: 8px; }
+  .subtitle { text-align: center; color: #71717a; margin-bottom: 40px; font-size: 15px; }
+  .themes { max-width: 1200px; margin: 0 auto; display: grid; gap: 32px; }
+
+  .theme-card {
+    background: white;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  .theme-header {
+    padding: 24px 28px;
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .theme-header h2 { font-size: 22px; font-weight: 700; }
+  .theme-header .tagline { opacity: 0.85; font-size: 14px; }
+  .theme-body { padding: 28px; }
+
+  /* Swatches */
+  .swatch-section { margin-bottom: 24px; }
+  .swatch-section h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #a1a1aa; margin-bottom: 10px; font-weight: 600; }
+  .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+  .swatch {
+    width: 64px; height: 64px; border-radius: 10px; position: relative;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
+    display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px;
+  }
+  .swatch span { font-size: 9px; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.5); font-weight: 600; }
+  .swatch.light span { color: #18181b; text-shadow: none; }
+
+  /* Mini UI Preview */
+  .ui-preview {
+    border: 1px solid #e4e4e7;
+    border-radius: 12px;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    height: 280px;
+  }
+  .ui-sidebar {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .ui-sidebar .logo { font-weight: 700; font-size: 14px; margin-bottom: 12px; color: white; }
+  .ui-sidebar .nav-item {
+    padding: 8px 12px; border-radius: 8px; font-size: 13px; color: rgba(255,255,255,0.7);
+    cursor: default;
+  }
+  .ui-sidebar .nav-item.active { background: rgba(255,255,255,0.15); color: white; font-weight: 600; }
+  .ui-content { background: #fafafa; padding: 20px; }
+  .ui-content h4 { font-size: 16px; font-weight: 700; color: #18181b; margin-bottom: 12px; }
+  .ui-content .stat-row { display: flex; gap: 10px; margin-bottom: 14px; }
+  .ui-stat {
+    flex: 1; padding: 12px; border-radius: 8px; background: white;
+    border: 1px solid #e4e4e7;
+  }
+  .ui-stat .label { font-size: 10px; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.5px; }
+  .ui-stat .value { font-size: 20px; font-weight: 700; margin-top: 2px; }
+  .ui-btn {
+    display: inline-block; padding: 8px 18px; border-radius: 8px; font-size: 13px;
+    font-weight: 600; color: white; border: none; cursor: default;
+  }
+  .ui-btn-outline {
+    display: inline-block; padding: 8px 18px; border-radius: 8px; font-size: 13px;
+    font-weight: 600; background: white; border: 1px solid #d4d4d8; color: #3f3f46;
+    margin-left: 8px; cursor: default;
+  }
+  .ui-badge {
+    display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; color: white;
+  }
+
+  /* Dark mode preview */
+  .dark-preview {
+    border: 1px solid #27272a;
+    border-radius: 12px;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    height: 280px;
+    margin-top: 16px;
+  }
+  .dark-preview .ui-sidebar { background: #09090b; }
+  .dark-preview .ui-content { background: #18181b; }
+  .dark-preview .ui-content h4 { color: #fafafa; }
+  .dark-preview .ui-stat { background: #27272a; border-color: #3f3f46; }
+  .dark-preview .ui-stat .label { color: #71717a; }
+  .dark-preview .ui-stat .value { color: #fafafa; }
+  .dark-preview .ui-btn-outline { background: #27272a; border-color: #3f3f46; color: #d4d4d8; }
+
+  .mode-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #a1a1aa; font-weight: 600; margin-bottom: 8px; margin-top: 20px; }
+
+  @media (max-width: 700px) {
+    .ui-preview, .dark-preview { grid-template-columns: 1fr; height: auto; }
+    .ui-sidebar { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<h1>ResumeProfile Theme Proposals</h1>
+<p class="subtitle">5 distinct themes with light &amp; dark mode previews. Pick your favorite.</p>
+
+<div class="themes">
+
+<!-- THEME 1: Midnight Indigo -->
+<div class="theme-card">
+  <div class="theme-header" style="background: linear-gradient(135deg, #4338CA, #4F46E5);">
+    <div>
+      <h2>1. Midnight Indigo</h2>
+      <div class="tagline">Bold &amp; Professional</div>
+    </div>
+    <div class="ui-badge" style="background: #F59E0B;">Premium</div>
+  </div>
+  <div class="theme-body">
+    <div class="swatch-section">
+      <h3>Primary &amp; Accent</h3>
+      <div class="swatches">
+        <div class="swatch" style="background:#312E81;"><span>#312E81</span></div>
+        <div class="swatch" style="background:#3730A3;"><span>#3730A3</span></div>
+        <div class="swatch" style="background:#4F46E5;"><span>#4F46E5</span></div>
+        <div class="swatch" style="background:#6366F1;"><span>#6366F1</span></div>
+        <div class="swatch" style="background:#A5B4FC;"><span>#A5B4FC</span></div>
+        <div class="swatch" style="background:#F59E0B;"><span>#F59E0B</span></div>
+        <div class="swatch" style="background:#FBBF24;"><span>#FBBF24</span></div>
+      </div>
+    </div>
+    <div class="swatch-section">
+      <h3>Neutrals (Slate)</h3>
+      <div class="swatches">
+        <div class="swatch light" style="background:#f8fafc;"><span>#F8FAFC</span></div>
+        <div class="swatch light" style="background:#e2e8f0;"><span>#E2E8F0</span></div>
+        <div class="swatch" style="background:#64748b;"><span>#64748B</span></div>
+        <div class="swatch" style="background:#334155;"><span>#334155</span></div>
+        <div class="swatch" style="background:#0f172a;"><span>#0F172A</span></div>
+      </div>
+    </div>
+    <div class="mode-label">Light Mode</div>
+    <div class="ui-preview">
+      <div class="ui-sidebar" style="background: linear-gradient(180deg, #312E81, #3730A3);">
+        <div class="logo">ResumeProfile</div>
+        <div class="nav-item active">Dashboard</div>
+        <div class="nav-item">Profile</div>
+        <div class="nav-item">Analytics</div>
+        <div class="nav-item">Billing</div>
+      </div>
+      <div class="ui-content">
+        <h4>Dashboard</h4>
+        <div class="stat-row">
+          <div class="ui-stat"><div class="label">Views</div><div class="value" style="color:#4F46E5;">1,247</div></div>
+          <div class="ui-stat"><div class="label">Contacts</div><div class="value" style="color:#4F46E5;">38</div></div>
+          <div class="ui-stat"><div class="label">Score</div><div class="value" style="color:#F59E0B;">87</div></div>
+        </div>
+        <div class="ui-btn" style="background:#4F46E5;">Run AI Review</div>
+        <div class="ui-btn-outline">View Profile</div>
+      </div>
+    </div>
+    <div class="mode-label">Dark Mode</div>
+    <div class="dark-preview">
+      <div class="ui-sidebar" style="background: #1e1b4b;">
+        <div class="logo">ResumeProfile</div>
+        <div class="nav-item active">Dashboard</div>
+        <div class="nav-item">Profile</div>
+        <div class="nav-item">Analytics</div>
+        <div class="nav-item">Billing</div>
+      </div>
+      <div class="ui-content">
+        <h4>Dashboard</h4>
+        <div class="stat-row">
+          <div class="ui-stat"><div class="label">Views</div><div class="value" style="color:#818CF8;">1,247</div></div>
+          <div class="ui-stat"><div class="label">Contacts</div><div class="value" style="color:#818CF8;">38</div></div>
+          <div class="ui-stat"><div class="label">Score</div><div class="value" style="color:#FBBF24;">87</div></div>
+        </div>
+        <div class="ui-btn" style="background:#4F46E5;">Run AI Review</div>
+        <div class="ui-btn-outline">View Profile</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- THEME 2: Ocean Teal -->
+<div class="theme-card">
+  <div class="theme-header" style="background: linear-gradient(135deg, #0F766E, #0D9488);">
+    <div>
+      <h2>2. Ocean Teal</h2>
+      <div class="tagline">Fresh &amp; Approachable</div>
+    </div>
+    <div class="ui-badge" style="background: #F43F5E;">New</div>
+  </div>
+  <div class="theme-body">
+    <div class="swatch-section">
+      <h3>Primary &amp; Accent</h3>
+      <div class="swatches">
+        <div class="swatch" style="background:#115E59;"><span>#115E59</span></div>
+        <div class="swatch" style="background:#0F766E;"><span>#0F766E</span></div>
+        <div class="swatch" style="background:#0D9488;"><span>#0D9488</span></div>
+        <div class="swatch" style="background:#14B8A6;"><span>#14B8A6</span></div>
+        <div class="swatch" style="background:#5EEAD4;"><span>#5EEAD4</span></div>
+        <div class="swatch" style="background:#F43F5E;"><span>#F43F5E</span></div>
+        <div class="swatch" style="background:#FB7185;"><span>#FB7185</span></div>
+      </div>
+    </div>
+    <div class="swatch-section">
+      <h3>Neutrals (Gray)</h3>
+      <div class="swatches">
+        <div class="swatch light" style="background:#f9fafb;"><span>#F9FAFB</span></div>
+        <div class="swatch light" style="background:#e5e7eb;"><span>#E5E7EB</span></div>
+        <div class="swatch" style="background:#6b7280;"><span>#6B7280</span></div>
+        <div class="swatch" style="background:#374151;"><span>#374151</span></div>
+        <div class="swatch" style="background:#111827;"><span>#111827</span></div>
+      </div>
+    </div>
+    <div class="mode-label">Light Mode</div>
+    <div class="ui-preview">
+      <div class="ui-sidebar" style="background: linear-gradient(180deg, #115E59, #0F766E);">
+        <div class="logo">ResumeProfile</div>
+        <div class="nav-item active">Dashboard</div>
+        <div class="nav-item">Profile</div>
+        <div class="nav-item">Analytics</div>
+        <div class="nav-item">Billing</div>
+      </div>
+      <div class="ui-content">
+        <h4>Dashboard</h4>
+        <div class="stat-row">
+          <div class="ui-stat"><div class="label">Views</div><div class="value" style="color:#0D9488;">1,247</div></div>
+          <div class="ui-stat"><div class="label">Contacts</div><div class="value" style="color:#0D9488;">38</div></div>
+          <div class="ui-stat"><div class="label">Score</div><div class="value" style="color:#F43F5E;">87</div></div>
+        </div>
+        <div class="ui-btn" style="background:#0D9488;">Run AI Review</div>
+        <div class="ui-btn-outline">View Profile</div>
+      </div>
+    </div>
+    <div class="mode-label">Dark Mode</div>
+    <div class="dark-preview">
+      <div class="ui-sidebar" style="background: #042f2e;">
+        <div class="logo">ResumeProfile</div>
+        <div class="nav-item active">Dashboard</div>
+        <div class="nav-item">Profile</div>
+        <div class="nav-item">Analytics</div>
+        <div class="nav-item">Billing</div>
+      </div>
+      <div class="ui-content">
+        <h4>Dashboard</h4>
+        <div class="stat-row">
+          <div class="ui-stat"><div class="label">Views</div><div class="value" style="color:#2DD4BF;">1,247</div></div>
+          <div class="ui-stat"><div class="label">Contacts</div><div class="value" style="color:#2DD4BF;">38</div></div>
+          <div class="ui-stat"><div class="label">Score</div><div class="value" style="color:#FB7185;">87</div></div>
+        </div>
+        <div class="ui-btn" style="background:#0D9488;">Run AI Review</div>
+        <div class="ui-btn-outline">View Profile</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- THEME 3: Emerald Pro -->
+<div class="theme-card">
+  <div class="theme-header" style="background: linear-gradient(135deg, #047857, #059669);">
+    <div>
+      <h2>3. Emerald Pro</h2>
+      <div class="tagline">Clean &amp; Trustworthy</div>
+    </div>
+    <div class="ui-badge" style="background: #7C3AED;">Pro</div>
+  </div>
+  <div class="theme-body">
+    <div class="swatch-section">
+      <h3>Primary &amp; Accent</h3>
+      <div class="swatches">
+        <div class="swatch" style="background:#064E3B;"><span>#064E3B</span></div>
+        <div class="swatch" style="background:#047857;"><span>#047857</span></div>
+        <div class="swatch" style="background:#059669;"><span>#059669</span></div>
+        <div class="swatch" style="background:#10B981;"><span>#10B981</span></div>
+        <div class="swatch" style="background:#6EE7B7;"><span>#6EE7B7</span></div>
+        <div class="swatch" style="background:#7C3AED;"><span>#7C3AED</span></div>
+        <div class="swatch" style="background:#A78BFA;"><span>#A78BFA</span></div>
+      </div>
+    </div>
+    <div class="swatch-section">
+      <h3>Neutrals (Zinc)</h3>
+      <div class="swatches">
+        <div class="swatch light" style="background:#fafafa;"><span>#FAFAFA</span></div>
+        <div class="swatch light" style="background:#e4e4e7;"><span>#E4E4E7</span></div>
+        <div class="swatch" style="background:#71717a;"><span>#71717A</span></div>
+        <div class="swatch" style="background:#3f3f46;"><span>#3F3F46</span></div>
+        <div class="swatch" style="background:#09090b;"><span>#09090B</span></div>
+      </div>
+    </div>
+    <div class="mode-label">Light Mode</div>
+    <div class="ui-preview">
+      <div class="ui-sidebar" style="background: linear-gradient(180deg, #064E3B, #047857);">
+        <div class="logo">ResumeProfile</div>
+        <div class="nav-item active">Dashboard</div>
+        <div class="nav-item">Profile</div>
+        <div class="nav-item">Analytics</div>
+        <div class="nav-item">Billing</div>
+      </div>
+      <div class="ui-content">
+        <h4>Dashboard</h4>
+        <div class="stat-row">
+          <div class="ui-stat"><div class="label">Views</div><div class="value" style="color:#059669;">1,247</div></div>
+          <div class="ui-stat"><div class="label">Contacts</div><div class="value" style="color:#059669;">38</div></div>
+          <div class="ui-stat"><div class="label">Score</div><div class="value" style="color:#7C3AED;">87</div></div>
+        </div>
+        <div class="ui-btn" style="background:#059669;">Run AI Review</div>
+        <div class="ui-btn-outline">View Profile</div>
+      </div>
+    </div>
+    <div class="mode-label">Dark Mode</div>
+    <div class="dark-preview">
+      <div class="ui-sidebar" style="background: #022c22;">
+        <div class="logo">ResumeProfile</div>
+        <div class="nav-item active">Dashboard</div>
+        <div class="nav-item">Profile</div>
+        <div class="nav-item">Analytics</div>
+        <div class="nav-item">Billing</div>
+      </div>
+      <div class="ui-content">
+        <h4>Dashboard</h4>
+        <div class="stat-row">
+          <div class="ui-stat"><div class="label">Views</div><div class="value" style="color:#34D399;">1,247</div></div>
+          <div class="ui-stat"><div class="label">Contacts</div><div class="value" style="color:#34D399;">38</div></div>
+          <div class="ui-stat"><div class="label">Score</div><div class="value" style="color:#A78BFA;">87</div></div>
+        </div>
+        <div class="ui-btn" style="background:#059669;">Run AI Review</div>
+        <div class="ui-btn-outline">View Profile</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- THEME 4: Electric Blue -->
+<div class="theme-card">
+  <div class="theme-header" style="background: linear-gradient(135deg, #1D4ED8, #2563EB);">
+    <div>
+      <h2>4. Electric Blue</h2>
+      <div class="tagline">Modern &amp; Technical</div>
+    </div>
+    <div class="ui-badge" style="background: #06B6D4;">Beta</div>
+  </div>
+  <div class="theme-body">
+    <div class="swatch-section">
+      <h3>Primary &amp; Accent</h3>
+      <div class="swatches">
+        <div class="swatch" style="background:#1E3A8A;"><span>#1E3A8A</span></div>
+        <div class="swatch" style="background:#1D4ED8;"><span>#1D4ED8</span></div>
+        <div class="swatch" style="background:#2563EB;"><span>#2563EB</span></div>
+        <div class="swatch" style="background:#3B82F6;"><span>#3B82F6</span></div>
+        <div class="swatch" style="background:#93C5FD;"><span>#93C5FD</span></div>
+        <div class="swatch" style="background:#06B6D4;"><span>#06B6D4</span></div>
+        <div class="swatch" style="background:#22D3EE;"><span>#22D3EE</span></div>
+      </div>
+    </div>
+    <div class="swatch-section">
+      <h3>Neutrals (Slate)</h3>
+      <div class="swatches">
+        <div class="swatch light" style="background:#f8fafc;"><span>#F8FAFC</span></div>
+        <div class="swatch light" style="background:#e2e8f0;"><span>#E2E8F0</span></div>
+        <div class="swatch" style="background:#64748b;"><span>#64748B</span></div>
+        <div class="swatch" style="background:#334155;"><span>#334155</span></div>
+        <div class="swatch" style="background:#0f172a;"><span>#0F172A</span></div>
+      </div>
+    </div>
+    <div class="mode-label">Light Mode</div>
+    <div class="ui-preview">
+      <div class="ui-sidebar" style="background: linear-gradient(180deg, #1E3A8A, #1D4ED8);">
+        <div class="logo">ResumeProfile</div>
+        <div class="nav-item active">Dashboard</div>
+        <div class="nav-item">Profile</div>
+        <div class="nav-item">Analytics</div>
+        <div class="nav-item">Billing</div>
+      </div>
+      <div class="ui-content">
+        <h4>Dashboard</h4>
+        <div class="stat-row">
+          <div class="ui-stat"><div class="label">Views</div><div class="value" style="color:#2563EB;">1,247</div></div>
+          <div class="ui-stat"><div class="label">Contacts</div><div class="value" style="color:#2563EB;">38</div></div>
+          <div class="ui-stat"><div class="label">Score</div><div class="value" style="color:#06B6D4;">87</div></div>
+        </div>
+        <div class="ui-btn" style="background: linear-gradient(135deg, #2563EB, #06B6D4);">Run AI Review</div>
+        <div class="ui-btn-outline">View Profile</div>
+      </div>
+    </div>
+    <div class="mode-label">Dark Mode</div>
+    <div class="dark-preview">
+      <div class="ui-sidebar" style="background: #0c1929;">
+        <div class="logo">ResumeProfile</div>
+        <div class="nav-item active">Dashboard</div>
+        <div class="nav-item">Profile</div>
+        <div class="nav-item">Analytics</div>
+        <div class="nav-item">Billing</div>
+      </div>
+      <div class="ui-content">
+        <h4>Dashboard</h4>
+        <div class="stat-row">
+          <div class="ui-stat"><div class="label">Views</div><div class="value" style="color:#60A5FA;">1,247</div></div>
+          <div class="ui-stat"><div class="label">Contacts</div><div class="value" style="color:#60A5FA;">38</div></div>
+          <div class="ui-stat"><div class="label">Score</div><div class="value" style="color:#22D3EE;">87</div></div>
+        </div>
+        <div class="ui-btn" style="background: linear-gradient(135deg, #2563EB, #06B6D4);">Run AI Review</div>
+        <div class="ui-btn-outline">View Profile</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- THEME 5: Warm Neutral -->
+<div class="theme-card">
+  <div class="theme-header" style="background: linear-gradient(135deg, #292524, #1C1917);">
+    <div>
+      <h2>5. Warm Neutral</h2>
+      <div class="tagline">Minimal &amp; Elegant</div>
+    </div>
+    <div class="ui-badge" style="background: #EA580C;">Featured</div>
+  </div>
+  <div class="theme-body">
+    <div class="swatch-section">
+      <h3>Primary &amp; Accent</h3>
+      <div class="swatches">
+        <div class="swatch" style="background:#1C1917;"><span>#1C1917</span></div>
+        <div class="swatch" style="background:#292524;"><span>#292524</span></div>
+        <div class="swatch" style="background:#57534E;"><span>#57534E</span></div>
+        <div class="swatch" style="background:#78716C;"><span>#78716C</span></div>
+        <div class="swatch" style="background:#A8A29E;"><span>#A8A29E</span></div>
+        <div class="swatch" style="background:#EA580C;"><span>#EA580C</span></div>
+        <div class="swatch" style="background:#FB923C;"><span>#FB923C</span></div>
+      </div>
+    </div>
+    <div class="swatch-section">
+      <h3>Neutrals (Stone)</h3>
+      <div class="swatches">
+        <div class="swatch light" style="background:#fafaf9;"><span>#FAFAF9</span></div>
+        <div class="swatch light" style="background:#e7e5e4;"><span>#E7E5E4</span></div>
+        <div class="swatch" style="background:#78716c;"><span>#78716C</span></div>
+        <div class="swatch" style="background:#44403c;"><span>#44403C</span></div>
+        <div class="swatch" style="background:#1c1917;"><span>#1C1917</span></div>
+      </div>
+    </div>
+    <div class="mode-label">Light Mode</div>
+    <div class="ui-preview">
+      <div class="ui-sidebar" style="background: #1C1917;">
+        <div class="logo">ResumeProfile</div>
+        <div class="nav-item active">Dashboard</div>
+        <div class="nav-item">Profile</div>
+        <div class="nav-item">Analytics</div>
+        <div class="nav-item">Billing</div>
+      </div>
+      <div class="ui-content" style="background: #fafaf9;">
+        <h4>Dashboard</h4>
+        <div class="stat-row">
+          <div class="ui-stat" style="border-color:#d6d3d1;"><div class="label">Views</div><div class="value" style="color:#1C1917;">1,247</div></div>
+          <div class="ui-stat" style="border-color:#d6d3d1;"><div class="label">Contacts</div><div class="value" style="color:#1C1917;">38</div></div>
+          <div class="ui-stat" style="border-color:#d6d3d1;"><div class="label">Score</div><div class="value" style="color:#EA580C;">87</div></div>
+        </div>
+        <div class="ui-btn" style="background:#1C1917;">Run AI Review</div>
+        <div class="ui-btn" style="background:#EA580C; margin-left: 8px;">Upgrade</div>
+      </div>
+    </div>
+    <div class="mode-label">Dark Mode</div>
+    <div class="dark-preview">
+      <div class="ui-sidebar" style="background: #0c0a09;">
+        <div class="logo">ResumeProfile</div>
+        <div class="nav-item active">Dashboard</div>
+        <div class="nav-item">Profile</div>
+        <div class="nav-item">Analytics</div>
+        <div class="nav-item">Billing</div>
+      </div>
+      <div class="ui-content" style="background: #1C1917;">
+        <h4>Dashboard</h4>
+        <div class="stat-row">
+          <div class="ui-stat" style="background:#292524; border-color:#44403c;"><div class="label">Views</div><div class="value" style="color:#fafaf9;">1,247</div></div>
+          <div class="ui-stat" style="background:#292524; border-color:#44403c;"><div class="label">Contacts</div><div class="value" style="color:#fafaf9;">38</div></div>
+          <div class="ui-stat" style="background:#292524; border-color:#44403c;"><div class="label">Score</div><div class="value" style="color:#FB923C;">87</div></div>
+        </div>
+        <div class="ui-btn" style="background:#fafaf9; color:#1C1917;">Run AI Review</div>
+        <div class="ui-btn" style="background:#EA580C; margin-left: 8px;">Upgrade</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<div style="text-align:center; padding: 40px 20px; color: #a1a1aa; font-size: 13px;">
+  Open this file in your browser to see all themes. Pick a number (1-5) or mix elements!
+</div>
+
+</body>
+</html>

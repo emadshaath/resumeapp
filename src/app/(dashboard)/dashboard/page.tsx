@@ -66,7 +66,7 @@ export default async function DashboardPage() {
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Profile</CardTitle>
-              <User className="h-4 w-4 text-zinc-500" />
+              <User className="h-4 w-4 text-brand" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
@@ -83,7 +83,7 @@ export default async function DashboardPage() {
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Sections</CardTitle>
-              <Layers className="h-4 w-4 text-zinc-500" />
+              <Layers className="h-4 w-4 text-brand" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{sectionCount || 0}</div>
@@ -96,7 +96,7 @@ export default async function DashboardPage() {
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">AI Review</CardTitle>
-              <Sparkles className="h-4 w-4 text-zinc-500" />
+              <Sparkles className="h-4 w-4 text-brand" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">Ready</div>
@@ -109,7 +109,7 @@ export default async function DashboardPage() {
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Visitors</CardTitle>
-              <BarChart3 className="h-4 w-4 text-zinc-500" />
+              <BarChart3 className="h-4 w-4 text-brand" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">--</div>

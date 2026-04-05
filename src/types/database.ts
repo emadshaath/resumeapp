@@ -146,6 +146,98 @@ export interface PageView {
   viewed_at: string;
 }
 
+export interface AIReview {
+  id: string;
+  profile_id: string;
+  review_type: "full" | "section";
+  overall_score: number | null;
+  ats_score: number | null;
+  recommendations: Record<string, unknown>;
+  model_used: string | null;
+  tokens_used: number | null;
+  created_at: string;
+}
+
+export interface PlatformPhone {
+  id: string;
+  profile_id: string;
+  phone_number: string;
+  twilio_sid: string;
+  friendly_name: string | null;
+  routing_mode: "forward" | "voicemail" | "both";
+  forward_to: string | null;
+  custom_greeting_url: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VoicemailRecord {
+  id: string;
+  profile_id: string;
+  phone_id: string;
+  caller_number: string;
+  caller_city: string | null;
+  caller_state: string | null;
+  caller_country: string | null;
+  call_sid: string;
+  recording_url: string | null;
+  recording_sid: string | null;
+  recording_duration: number | null;
+  transcription: string | null;
+  transcription_status: "pending" | "completed" | "failed";
+  is_read: boolean;
+  is_spam: boolean;
+  created_at: string;
+}
+
+export interface ProfileSnapshot {
+  id: string;
+  profile_id: string;
+  label: string;
+  snapshot_type: "manual" | "auto_linkedin" | "auto_job_optimizer" | "auto_variant" | "auto_restore";
+  snapshot_data: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export type JobStatus = "saved" | "applied" | "screening" | "interview" | "offer" | "accepted" | "rejected" | "withdrawn";
+export type RemoteType = "onsite" | "remote" | "hybrid";
+
+export interface JobApplication {
+  id: string;
+  profile_id: string;
+  company_name: string;
+  job_title: string;
+  job_url: string | null;
+  status: JobStatus;
+  applied_date: string | null;
+  source: string;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_currency: string;
+  location: string | null;
+  remote_type: RemoteType | null;
+  parsed_data: Record<string, unknown>;
+  match_score: number | null;
+  notes: string | null;
+  follow_up_date: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  resume_variant: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface JobApplicationEvent {
+  id: string;
+  job_application_id: string;
+  from_status: string | null;
+  to_status: string;
+  notes: string | null;
+  created_at: string;
+}
+
 export interface SeoSettings {
   id: string;
   profile_id: string;
