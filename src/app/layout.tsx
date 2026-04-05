@@ -4,8 +4,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "ResumeProfile - Your Professional Identity, Secured",
-    template: "%s | ResumeProfile",
+    default: "rezm.ai - Your Professional Identity, Secured",
+    template: "%s | rezm.ai",
   },
   description:
     "Create a professional resume profile with a custom subdomain, secure communication channels, AI-powered review, and built-in visitor analytics.",

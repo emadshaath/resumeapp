@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://resumeprofile.com";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://rezm.ai";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 3600; // Regenerate every hour

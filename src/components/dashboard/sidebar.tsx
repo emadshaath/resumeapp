@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { RezmaiLogo } from "@/components/rezmai-logo";
 import {
   User,
   LayoutDashboard,
@@ -103,8 +104,9 @@ export function Sidebar() {
   return (
     <div className="hidden md:flex h-full w-64 shrink-0 flex-col bg-sidebar-bg">
       <div className="flex h-16 items-center border-b border-sidebar-border px-6">
-        <Link href="/" className="text-lg font-bold tracking-tight text-sidebar-logo">
-          ResumeProfile
+        <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight text-sidebar-logo">
+          <RezmaiLogo size={24} />
+          rezm.ai
         </Link>
       </div>
       <SidebarContent />
@@ -136,8 +138,9 @@ export function MobileNav() {
     <>
       {/* Mobile top bar */}
       <div className="md:hidden flex items-center justify-between h-14 border-b border-border bg-background px-4 shrink-0">
-        <Link href="/" className="text-lg font-bold tracking-tight text-brand">
-          ResumeProfile
+        <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight text-brand">
+          <RezmaiLogo size={24} />
+          rezm.ai
         </Link>
         <button
           onClick={() => setOpen(true)}
@@ -164,8 +167,9 @@ export function MobileNav() {
         )}
       >
         <div className="flex h-14 items-center justify-between border-b border-sidebar-border px-4">
-          <Link href="/" className="text-lg font-bold tracking-tight text-sidebar-logo" onClick={() => setOpen(false)}>
-            ResumeProfile
+          <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight text-sidebar-logo" onClick={() => setOpen(false)}>
+            <RezmaiLogo size={24} />
+            rezm.ai
           </Link>
           <button
             onClick={() => setOpen(false)}

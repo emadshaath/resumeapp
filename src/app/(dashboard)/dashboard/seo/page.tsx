@@ -155,13 +155,13 @@ export default function SeoPage() {
           <CardContent>
             <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-4 bg-white dark:bg-zinc-900">
               <p className="text-sm text-green-700 dark:text-green-400 truncate">
-                {profileSlug}.resumeprofile.com
+                {profileSlug}.rezm.ai
               </p>
               <p className="text-lg text-brand font-medium mt-0.5 truncate">
-                {seo.meta_title || `${profileName} | ResumeProfile`}
+                {seo.meta_title || `${profileName} | rezm.ai`}
               </p>
               <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1 line-clamp-2">
-                {seo.meta_description || `${profileName}'s professional profile on ResumeProfile`}
+                {seo.meta_description || `${profileName}'s professional profile on rezm.ai`}
               </p>
             </div>
           </CardContent>
@@ -190,7 +190,7 @@ export default function SeoPage() {
                 </div>
               )}
               <div className="p-3">
-                <p className="text-xs text-zinc-500 uppercase">resumeprofile.com</p>
+                <p className="text-xs text-zinc-500 uppercase">rezm.ai</p>
                 <p className="font-medium text-sm mt-0.5 truncate">
                   {seo.meta_title || profileName}
                 </p>

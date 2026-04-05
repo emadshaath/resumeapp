@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     const redirectTo = email_data.redirect_to || process.env.NEXT_PUBLIC_APP_URL;
 
     // Build confirmation/action URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://resumeprofile.com";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://rezm.ai";
     const actionUrl = `${baseUrl}/callback?token_hash=${tokenHash}&type=${emailActionType}&redirect_to=${encodeURIComponent(redirectTo)}`;
 
     switch (emailActionType) {

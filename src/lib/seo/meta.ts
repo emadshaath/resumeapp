@@ -1,7 +1,7 @@
 import type { Profile } from "@/types/database";
 import type { Metadata } from "next";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://resumeprofile.com";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://rezm.ai";
 
 export function generateProfileMetadata(
   profile: Profile,
@@ -17,7 +17,7 @@ export function generateProfileMetadata(
   const description =
     seoOverrides?.meta_description ||
     profile.headline ||
-    `${fullName}'s professional profile on ResumeProfile`;
+    `${fullName}'s professional profile on rezm.ai`;
   const profileUrl = `${APP_URL}/p/${profile.slug}`;
   const ogImage = seoOverrides?.og_image_url || `${APP_URL}/api/og/${profile.slug}`;
 
@@ -36,7 +36,7 @@ export function generateProfileMetadata(
       title,
       description,
       url: profileUrl,
-      siteName: "ResumeProfile",
+      siteName: "rezm.ai",
       type: "profile",
       images: [
         {

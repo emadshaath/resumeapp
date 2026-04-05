@@ -15,8 +15,8 @@ export function getResend(): Resend {
 
 // Default from address — must match a verified domain in Resend
 export const EMAIL_FROM =
-  process.env.EMAIL_FROM_ADDRESS || "ResumeProfile <noreply@resumeprofile.com>";
+  process.env.EMAIL_FROM_ADDRESS || "rezm.ai <noreply@rezm.ai>";
 
 // Domain for platform emails (user@domain)
 export const EMAIL_DOMAIN =
-  process.env.EMAIL_DOMAIN || "resumeprofile.com";
+  process.env.EMAIL_DOMAIN || "rezm.ai";

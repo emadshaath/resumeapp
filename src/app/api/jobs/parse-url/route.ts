@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; ResumeProfile/1.0)",
+        "User-Agent": "Mozilla/5.0 (compatible; rezm.ai/1.0)",
         "Accept": "text/html",
       },
     });
