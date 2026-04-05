@@ -25,12 +25,30 @@ export default async function DashboardPage() {
     .eq("profile_id", user.id);
 
   if (!profile) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <h2 className="text-xl font-semibold">Setting up your profile...</h2>
-        <p className="mt-2 text-zinc-500">Please refresh in a moment.</p>
-      </div>
-    );
+    // Auto-create profile if it doesn't exist (trigger may have failed)
+    const firstName = user.user_metadata?.first_name || user.email?.split("@")[0] || "User";
+    const lastName = user.user_metadata?.last_name || "";
+    const slug = user.user_metadata?.slug || firstName.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+
+    const { error: insertError } = await supabase.from("profiles").insert({
+      id: user.id,
+      slug,
+      first_name: firstName,
+      last_name: lastName,
+      email: user.email!,
+    });
+
+    if (insertError) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20">
+          <h2 className="text-xl font-semibold">Setting up your profile...</h2>
+          <p className="mt-2 text-zinc-500">There was an issue creating your profile. Please try refreshing.</p>
+        </div>
+      );
+    }
+
+    // Redirect to reload with the new profile
+    redirect("/dashboard");
   }
 
   const profileUrl = `${process.env.NEXT_PUBLIC_APP_URL}/p/${profile.slug}`;

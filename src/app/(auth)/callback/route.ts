@@ -32,17 +32,34 @@ export async function GET(request: Request) {
       if (type === "recovery") {
         return NextResponse.redirect(`${origin}/dashboard/settings`);
       }
-      // For signup confirmations, send welcome email
+      // For signup confirmations, ensure profile exists and send welcome email
       if (type === "signup" || type === "email") {
         try {
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
-            const { sendWelcomeEmail } = await import("@/lib/resend/send");
             const firstName =
               user.user_metadata?.first_name ||
               user.email?.split("@")[0] || "there";
             const slug = user.user_metadata?.slug || firstName.toLowerCase();
 
+            // Ensure profile exists (fallback if trigger didn't fire)
+            const { data: existingProfile } = await supabase
+              .from("profiles")
+              .select("id")
+              .eq("id", user.id)
+              .single();
+
+            if (!existingProfile) {
+              await supabase.from("profiles").insert({
+                id: user.id,
+                slug,
+                first_name: user.user_metadata?.first_name || firstName,
+                last_name: user.user_metadata?.last_name || "",
+                email: user.email!,
+              });
+            }
+
+            const { sendWelcomeEmail } = await import("@/lib/resend/send");
             await sendWelcomeEmail({
               to: user.email!,
               firstName,
