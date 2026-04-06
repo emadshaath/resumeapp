@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { MapPin, Globe, Briefcase, GraduationCap, Wrench, Award, FolderOpen, ExternalLink, MessageSquare } from "lucide-react";
 import { generatePersonJsonLd, generateBreadcrumbJsonLd } from "@/lib/seo/json-ld";
 import { generateProfileMetadata } from "@/lib/seo/meta";
+import { THEME_CSS_VARS, DEFAULT_THEME } from "@/lib/themes";
 import { ContactForm } from "@/components/profile/contact-form";
 import { VisitorTracker } from "@/components/profile/visitor-tracker";
 import { PdfDownloadButton } from "@/components/profile/pdf-download-button";
@@ -108,13 +109,20 @@ export default async function PublicProfilePage({ params }: PageProps) {
 
   const { profile, sections, experiences, educations, skills, certifications, projects, customSections, seoSettings, pdfSettings } = data;
   const fullName = `${profile.first_name} ${profile.last_name}`;
+  const themeColors = THEME_CSS_VARS[profile.profile_theme] || THEME_CSS_VARS[DEFAULT_THEME];
 
   // Generate JSON-LD structured data
   const personJsonLd = generatePersonJsonLd(profile, experiences, educations, skills, certifications);
   const breadcrumbJsonLd = generateBreadcrumbJsonLd(profile);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-zinc-950">
+    <div
+      className="min-h-screen bg-white dark:bg-zinc-950"
+      style={{
+        "--hero-from": themeColors.heroFrom,
+        "--hero-to": themeColors.heroTo,
+      } as React.CSSProperties}
+    >
       {/* Visitor Tracking */}
       <VisitorTracker profileId={profile.id} />
 
@@ -139,7 +147,10 @@ export default async function PublicProfilePage({ params }: PageProps) {
                 className="h-28 w-28 rounded-full object-cover border-3 border-zinc-600 shadow-lg"
               />
             ) : (
-              <div className="h-28 w-28 rounded-full bg-zinc-700 flex items-center justify-center text-3xl font-bold text-zinc-300 shadow-lg">
+              <div
+                className="h-28 w-28 rounded-full flex items-center justify-center text-3xl font-bold text-white/90 shadow-lg"
+                style={{ background: `linear-gradient(135deg, ${themeColors.heroFrom}, ${themeColors.heroTo})`, border: "2px solid rgba(255,255,255,0.2)" }}
+              >
                 {profile.first_name[0]}{profile.last_name[0]}
               </div>
             )}

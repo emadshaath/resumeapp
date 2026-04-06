@@ -174,7 +174,7 @@ export default function CommunicationPage() {
               <p className="text-sm text-zinc-500 mb-4">
                 Platform email is available on Pro and Premium plans.
               </p>
-              <Button variant="outline" onClick={() => router.push("/dashboard/billing")}>
+              <Button variant="outline" onClick={() => router.push("/dashboard/settings?tab=billing")}>
                 Upgrade Plan
               </Button>
             </div>

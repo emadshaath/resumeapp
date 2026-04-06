@@ -17,8 +17,10 @@ export interface Profile {
   headline: string | null;
   email: string;
   avatar_url: string | null;
+  profile_theme: string;
   location: string | null;
   website_url: string | null;
+  linkedin_url: string | null;
   phone_personal: string | null;
   tier: Tier;
   stripe_customer_id: string | null;

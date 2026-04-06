@@ -190,7 +190,7 @@ export default function PhonePage() {
               <p className="text-sm text-zinc-500 mb-4">
                 Platform phone numbers are available on the Premium plan.
               </p>
-              <Button variant="outline" onClick={() => router.push("/dashboard/billing")}>
+              <Button variant="outline" onClick={() => router.push("/dashboard/settings?tab=billing")}>
                 Upgrade to Premium
               </Button>
             </div>

@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { THEME_CSS_VARS, DEFAULT_THEME } from "@/lib/themes";
 
 export const runtime = "edge";
 
@@ -12,7 +13,7 @@ export async function GET(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("first_name, last_name, headline, location, slug")
+    .select("first_name, last_name, headline, location, slug, profile_theme")
     .eq("slug", slug)
     .single();
 
@@ -24,6 +25,7 @@ export async function GET(
   const initials = profile
     ? `${profile.first_name[0]}${profile.last_name[0]}`
     : slug[0]?.toUpperCase() ?? "?";
+  const themeColors = THEME_CSS_VARS[profile?.profile_theme ?? ""] || THEME_CSS_VARS[DEFAULT_THEME];
 
   return new ImageResponse(
     (
@@ -33,7 +35,7 @@ export async function GET(
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          background: "linear-gradient(135deg, #312E81 0%, #4F46E5 50%, #6366F1 100%)",
+          background: `linear-gradient(135deg, ${themeColors.heroFrom} 0%, ${themeColors.heroTo} 50%, ${themeColors.brand} 100%)`,
           fontFamily: "system-ui, sans-serif",
           padding: 60,
         }}

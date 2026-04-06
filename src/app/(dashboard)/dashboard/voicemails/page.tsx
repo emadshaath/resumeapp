@@ -120,7 +120,7 @@ export default function VoicemailsPage() {
             <p className="text-sm text-zinc-500 mt-1 max-w-md text-center">
               Voicemail with transcription is available on the Premium plan.
             </p>
-            <Button variant="outline" className="mt-4" onClick={() => router.push("/dashboard/billing")}>
+            <Button variant="outline" className="mt-4" onClick={() => router.push("/dashboard/settings?tab=billing")}>
               Upgrade to Premium
             </Button>
           </CardContent>
