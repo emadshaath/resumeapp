@@ -18,6 +18,7 @@ import {
   Search,
   MessageSquare,
   Briefcase,
+  Link2,
   Menu,
   X,
   ChevronDown,
@@ -42,6 +43,7 @@ const navigation: NavEntry[] = [
     items: [
       { name: "Profile", href: "/dashboard/profile", icon: User },
       { name: "Resume", href: "/dashboard/sections", icon: Layers },
+      { name: "LinkedIn Sync", href: "/dashboard/sections?open=linkedin", icon: Link2 },
     ],
   },
   {

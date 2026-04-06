@@ -28,6 +28,7 @@ import {
   Sparkles,
   Download,
   History,
+  Link2,
 } from "lucide-react";
 import type { ResumeSection, SectionType } from "@/types/database";
 import { SectionContentEditor } from "@/components/dashboard/section-editor";
@@ -35,6 +36,7 @@ import { ImportResumeDialog } from "@/components/dashboard/import-resume-dialog"
 import { PdfResumeDrawer } from "@/components/dashboard/pdf-resume-drawer";
 import { AIReviewDrawer } from "@/components/dashboard/ai-review-drawer";
 import { VersionHistoryDrawer } from "@/components/dashboard/version-history-drawer";
+import { LinkedInAnalyzerDrawer } from "@/components/dashboard/linkedin-analyzer-drawer";
 
 const SECTION_TYPES: { value: SectionType; label: string; icon: React.ElementType }[] = [
   { value: "summary", label: "Professional Summary", icon: AlignLeft },
@@ -60,6 +62,7 @@ export default function SectionsPage() {
   const [pdfOpen, setPdfOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [linkedinOpen, setLinkedinOpen] = useState(false);
 
   // Handle query params for deep linking (e.g. ?import=true)
   useEffect(() => {
@@ -68,6 +71,7 @@ export default function SectionsPage() {
     else if (param === "pdf") setPdfOpen(true);
     else if (param === "review") setReviewOpen(true);
     else if (param === "history") setHistoryOpen(true);
+    else if (param === "linkedin") setLinkedinOpen(true);
   }, [searchParams]);
 
   const loadSections = useCallback(async () => {
@@ -180,6 +184,11 @@ export default function SectionsPage() {
           <Download className="h-4 w-4 mr-1" />
           <span className="hidden sm:inline">Download PDF</span>
           <span className="sm:hidden">PDF</span>
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => setLinkedinOpen(true)}>
+          <Link2 className="h-4 w-4 mr-1" />
+          <span className="hidden sm:inline">LinkedIn Sync</span>
+          <span className="sm:hidden">LinkedIn</span>
         </Button>
         <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)}>
           <History className="h-4 w-4 mr-1" />
@@ -318,6 +327,11 @@ export default function SectionsPage() {
       />
       <PdfResumeDrawer open={pdfOpen} onClose={() => setPdfOpen(false)} />
       <AIReviewDrawer open={reviewOpen} onClose={() => setReviewOpen(false)} />
+      <LinkedInAnalyzerDrawer
+        open={linkedinOpen}
+        onClose={() => setLinkedinOpen(false)}
+        onApplyComplete={loadSections}
+      />
       <VersionHistoryDrawer open={historyOpen} onClose={() => setHistoryOpen(false)} />
     </div>
   );
