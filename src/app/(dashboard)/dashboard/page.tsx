@@ -24,6 +24,10 @@ export default async function DashboardPage() {
     .select("*", { count: "exact", head: true })
     .eq("profile_id", user.id);
 
+  if (profile && !profile.onboarding_completed) {
+    redirect("/dashboard/onboarding");
+  }
+
   if (!profile) {
     // Auto-create profile if it doesn't exist (trigger may have failed)
     const firstName = user.user_metadata?.first_name || user.email?.split("@")[0] || "User";

@@ -24,6 +24,7 @@ export interface Profile {
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   is_published: boolean;
+  onboarding_completed: boolean;
   created_at: string;
   updated_at: string;
 }
