@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { RezmaiLogo } from "@/components/rezmai-logo";
 
+export const dynamic = "force-dynamic";
+
 export default function AuthLayout({
   children,
 }: {

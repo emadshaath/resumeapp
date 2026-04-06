@@ -26,7 +26,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "pro",
     name: "Pro",
     price: 12,
-    stripePriceId: process.env.STRIPE_PRO_PRICE_ID || "",
+    stripePriceId: process.env.STRIPE_PRO_PRICE_ID || null,
     features: [
       "Everything in Free",
       "Unlimited resume sections",
@@ -42,7 +42,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "premium",
     name: "Premium",
     price: 29,
-    stripePriceId: process.env.STRIPE_PREMIUM_PRICE_ID || "",
+    stripePriceId: process.env.STRIPE_PREMIUM_PRICE_ID || null,
     features: [
       "Everything in Pro",
       "Unlimited AI reviews",

@@ -102,7 +102,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 /** Desktop sidebar — hidden on mobile */
 export function Sidebar() {
   return (
-    <div className="hidden md:flex h-full w-64 shrink-0 flex-col bg-sidebar-bg">
+    <div className="hidden md:flex sticky top-0 h-screen w-64 shrink-0 flex-col bg-sidebar-bg">
       <div className="flex h-16 items-center border-b border-sidebar-border px-6">
         <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight text-sidebar-logo">
           <RezmaiLogo size={24} />
