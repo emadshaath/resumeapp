@@ -95,16 +95,41 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Get existing sections to determine display_order offset
+    // Get existing sections to reuse or determine display_order offset
     const { data: existingSections } = await supabase
       .from("resume_sections")
       .select("id, section_type")
       .eq("profile_id", user.id);
 
+    const existingByType = new Map<string, string>();
+    for (const s of existingSections || []) {
+      existingByType.set(s.section_type, s.id);
+    }
+
     let sectionOrder = existingSections?.length || 0;
 
-    // Helper to create a section and return its ID
-    async function createSection(type: SectionType, title: string): Promise<string | null> {
+    // Content tables keyed by section type
+    const contentTables: Record<string, string> = {
+      summary: "custom_sections",
+      experience: "experiences",
+      education: "educations",
+      skills: "skills",
+      certifications: "certifications",
+      projects: "projects",
+    };
+
+    // Helper: reuse existing section or create new one.
+    // When reusing, deletes old child rows so the import fully replaces them.
+    async function getOrCreateSection(type: SectionType, title: string): Promise<string | null> {
+      const existingId = existingByType.get(type);
+      if (existingId) {
+        const table = contentTables[type];
+        if (table) {
+          await supabase.from(table).delete().eq("section_id", existingId);
+        }
+        return existingId;
+      }
+
       const { data: sec, error } = await supabase
         .from("resume_sections")
         .insert({
@@ -125,7 +150,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Summary
     if (data.summary) {
-      const sectionId = await createSection("summary", "Professional Summary");
+      const sectionId = await getOrCreateSection("summary", "Professional Summary");
       if (sectionId) {
         await supabase.from("custom_sections").insert({
           section_id: sectionId,
@@ -139,7 +164,7 @@ export async function POST(req: NextRequest) {
 
     // 3. Experiences
     if (data.experiences && data.experiences.length > 0) {
-      const sectionId = await createSection("experience", "Work Experience");
+      const sectionId = await getOrCreateSection("experience", "Work Experience");
       if (sectionId) {
         const rows = data.experiences.map((exp, i) => ({
           section_id: sectionId,
@@ -161,7 +186,7 @@ export async function POST(req: NextRequest) {
 
     // 4. Education
     if (data.educations && data.educations.length > 0) {
-      const sectionId = await createSection("education", "Education");
+      const sectionId = await getOrCreateSection("education", "Education");
       if (sectionId) {
         const rows = data.educations.map((edu, i) => ({
           section_id: sectionId,
@@ -184,7 +209,7 @@ export async function POST(req: NextRequest) {
 
     // 5. Skills
     if (data.skills && data.skills.length > 0) {
-      const sectionId = await createSection("skills", "Skills");
+      const sectionId = await getOrCreateSection("skills", "Skills");
       if (sectionId) {
         const validProficiencies = ["beginner", "intermediate", "advanced", "expert"];
         const rows = data.skills.map((skill, i) => ({
@@ -204,7 +229,7 @@ export async function POST(req: NextRequest) {
 
     // 6. Certifications
     if (data.certifications && data.certifications.length > 0) {
-      const sectionId = await createSection("certifications", "Certifications");
+      const sectionId = await getOrCreateSection("certifications", "Certifications");
       if (sectionId) {
         const rows = data.certifications.map((cert, i) => ({
           section_id: sectionId,
@@ -223,7 +248,7 @@ export async function POST(req: NextRequest) {
 
     // 7. Projects
     if (data.projects && data.projects.length > 0) {
-      const sectionId = await createSection("projects", "Projects");
+      const sectionId = await getOrCreateSection("projects", "Projects");
       if (sectionId) {
         const rows = data.projects.map((proj, i) => ({
           section_id: sectionId,
