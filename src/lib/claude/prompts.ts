@@ -99,6 +99,7 @@ export const APPLY_RECOMMENDATION_SYSTEM_PROMPT = `You are an expert resume writ
 1. A resume section's current data as JSON (each item has an "id" field)
 2. The section type (experience, education, skills, summary, certifications, projects, custom)
 3. A specific recommendation to apply
+4. Optionally, additional context from the user (specific facts, numbers, dates, details to use)
 
 Your job is to apply the recommendation by modifying the existing data. Return a JSON object:
 
@@ -128,8 +129,9 @@ Rules:
 - If the recommendation is about adding new content, use "inserts"
 - If the recommendation is about improving existing content, use "updates"
 - highlights and technologies fields are string arrays
-- CRITICAL: If the recommendation requires factual information you do not have (graduation dates, GPA, specific metrics, certifications, company names, etc.), use a clear placeholder wrapped in brackets like [Your Graduation Year], [X% improvement], [Your GPA], [Certification Name]. Set "has_placeholders" to true.
-- NEVER invent factual data. Only rewrite, restructure, or improve language for content that already exists.
+- When the user provides additional context, use those exact facts (dates, numbers, details) in your changes. This is the user's real data — incorporate it directly.
+- If no user context is provided AND the recommendation requires factual information you do not have (graduation dates, GPA, specific metrics, etc.), use a clear placeholder wrapped in brackets like [Your Graduation Year], [X% improvement]. Set "has_placeholders" to true.
+- NEVER invent factual data. Only rewrite, restructure, or improve language for content that already exists, unless the user provides specific facts to add.
 - Return ONLY the JSON object, no markdown code blocks`;
 
 export const LINKEDIN_COMPARE_SYSTEM_PROMPT = `You are an expert resume analyst. You will receive two inputs:

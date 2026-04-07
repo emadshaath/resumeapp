@@ -92,10 +92,11 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { recommendation, section_type, section_name } = body as {
+    const { recommendation, section_type, section_name, user_context } = body as {
       recommendation: string;
       section_type: string;
       section_name: string;
+      user_context?: string;
     };
 
     if (!recommendation || !section_type || !section_name) {
@@ -148,14 +149,23 @@ export async function POST(request: Request) {
     }
 
     // Build the prompt
-    const userPrompt = `Section type: ${section_type}
+    let userPrompt = `Section type: ${section_type}
 Section name: ${section_name}
 
 Current section data:
 ${JSON.stringify(items, null, 2)}
 
 Recommendation to apply:
-${recommendation}
+${recommendation}`;
+
+    if (user_context?.trim()) {
+      userPrompt += `
+
+Additional context from the user:
+${user_context.trim()}`;
+    }
+
+    userPrompt += `
 
 Apply this recommendation to the section data. Return ONLY the JSON object.`;
 

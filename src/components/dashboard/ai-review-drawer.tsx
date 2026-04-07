@@ -6,6 +6,7 @@ import { SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/compo
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Sparkles,
   RefreshCw,
@@ -232,11 +233,27 @@ function SectionCard({
   canApply?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [contextInputs, setContextInputs] = useState<Record<number, string>>({});
   const [applyingIndex, setApplyingIndex] = useState<number | null>(null);
-  const [appliedResults, setAppliedResults] = useState<Record<number, { changes: string[]; hasPlaceholders: boolean }>>(
+  const [appliedResults, setAppliedResults] = useState<Record<number, { changes: string[] }>>(
     {}
   );
   const [applyError, setApplyError] = useState<string | null>(null);
+
+  function openContextInput(index: number) {
+    setActiveIndex(index);
+    setApplyError(null);
+  }
+
+  function cancelContext(index: number) {
+    setActiveIndex(null);
+    setContextInputs((prev) => {
+      const next = { ...prev };
+      delete next[index];
+      return next;
+    });
+  }
 
   async function applyRecommendation(rec: string, index: number) {
     setApplyingIndex(index);
@@ -250,6 +267,7 @@ function SectionCard({
           recommendation: rec,
           section_type: section.section_type,
           section_name: section.section_name,
+          user_context: contextInputs[index]?.trim() || "",
         }),
       });
 
@@ -264,9 +282,9 @@ function SectionCard({
         ...prev,
         [index]: {
           changes: data.changes_summary || [data.explanation],
-          hasPlaceholders: data.has_placeholders || false,
         },
       }));
+      setActiveIndex(null);
       onSectionUpdate?.();
     } catch {
       setApplyError("Network error. Please try again.");
@@ -293,10 +311,11 @@ function SectionCard({
             <p className="text-xs text-red-500">{applyError}</p>
           )}
           {section.recommendations.length > 0 && (
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {section.recommendations.map((rec, i) => {
                 const isApplying = applyingIndex === i;
                 const applied = appliedResults[i];
+                const isActive = activeIndex === i;
 
                 return (
                   <li key={i} className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -315,25 +334,52 @@ function SectionCard({
                               {change}
                             </p>
                           ))}
-                          {applied.hasPlaceholders && (
-                            <p className="text-xs text-amber-600 dark:text-amber-400 ml-4 font-medium">
-                              Contains [placeholders] — edit the section to fill in your actual details.
-                            </p>
-                          )}
+                        </div>
+                      ) : isActive ? (
+                        <div className="space-y-2 rounded-md border border-zinc-200 dark:border-zinc-700 p-2.5 bg-white dark:bg-zinc-800">
+                          <Textarea
+                            placeholder="Add context to help AI apply this better (e.g. &quot;Graduated in 2021&quot;, &quot;Increased revenue by 30%&quot;). Leave empty to let AI improve the writing."
+                            rows={2}
+                            value={contextInputs[i] || ""}
+                            onChange={(e) =>
+                              setContextInputs((prev) => ({ ...prev, [i]: e.target.value }))
+                            }
+                            className="text-xs resize-none"
+                            disabled={isApplying}
+                          />
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs px-3"
+                              disabled={isApplying || applyingIndex !== null}
+                              onClick={() => applyRecommendation(rec, i)}
+                            >
+                              {isApplying ? (
+                                <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Applying...</>
+                              ) : (
+                                <><Play className="h-3 w-3 mr-1" />Apply</>
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs px-2"
+                              disabled={isApplying}
+                              onClick={() => cancelContext(i)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
                         </div>
                       ) : canApply ? (
                         <Button
                           variant="outline"
                           size="sm"
                           className="h-7 text-xs px-2.5"
-                          disabled={isApplying || applyingIndex !== null}
-                          onClick={() => applyRecommendation(rec, i)}
+                          disabled={applyingIndex !== null}
+                          onClick={() => openContextInput(i)}
                         >
-                          {isApplying ? (
-                            <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Applying...</>
-                          ) : (
-                            <><Play className="h-3 w-3 mr-1" />Apply</>
-                          )}
+                          <Play className="h-3 w-3 mr-1" />Apply
                         </Button>
                       ) : (
                         <Badge variant="secondary" className="text-xs font-normal">
