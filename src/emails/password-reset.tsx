@@ -25,10 +25,10 @@ export function PasswordResetEmail({ firstName, resetUrl }: PasswordResetEmailPr
       <Text style={baseStyles.text}>
         Or copy and paste this URL into your browser:
       </Text>
-      <Text style={{ ...baseStyles.text, fontSize: "13px", color: "#71717a", wordBreak: "break-all" as const }}>
+      <Text style={{ ...baseStyles.text, ...baseStyles.urlText }}>
         {resetUrl}
       </Text>
-      <Text style={{ ...baseStyles.text, color: "#a1a1aa", fontSize: "13px" }}>
+      <Text style={{ ...baseStyles.text, ...baseStyles.muted }}>
         This link expires in 1 hour. If you didn&apos;t request a password reset,
         you can safely ignore this email. Your password will remain unchanged.
       </Text>

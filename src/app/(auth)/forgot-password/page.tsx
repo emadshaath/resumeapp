@@ -2,30 +2,27 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { forgotPasswordAction } from "../actions";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
-  const supabase = createClient();
 
   async function handleReset(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/callback?type=recovery`,
-    });
+    const result = await forgotPasswordAction({ email });
 
-    if (error) {
-      setError(error.message);
+    if (!result.success) {
+      setError(result.error || "Something went wrong. Please try again.");
       setLoading(false);
     } else {
       setSent(true);

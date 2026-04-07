@@ -23,7 +23,7 @@ export function EmailChangedEmail({ firstName, newEmail, confirmUrl }: EmailChan
           Confirm New Email
         </Link>
       </Section>
-      <Text style={{ ...baseStyles.text, color: "#a1a1aa", fontSize: "13px" }}>
+      <Text style={{ ...baseStyles.text, ...baseStyles.muted }}>
         If you didn&apos;t request this change, please secure your account immediately
         by resetting your password.
       </Text>
