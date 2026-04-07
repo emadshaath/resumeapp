@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,9 +24,19 @@ import {
   ChevronDown,
   ChevronUp,
   Layers,
+  FileUp,
+  Sparkles,
+  Download,
+  History,
+  Link2,
 } from "lucide-react";
 import type { ResumeSection, SectionType } from "@/types/database";
 import { SectionContentEditor } from "@/components/dashboard/section-editor";
+import { ImportResumeDialog } from "@/components/dashboard/import-resume-dialog";
+import { PdfResumeDrawer } from "@/components/dashboard/pdf-resume-drawer";
+import { AIReviewDrawer } from "@/components/dashboard/ai-review-drawer";
+import { VersionHistoryDrawer } from "@/components/dashboard/version-history-drawer";
+import { LinkedInAnalyzerDrawer } from "@/components/dashboard/linkedin-analyzer-drawer";
 
 const SECTION_TYPES: { value: SectionType; label: string; icon: React.ElementType }[] = [
   { value: "summary", label: "Professional Summary", icon: AlignLeft },
@@ -44,7 +54,25 @@ export default function SectionsPage() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
+
+  // Drawer/dialog state
+  const [importOpen, setImportOpen] = useState(false);
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [linkedinOpen, setLinkedinOpen] = useState(false);
+
+  // Handle query params for deep linking (e.g. ?import=true)
+  useEffect(() => {
+    const param = searchParams.get("open");
+    if (param === "import") setImportOpen(true);
+    else if (param === "pdf") setPdfOpen(true);
+    else if (param === "review") setReviewOpen(true);
+    else if (param === "history") setHistoryOpen(true);
+    else if (param === "linkedin") setLinkedinOpen(true);
+  }, [searchParams]);
 
   const loadSections = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -118,7 +146,6 @@ export default function SectionsPage() {
     const updated = newSections.map((s, i) => ({ ...s, display_order: i }));
     setSections(updated);
 
-    // Update both swapped sections in DB
     await Promise.all([
       supabase.from("resume_sections").update({ display_order: updated[index].display_order }).eq("id", updated[index].id),
       supabase.from("resume_sections").update({ display_order: updated[swapIndex].display_order }).eq("id", updated[swapIndex].id),
@@ -131,23 +158,50 @@ export default function SectionsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Resume Sections</h1>
-          <p className="text-zinc-500 mt-1">Add and organize your resume content.</p>
-        </div>
-        <Button onClick={() => setShowAdd(!showAdd)}>
+      {/* Page header */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Resume</h1>
+        <p className="text-zinc-500 mt-1">Add and organize your resume content.</p>
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={() => setShowAdd(!showAdd)} size="sm">
           <Plus className="h-4 w-4 mr-1" />
           Add Section
         </Button>
+        <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+          <FileUp className="h-4 w-4 mr-1" />
+          <span className="hidden sm:inline">Import</span>
+          <span className="sm:hidden">Import</span>
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => setReviewOpen(true)}>
+          <Sparkles className="h-4 w-4 mr-1" />
+          <span className="hidden sm:inline">AI Review</span>
+          <span className="sm:hidden">Review</span>
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => setPdfOpen(true)}>
+          <Download className="h-4 w-4 mr-1" />
+          <span className="hidden sm:inline">Download PDF</span>
+          <span className="sm:hidden">PDF</span>
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => setLinkedinOpen(true)}>
+          <Link2 className="h-4 w-4 mr-1" />
+          <span className="hidden sm:inline">LinkedIn Sync</span>
+          <span className="sm:hidden">LinkedIn</span>
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)}>
+          <History className="h-4 w-4 mr-1" />
+          <span className="hidden sm:inline">Version History</span>
+          <span className="sm:hidden">History</span>
+        </Button>
       </div>
 
+      {/* Add Section Panel */}
       {showAdd && (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Choose Section Type</CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="p-4">
+            <p className="text-sm font-medium mb-3">Choose Section Type</p>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {SECTION_TYPES.map((type) => (
                 <button
@@ -164,6 +218,7 @@ export default function SectionsPage() {
         </Card>
       )}
 
+      {/* Sections List */}
       {sections.length === 0 && !showAdd ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
@@ -172,10 +227,16 @@ export default function SectionsPage() {
             <p className="text-sm text-zinc-500 mt-1 mb-4">
               Add sections to build your resume profile.
             </p>
-            <Button onClick={() => setShowAdd(true)}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add your first section
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={() => setShowAdd(true)}>
+                <Plus className="h-4 w-4 mr-1" />
+                Add your first section
+              </Button>
+              <Button variant="outline" onClick={() => setImportOpen(true)}>
+                <FileUp className="h-4 w-4 mr-1" />
+                Import Resume
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : (
@@ -257,6 +318,21 @@ export default function SectionsPage() {
           })}
         </div>
       )}
+
+      {/* Drawers & Dialogs */}
+      <ImportResumeDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImportComplete={loadSections}
+      />
+      <PdfResumeDrawer open={pdfOpen} onClose={() => setPdfOpen(false)} />
+      <AIReviewDrawer open={reviewOpen} onClose={() => setReviewOpen(false)} />
+      <LinkedInAnalyzerDrawer
+        open={linkedinOpen}
+        onClose={() => setLinkedinOpen(false)}
+        onApplyComplete={loadSections}
+      />
+      <VersionHistoryDrawer open={historyOpen} onClose={() => setHistoryOpen(false)} />
     </div>
   );
 }

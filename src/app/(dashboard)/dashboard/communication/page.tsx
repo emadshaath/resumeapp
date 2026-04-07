@@ -10,6 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Mail, Shield, ArrowRight, Inbox, Forward, Check, AlertCircle, Lock } from "lucide-react";
+import { getEffectiveTier } from "@/lib/stripe/feature-gate";
+import type { Tier } from "@/types/database";
 
 type RoutingMode = "forward" | "inbox";
 
@@ -40,11 +42,14 @@ export default function CommunicationPage() {
       if (!user) { router.push("/login"); return; }
 
       const [{ data: profileData }, { data: emailData }] = await Promise.all([
-        supabase.from("profiles").select("tier, slug, email").eq("id", user.id).single(),
+        supabase.from("profiles").select("tier, tier_override, slug, email").eq("id", user.id).single(),
         supabase.from("platform_emails").select("*").eq("profile_id", user.id).single(),
       ]);
 
-      if (profileData) setProfile(profileData);
+      if (profileData) {
+        const effectiveTier = getEffectiveTier(profileData.tier as Tier, profileData.tier_override as Tier | null);
+        setProfile({ ...profileData, tier: effectiveTier });
+      }
       if (emailData) {
         setPlatformEmail(emailData as PlatformEmailData);
         setForwardTo(emailData.forward_to || "");
@@ -174,7 +179,7 @@ export default function CommunicationPage() {
               <p className="text-sm text-zinc-500 mb-4">
                 Platform email is available on Pro and Premium plans.
               </p>
-              <Button variant="outline" onClick={() => router.push("/dashboard/billing")}>
+              <Button variant="outline" onClick={() => router.push("/dashboard/settings?tab=billing")}>
                 Upgrade Plan
               </Button>
             </div>
@@ -182,7 +187,7 @@ export default function CommunicationPage() {
             <div className="text-center py-6">
               <Mail className="h-10 w-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
               <p className="font-medium mb-1">
-                Get your email: <span className="font-mono">{profile?.slug}@resumeprofile.com</span>
+                Get your email: <span className="font-mono">{profile?.slug}@rezm.ai</span>
               </p>
               <p className="text-sm text-zinc-500 mb-4">
                 Receive professional emails without exposing your personal address.

@@ -1,6 +1,6 @@
 import type { Profile, Experience, Education, Skill, Certification } from "@/types/database";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://resumeprofile.com";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://rezm.ai";
 
 export function generatePersonJsonLd(
   profile: Profile,

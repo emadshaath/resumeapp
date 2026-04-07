@@ -1,6 +1,6 @@
 import { Heading, Hr, Link, Section, Text } from "@react-email/components";
 import * as React from "react";
-import { EmailLayout, baseStyles } from "./layout";
+import { EmailLayout, baseStyles, BRAND } from "./layout";
 
 interface ContactNotificationEmailProps {
   profileFirstName: string;
@@ -30,13 +30,13 @@ export function ContactNotificationEmail({
 
       <Section
         style={{
-          backgroundColor: "#f4f4f5",
+          backgroundColor: BRAND.bg,
           borderRadius: "8px",
           padding: "20px",
           marginBottom: "24px",
         }}
       >
-        <Text style={{ ...baseStyles.text, margin: "0 0 8px", fontWeight: "600" as const, color: "#18181b" }}>
+        <Text style={{ ...baseStyles.text, margin: "0 0 8px", fontWeight: "600" as const, color: BRAND.text }}>
           From: {senderName} ({senderEmail})
         </Text>
         {subject && (
@@ -56,9 +56,9 @@ export function ContactNotificationEmail({
         </Link>
       </Section>
 
-      <Text style={{ ...baseStyles.text, fontSize: "13px", color: "#a1a1aa" }}>
+      <Text style={{ ...baseStyles.text, ...baseStyles.muted }}>
         You can reply directly to {senderName} at{" "}
-        <Link href={`mailto:${senderEmail}`} style={{ ...baseStyles.link, fontSize: "13px", color: "#71717a" }}>
+        <Link href={`mailto:${senderEmail}`} style={{ ...baseStyles.link, fontSize: "13px" }}>
           {senderEmail}
         </Link>
       </Text>

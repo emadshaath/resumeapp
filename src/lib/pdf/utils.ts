@@ -1,16 +1,3 @@
-import { Font } from "@react-pdf/renderer";
-
-// Register standard fonts for PDF rendering
-Font.register({
-  family: "Helvetica",
-  fonts: [
-    { src: "Helvetica" },
-    { src: "Helvetica-Bold", fontWeight: "bold" },
-    { src: "Helvetica-Oblique", fontStyle: "italic" },
-    { src: "Helvetica-BoldOblique", fontWeight: "bold", fontStyle: "italic" },
-  ],
-});
-
 export function formatDate(date: string | null | undefined): string {
   if (!date) return "";
   const d = new Date(date);

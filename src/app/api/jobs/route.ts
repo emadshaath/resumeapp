@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getLimit } from "@/lib/stripe/feature-gate";
+import { getLimit, getEffectiveTier } from "@/lib/stripe/feature-gate";
 import type { Tier } from "@/types/database";
 
 // GET /api/jobs — List job applications with filters
@@ -53,14 +53,14 @@ export async function POST(req: NextRequest) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("tier")
+    .select("tier, tier_override")
     .eq("id", user.id)
     .single();
 
   if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
   // Check tier limit
-  const tier = profile.tier as Tier;
+  const tier = getEffectiveTier(profile.tier as Tier, profile.tier_override as Tier | null);
   const maxJobs = getLimit(tier, "jobs_max");
   const { count } = await supabase
     .from("job_applications")

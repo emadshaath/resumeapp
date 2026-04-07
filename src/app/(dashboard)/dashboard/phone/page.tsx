@@ -19,6 +19,8 @@ import {
   AlertCircle,
   Trash2,
 } from "lucide-react";
+import { getEffectiveTier } from "@/lib/stripe/feature-gate";
+import type { Tier } from "@/types/database";
 
 type RoutingMode = "forward" | "voicemail" | "both";
 
@@ -51,11 +53,14 @@ export default function PhonePage() {
       if (!user) { router.push("/login"); return; }
 
       const [{ data: profileData }, { data: phoneData }] = await Promise.all([
-        supabase.from("profiles").select("tier").eq("id", user.id).single(),
+        supabase.from("profiles").select("tier, tier_override").eq("id", user.id).single(),
         supabase.from("platform_phones").select("*").eq("profile_id", user.id).single(),
       ]);
 
-      if (profileData) setProfile(profileData);
+      if (profileData) {
+        const effectiveTier = getEffectiveTier(profileData.tier as Tier, profileData.tier_override as Tier | null);
+        setProfile({ tier: effectiveTier });
+      }
       if (phoneData) {
         setPhone(phoneData as PlatformPhoneData);
         setRoutingMode(phoneData.routing_mode as RoutingMode);
@@ -190,7 +195,7 @@ export default function PhonePage() {
               <p className="text-sm text-zinc-500 mb-4">
                 Platform phone numbers are available on the Premium plan.
               </p>
-              <Button variant="outline" onClick={() => router.push("/dashboard/billing")}>
+              <Button variant="outline" onClick={() => router.push("/dashboard/settings?tab=billing")}>
                 Upgrade to Premium
               </Button>
             </div>

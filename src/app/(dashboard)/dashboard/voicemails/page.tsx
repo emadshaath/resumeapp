@@ -16,6 +16,8 @@ import {
   RefreshCw,
   Lock,
 } from "lucide-react";
+import { getEffectiveTier } from "@/lib/stripe/feature-gate";
+import type { Tier } from "@/types/database";
 
 interface VoicemailData {
   id: string;
@@ -63,10 +65,10 @@ export default function VoicemailsPage() {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("tier")
+      .select("tier, tier_override")
       .eq("id", user.id)
       .single();
-    if (profile) setTier(profile.tier);
+    if (profile) setTier(getEffectiveTier(profile.tier as Tier, profile.tier_override as Tier | null));
 
     let query = supabase
       .from("voicemails")
@@ -120,7 +122,7 @@ export default function VoicemailsPage() {
             <p className="text-sm text-zinc-500 mt-1 max-w-md text-center">
               Voicemail with transcription is available on the Premium plan.
             </p>
-            <Button variant="outline" className="mt-4" onClick={() => router.push("/dashboard/billing")}>
+            <Button variant="outline" className="mt-4" onClick={() => router.push("/dashboard/settings?tab=billing")}>
               Upgrade to Premium
             </Button>
           </CardContent>

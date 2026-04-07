@@ -25,12 +25,12 @@ export function ConfirmEmail({ firstName, confirmUrl }: ConfirmEmailProps) {
       <Text style={baseStyles.text}>
         Or copy and paste this URL into your browser:
       </Text>
-      <Text style={{ ...baseStyles.text, fontSize: "13px", color: "#71717a", wordBreak: "break-all" as const }}>
+      <Text style={{ ...baseStyles.text, ...baseStyles.urlText }}>
         {confirmUrl}
       </Text>
-      <Text style={{ ...baseStyles.text, color: "#a1a1aa", fontSize: "13px" }}>
+      <Text style={{ ...baseStyles.text, ...baseStyles.muted }}>
         This link expires in 24 hours. If you didn&apos;t create an account on
-        ResumeProfile, you can safely ignore this email.
+        rezm.ai, you can safely ignore this email.
       </Text>
     </EmailLayout>
   );

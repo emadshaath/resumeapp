@@ -76,7 +76,7 @@ export function HeroMockup() {
           <div className="h-2.5 w-2.5 rounded-full bg-yellow-400" />
           <div className="h-2.5 w-2.5 rounded-full bg-green-400" />
           <div className="ml-3 flex-1 h-5 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center px-2">
-            <span className="text-[10px] text-zinc-400 font-mono">sarah-chen.resumeprofile.com</span>
+            <span className="text-[10px] text-zinc-400 font-mono">sarah-chen.rezm.ai</span>
           </div>
         </div>
 

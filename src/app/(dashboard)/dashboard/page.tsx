@@ -24,6 +24,10 @@ export default async function DashboardPage() {
     .select("*", { count: "exact", head: true })
     .eq("profile_id", user.id);
 
+  if (profile && !profile.onboarding_completed) {
+    redirect("/dashboard/onboarding");
+  }
+
   if (!profile) {
     // Auto-create profile if it doesn't exist (trigger may have failed)
     const firstName = user.user_metadata?.first_name || user.email?.split("@")[0] || "User";
@@ -110,7 +114,7 @@ export default async function DashboardPage() {
           </Card>
         </Link>
 
-        <Link href="/dashboard/ai-review">
+        <Link href="/dashboard/sections?open=review">
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">AI Review</CardTitle>

@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe/client";
 import { PLANS, type PlanId } from "@/lib/stripe/config";
+import { getEffectiveTier } from "@/lib/stripe/feature-gate";
+import type { Tier } from "@/types/database";
 import { z } from "zod";
 
 const checkoutSchema = z.object({
@@ -34,7 +36,7 @@ export async function POST(request: Request) {
     const admin = createAdminClient();
     const { data: profile } = await admin
       .from("profiles")
-      .select("id, email, stripe_customer_id, tier")
+      .select("id, email, stripe_customer_id, tier, tier_override")
       .eq("id", user.id)
       .single();
 
@@ -43,7 +45,8 @@ export async function POST(request: Request) {
     }
 
     // Don't allow checkout if already on this plan or higher
-    if (profile.tier === plan || (profile.tier === "premium" && plan === "pro")) {
+    const effectiveTier = getEffectiveTier(profile.tier as Tier, profile.tier_override as Tier | null);
+    if (effectiveTier === plan || (effectiveTier === "premium" && plan === "pro")) {
       return NextResponse.json(
         { error: "You are already on this plan or a higher one." },
         { status: 400 }

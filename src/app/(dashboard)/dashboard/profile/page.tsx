@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { isValidSlug, slugify } from "@/lib/utils";
+import { THEMES, THEME_CSS_VARS } from "@/lib/themes";
+import { Camera, Trash2, Loader2 } from "lucide-react";
 import type { Profile } from "@/types/database";
 
 export default function ProfileEditorPage() {
@@ -19,6 +20,8 @@ export default function ProfileEditorPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const supabase = createClient();
 
@@ -38,6 +41,52 @@ export default function ProfileEditorPage() {
     }
     loadProfile();
   }, [supabase, router]);
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !profile) return;
+
+    setUploadingAvatar(true);
+    setError(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/avatar", { method: "POST", body: formData });
+      const data = await res.json();
+
+      if (res.ok) {
+        setProfile({ ...profile, avatar_url: data.avatar_url });
+      } else {
+        setError(data.error || "Failed to upload avatar");
+      }
+    } catch {
+      setError("Failed to upload avatar");
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleAvatarRemove() {
+    if (!profile) return;
+    setUploadingAvatar(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/avatar", { method: "DELETE" });
+      if (res.ok) {
+        setProfile({ ...profile, avatar_url: null });
+      } else {
+        setError("Failed to remove avatar");
+      }
+    } catch {
+      setError("Failed to remove avatar");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -62,7 +111,9 @@ export default function ProfileEditorPage() {
         headline: profile.headline,
         location: profile.location,
         website_url: profile.website_url,
+        linkedin_url: profile.linkedin_url,
         is_published: profile.is_published,
+        profile_theme: profile.profile_theme,
       })
       .eq("id", profile.id);
 
@@ -87,6 +138,8 @@ export default function ProfileEditorPage() {
     return <div className="py-20 text-center text-zinc-500">Profile not found.</div>;
   }
 
+  const themeColors = THEME_CSS_VARS[profile.profile_theme] || THEME_CSS_VARS["midnight-indigo"];
+
   return (
     <div className="space-y-6">
       <div>
@@ -105,6 +158,72 @@ export default function ProfileEditorPage() {
             Profile saved successfully.
           </div>
         )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Profile Photo</CardTitle>
+            <CardDescription>
+              Upload a photo for your public profile. Max 2MB, JPEG/PNG/WebP.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-6">
+              <div className="relative">
+                {profile.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt="Profile"
+                    className="h-24 w-24 rounded-full object-cover border-2 border-zinc-200 dark:border-zinc-700"
+                  />
+                ) : (
+                  <div
+                    className="h-24 w-24 rounded-full flex items-center justify-center text-2xl font-bold text-white/90"
+                    style={{ background: `linear-gradient(135deg, ${themeColors.heroFrom}, ${themeColors.heroTo})` }}
+                  >
+                    {profile.first_name[0]}{profile.last_name[0]}
+                  </div>
+                )}
+                {uploadingAvatar && (
+                  <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-white" />
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={handleAvatarUpload}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingAvatar}
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  {profile.avatar_url ? "Change photo" : "Upload photo"}
+                </Button>
+                {profile.avatar_url && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleAvatarRemove}
+                    disabled={uploadingAvatar}
+                    className="text-red-600 hover:text-red-700 dark:text-red-400"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Remove
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
@@ -162,6 +281,53 @@ export default function ProfileEditorPage() {
                 onChange={(e) => setProfile({ ...profile, website_url: e.target.value })}
               />
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="linkedin">LinkedIn Profile</Label>
+              <Input
+                id="linkedin"
+                type="url"
+                placeholder="https://linkedin.com/in/yourprofile"
+                value={profile.linkedin_url || ""}
+                onChange={(e) => setProfile({ ...profile, linkedin_url: e.target.value })}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Profile Theme</CardTitle>
+            <CardDescription>
+              Choose a color theme for your public profile page.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+              {THEMES.map((theme) => {
+                const colors = THEME_CSS_VARS[theme.id];
+                const isSelected = profile.profile_theme === theme.id;
+                return (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    onClick={() => setProfile({ ...profile, profile_theme: theme.id })}
+                    className={`rounded-lg border-2 p-3 text-left transition-all ${
+                      isSelected
+                        ? "border-zinc-900 dark:border-white ring-2 ring-zinc-900/20 dark:ring-white/20"
+                        : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500"
+                    }`}
+                  >
+                    <div
+                      className="h-8 rounded-md mb-2"
+                      style={{ background: `linear-gradient(135deg, ${colors.heroFrom}, ${colors.heroTo})` }}
+                    />
+                    <p className="text-xs font-medium truncate">{theme.name}</p>
+                    <p className="text-[10px] text-zinc-500 truncate">{theme.tagline}</p>
+                  </button>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
 
@@ -180,7 +346,7 @@ export default function ProfileEditorPage() {
                 required
                 className="max-w-xs font-mono"
               />
-              <span className="text-sm text-zinc-500">.resumeprofile.com</span>
+              <span className="text-sm text-zinc-500">.rezm.ai</span>
             </div>
           </CardContent>
         </Card>

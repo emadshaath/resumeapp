@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getEffectiveTier } from "@/lib/stripe/feature-gate";
+import type { Tier } from "@/types/database";
 
 export async function GET(request: Request) {
   try {
@@ -16,13 +18,15 @@ export async function GET(request: Request) {
     // Get profile tier
     const { data: profile } = await admin
       .from("profiles")
-      .select("id, tier")
+      .select("id, tier, tier_override")
       .eq("id", user.id)
       .single();
 
     if (!profile) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
+
+    const effectiveTier = getEffectiveTier(profile.tier as Tier, profile.tier_override as Tier | null);
 
     const url = new URL(request.url);
     const days = Math.min(parseInt(url.searchParams.get("days") || "30"), 365);
@@ -46,7 +50,7 @@ export async function GET(request: Request) {
     const uniqueVisitors = new Set(uniqueData?.map((r) => r.visitor_id).filter(Boolean)).size;
 
     // Free tier: only total views and unique visitors
-    if (profile.tier === "free") {
+    if (effectiveTier === "free") {
       return NextResponse.json({
         total_views: totalViews || 0,
         unique_visitors: uniqueVisitors,
@@ -177,7 +181,7 @@ export async function GET(request: Request) {
       browsers,
       countries,
       campaigns,
-      tier: profile.tier,
+      tier: effectiveTier,
     });
   } catch (error) {
     console.error("Analytics stats error:", error);
