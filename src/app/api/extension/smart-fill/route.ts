@@ -6,7 +6,7 @@ import { hasFeature, getLimit, getRequiredTier, getEffectiveTier } from "@/lib/s
 import type { Tier } from "@/types/database";
 
 /**
- * POST /api/extension/smart-fill
+ * POST /api/extension/smart-fill 
  *
  * One-shot endpoint for the Chrome extension Smart Tailor flow:
  * 1. Creates or finds a job application from scraped page data
