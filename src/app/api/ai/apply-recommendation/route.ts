@@ -4,7 +4,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAnthropicClient, AI_MODEL } from "@/lib/claude/client";
 import { APPLY_RECOMMENDATION_SYSTEM_PROMPT } from "@/lib/claude/prompts";
 import { rateLimit } from "@/lib/rate-limit";
+import { getEffectiveTier, hasFeature, getLimit } from "@/lib/stripe/feature-gate";
 import type { ApplyRecommendationResult } from "@/lib/claude/schemas";
+import type { Tier } from "@/types/database";
 
 const TABLE_MAP: Record<string, string> = {
   experience: "experiences",
@@ -27,9 +29,59 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const admin = createAdminClient();
+
+    // Check tier access
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("tier, tier_override")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    }
+
+    const tier = getEffectiveTier(
+      (profile.tier || "free") as Tier,
+      profile.tier_override as Tier | null
+    );
+
+    if (!hasFeature(tier, "ai_apply_recommendation")) {
+      return NextResponse.json(
+        { error: "Upgrade to Pro to apply AI recommendations directly to your resume." },
+        { status: 403 }
+      );
+    }
+
+    // Check monthly usage limit
+    const monthlyLimit = getLimit(tier, "ai_applies_per_month");
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const { count: appliesThisMonth } = await admin
+      .from("ai_reviews")
+      .select("*", { count: "exact", head: true })
+      .eq("profile_id", user.id)
+      .eq("review_type", "apply")
+      .gte("created_at", startOfMonth.toISOString());
+
+    if ((appliesThisMonth || 0) >= monthlyLimit) {
+      return NextResponse.json(
+        {
+          error: `You've used all ${monthlyLimit} AI applies for this month.${
+            tier === "pro" ? " Upgrade to Premium for unlimited applies." : ""
+          }`,
+        },
+        { status: 429 }
+      );
+    }
+
+    // Short-term rate limit
     const { success: rateLimitOk } = rateLimit(
       `ai-apply:${user.id}`,
-      20,
+      10,
       5 * 60 * 1000
     );
     if (!rateLimitOk) {
@@ -60,8 +112,6 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-
-    const admin = createAdminClient();
 
     // Find the matching resume section
     const { data: sections } = await admin
@@ -177,6 +227,15 @@ Apply this recommendation to the section data. Return ONLY the JSON object.`;
         display_order: (items.length + result.inserts.indexOf(insert)),
       });
     }
+
+    // Track usage for monthly limits
+    await admin.from("ai_reviews").insert({
+      profile_id: user.id,
+      review_type: "apply",
+      recommendations: { recommendation, section_type, section_name, result },
+      model_used: AI_MODEL,
+      tokens_used: response.usage.input_tokens + response.usage.output_tokens,
+    });
 
     return NextResponse.json({
       success: true,

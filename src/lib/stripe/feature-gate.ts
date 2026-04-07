@@ -29,7 +29,8 @@ export type Feature =
   | "smart_apply"
   | "pdf_resume"
   | "peer_review"
-  | "ai_form_answers";
+  | "ai_form_answers"
+  | "ai_apply_recommendation";
 
 const FEATURE_MIN_TIER: Record<Feature, Tier> = {
   unlimited_sections: "pro",
@@ -50,6 +51,7 @@ const FEATURE_MIN_TIER: Record<Feature, Tier> = {
   pdf_resume: "free",
   peer_review: "premium",
   ai_form_answers: "premium",
+  ai_apply_recommendation: "pro",
 };
 
 export function getEffectiveTier(tier: Tier, tierOverride?: Tier | null): Tier {
@@ -75,6 +77,7 @@ export const TIER_LIMITS = {
   variants_per_month: { free: 0, pro: 3, premium: 999 },
   jobs_max: { free: 5, pro: 50, premium: 999 },
   review_links_max: { free: 0, pro: 0, premium: 999 },
+  ai_applies_per_month: { free: 0, pro: 20, premium: 999 },
 } as const;
 
 export function getLimit(tier: Tier, limit: keyof typeof TIER_LIMITS): number {

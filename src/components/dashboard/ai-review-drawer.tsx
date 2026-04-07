@@ -36,9 +36,10 @@ interface AIReviewDrawerProps {
   open: boolean;
   onClose: () => void;
   onSectionUpdate?: () => void;
+  userTier?: "free" | "pro" | "premium";
 }
 
-export function AIReviewDrawer({ open, onClose, onSectionUpdate }: AIReviewDrawerProps) {
+export function AIReviewDrawer({ open, onClose, onSectionUpdate, userTier = "free" }: AIReviewDrawerProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [review, setReview] = useState<FullReviewResult | null>(null);
@@ -142,7 +143,7 @@ export function AIReviewDrawer({ open, onClose, onSectionUpdate }: AIReviewDrawe
                 <Button variant="ghost" size="sm" onClick={() => { setViewingHistory(null); setReview(null); }}>Clear</Button>
               </div>
             )}
-            <ReviewResults review={review} onSectionUpdate={onSectionUpdate} />
+            <ReviewResults review={review} onSectionUpdate={onSectionUpdate} canApply={userTier !== "free"} />
           </>
         )}
 
@@ -224,9 +225,11 @@ function ScoreRing({ score, label }: { score: number; label: string }) {
 function SectionCard({
   section,
   onSectionUpdate,
+  canApply,
 }: {
   section: SectionReview;
   onSectionUpdate?: () => void;
+  canApply?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [applyingIndex, setApplyingIndex] = useState<number | null>(null);
@@ -298,7 +301,7 @@ function SectionCard({
                         <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
                           <Check className="h-3 w-3" /> Applied
                         </span>
-                      ) : (
+                      ) : canApply ? (
                         <Button
                           variant="outline"
                           size="sm"
@@ -312,6 +315,10 @@ function SectionCard({
                             <><Play className="h-3 w-3 mr-1" />Apply</>
                           )}
                         </Button>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs font-normal">
+                          Pro
+                        </Badge>
                       )}
                     </div>
                   </li>
@@ -325,7 +332,7 @@ function SectionCard({
   );
 }
 
-function ReviewResults({ review, onSectionUpdate }: { review: FullReviewResult; onSectionUpdate?: () => void }) {
+function ReviewResults({ review, onSectionUpdate, canApply }: { review: FullReviewResult; onSectionUpdate?: () => void; canApply?: boolean }) {
   return (
     <div className="space-y-5">
       <div className="flex justify-center gap-8">
@@ -366,7 +373,7 @@ function ReviewResults({ review, onSectionUpdate }: { review: FullReviewResult; 
       {review.sections.length > 0 && (
         <div>
           <h4 className="text-xs font-semibold flex items-center gap-1.5 mb-2"><TrendingUp className="h-3.5 w-3.5 text-purple-500" /> Section Feedback</h4>
-          <div className="space-y-1.5">{review.sections.map((section, i) => <SectionCard key={i} section={section} onSectionUpdate={onSectionUpdate} />)}</div>
+          <div className="space-y-1.5">{review.sections.map((section, i) => <SectionCard key={i} section={section} onSectionUpdate={onSectionUpdate} canApply={canApply} />)}</div>
         </div>
       )}
     </div>
