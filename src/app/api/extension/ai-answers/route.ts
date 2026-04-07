@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
   // Cap at 25 questions per request
   const cappedQuestions = questions.slice(0, 25) as FormQuestion[];
 
-  // Fetch full resume data for AI context
+  // Fetch full resume data + application preferences for AI context
   const resumeData = await fetchResumeData(supabase, user.id);
   if (!resumeData)
     return NextResponse.json(
@@ -67,7 +67,14 @@ export async function POST(req: NextRequest) {
       { status: 404 }
     );
 
+  const { data: fullProfile } = await supabase
+    .from("profiles")
+    .select("work_authorization, sponsorship_required, gender_identity, pronouns, race_ethnicity, veteran_status, disability_status, lgbtq_identity, salary_expectation, notice_period, preferred_work_setting, how_heard_default, linkedin_url")
+    .eq("id", user.id)
+    .single();
+
   const profileContext = buildProfileContext(resumeData);
+  const prefsContext = buildPreferencesContext(fullProfile);
 
   const jobInfo = job_context
     ? `\nJOB CONTEXT:\nTitle: ${job_context.job_title || "Unknown"}\nCompany: ${job_context.company_name || "Unknown"}${job_context.description ? `\nDescription: ${job_context.description.substring(0, 2000)}` : ""}`
@@ -92,16 +99,19 @@ CRITICAL RULES:
 - For yes/no questions, answer based on the profile data.
 - For select/radio questions, pick the most accurate option from the available choices.
 - For salary questions, respond with "Prefer not to disclose" or "Open to discussion" unless the profile has this info.
-- For demographic/diversity questions (gender, race, disability, veteran status, LGBTQ+), ALWAYS answer "I prefer not to say" or "Prefer not to answer" or select the equivalent option — never assume or guess.
+- For demographic/diversity questions (gender, race, disability, veteran status, LGBTQ+), use the STORED PREFERENCES below if available. If not set, answer "I prefer not to say" or "Prefer not to answer" — never assume or guess.
+- For work authorization/sponsorship questions, use the STORED PREFERENCES if available.
 - For reference questions, answer affirmatively: "Yes, I can provide references."
 - For employment gap questions, if no gaps visible in experience, answer "N/A".
-- For start date questions, say "2-3 weeks notice" unless profile indicates otherwise.
-- For "how did you hear" questions, say "Online job board" as a safe default.
+- For start date/notice period questions, use the stored notice_period preference if available, otherwise say "2-3 weeks notice".
+- For "how did you hear" questions, use the stored how_heard_default if available, otherwise say "Online job board".
+- For salary questions, use the stored salary_expectation if available, otherwise say "Open to discussion".
 - Keep answers professional, concise, and specific. Avoid generic filler.
 - For longer questions, aim for 2-4 sentences. For short ones, keep it brief.
 
 APPLICANT'S PROFILE:
 ${profileContext}
+${prefsContext}
 ${jobInfo}
 
 FORM QUESTIONS:
@@ -227,4 +237,35 @@ function buildProfileContext(resumeData: Awaited<ReturnType<typeof fetchResumeDa
   }
 
   return lines.join("\n");
+}
+
+function buildPreferencesContext(prefs: Record<string, unknown> | null): string {
+  if (!prefs) return "";
+
+  const lines: string[] = ["\nSTORED APPLICATION PREFERENCES (use these for form answers):"];
+  const labels: Record<string, string> = {
+    work_authorization: "Authorized to work in the US",
+    sponsorship_required: "Requires visa sponsorship",
+    gender_identity: "Gender identity",
+    pronouns: "Pronouns",
+    race_ethnicity: "Race/Ethnicity",
+    veteran_status: "Veteran status",
+    disability_status: "Disability status",
+    lgbtq_identity: "LGBTQIA+ identity",
+    salary_expectation: "Salary expectation (USD/year)",
+    notice_period: "Notice period / earliest start",
+    preferred_work_setting: "Preferred work setting",
+    how_heard_default: "Default 'How did you hear'",
+    linkedin_url: "LinkedIn URL",
+  };
+
+  let hasAny = false;
+  for (const [key, label] of Object.entries(labels)) {
+    if (prefs[key]) {
+      lines.push(`  ${label}: ${prefs[key]}`);
+      hasAny = true;
+    }
+  }
+
+  return hasAny ? lines.join("\n") : "";
 }

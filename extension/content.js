@@ -54,7 +54,8 @@ const FIELD_PATTERNS = {
   address: /^address$|street.?address|address.?line/i,
   current_title: /current.?title|job.?title|most.?recent.?title|position/i,
   current_company: /current.?company|company|employer|organization/i,
-  linkedin: /linkedin/i,
+  linkedin: /linkedin|linked.?in/i,
+  linkedin_url: /linkedin.?(?:profile|url)|linked.?in/i,
   website: /website|portfolio|personal.?url|homepage/i,
   headline: /headline|summary|objective|about/i,
   years_experience: /years?.?(?:of)?.?experience|experience.?years|how.?many.?years/i,
@@ -71,11 +72,42 @@ const SELECT_PATTERNS = {
   education_level: /education.?level|highest.?degree|degree.?level/i,
 };
 
-// ─── Default answers for common questions ───
+// ─── Default answers for common questions (overridden by profile prefs) ───
 const DEFAULT_ANSWERS = {
   work_authorization: { preferred: ["yes", "true", "authorized"], value: "Yes" },
   work_setting: { preferred: ["remote", "hybrid"], value: "Remote" },
   contact_preference: { preferred: ["email", "text", "sms"], value: "Email" },
+};
+
+// ─── Patterns for EEO / demographic fields ───
+const EEO_PATTERNS = {
+  gender_identity: /gender|i.?identify.?my.?gender/i,
+  pronouns: /pronoun/i,
+  race_ethnicity: /race|ethnicity|ethnic/i,
+  veteran_status: /veteran/i,
+  disability_status: /disability|disabilities|ada\b/i,
+  lgbtq_identity: /lgbtq|sexual.?orientation|lgb/i,
+  sponsorship_required: /sponsorship|visa.?status|h.?1b|immigration|will.?you.?(?:now|in.?the.?future).?require/i,
+  how_heard_default: /how.?did.?you.?hear|how.?did.?you.?find|where.?did.?you.?hear|referral.?source/i,
+  salary_expectation: /salary|compensation|pay.?expectation|minimum.?required.?(?:yearly|annual)/i,
+  notice_period: /(?:when|earliest).?(?:can.?you|could.?you)?.?start|notice.?period|start.?date|availability/i,
+};
+
+// ─── Map stored preference values to form-friendly display values ───
+const PREF_VALUE_MAP = {
+  gender_identity: { male: "Male", female: "Female", non_binary: "Non-binary", other: "Other", prefer_not_to_say: "I prefer not to say" },
+  pronouns: { "he/him": "He/Him", "she/her": "She/Her", "they/them": "They/Them", other: "Other", prefer_not_to_say: "I prefer not to say" },
+  race_ethnicity: {
+    american_indian: "American Indian", asian: "Asian", black: "Black or African American",
+    hispanic: "Hispanic", middle_eastern: "Middle Eastern", pacific_islander: "Pacific Islander",
+    white: "White", two_or_more: "Two or more", other: "Other", prefer_not_to_say: "I prefer not to say",
+  },
+  veteran_status: { veteran: "I am a veteran", not_veteran: "I am not a veteran", prefer_not_to_say: "I prefer not to say" },
+  disability_status: { yes: "Yes", no: "No", prefer_not_to_say: "I prefer not to say" },
+  lgbtq_identity: { yes: "Yes", no: "No", prefer_not_to_say: "I prefer not to say" },
+  work_authorization: { yes: "Yes", no: "No" },
+  sponsorship_required: { yes: "Yes", no: "No", future: "Yes, in the future" },
+  preferred_work_setting: { remote: "Remote", hybrid: "Hybrid", onsite: "On-site" },
 };
 
 // ─── Listen for fill commands from popup ───
@@ -195,12 +227,31 @@ function fillSelect(select, fields) {
     }
   }
 
-  // Try matching to common question patterns
+  // Try matching EEO/preference fields from stored profile prefs
+  for (const [prefKey, pattern] of Object.entries(EEO_PATTERNS)) {
+    if (pattern.test(searchText) && fields[prefKey]) {
+      const storedValue = fields[prefKey];
+      const displayMap = PREF_VALUE_MAP[prefKey];
+      const displayValue = displayMap ? (displayMap[storedValue] || storedValue) : storedValue;
+      // Try display value first, then stored value
+      const matched = selectBestOption(select, displayValue) || selectBestOption(select, storedValue);
+      if (matched) return true;
+    }
+  }
+
+  // Try matching to common question patterns (fallback defaults)
   for (const [questionKey, pattern] of Object.entries(SELECT_PATTERNS)) {
     if (pattern.test(searchText)) {
+      // Check if user has a stored preference that overrides the default
+      if (questionKey === "work_setting" && fields.preferred_work_setting) {
+        const displayMap = PREF_VALUE_MAP.preferred_work_setting;
+        const val = displayMap[fields.preferred_work_setting] || fields.preferred_work_setting;
+        const matched = selectBestOption(select, val);
+        if (matched) return true;
+      }
+
       const defaults = DEFAULT_ANSWERS[questionKey];
       if (defaults) {
-        // Try preferred values
         for (const pref of defaults.preferred) {
           const matched = selectBestOption(select, pref);
           if (matched) return true;
@@ -316,11 +367,42 @@ function fillRadioGroups(fields) {
       ? container.textContent.toLowerCase()
       : getLabel(radios[0]);
 
-    // Work authorization: select "Yes"
+    let matched = false;
+
+    // Try matching EEO/preference patterns from stored profile prefs
+    for (const [prefKey, pattern] of Object.entries(EEO_PATTERNS)) {
+      if (pattern.test(questionText) && fields[prefKey]) {
+        const storedValue = fields[prefKey];
+        const displayMap = PREF_VALUE_MAP[prefKey];
+        const displayValue = displayMap ? (displayMap[storedValue] || storedValue) : storedValue;
+        const radioMatch = radios.find((r) => {
+          const rl = getLabel(r).toLowerCase();
+          const rv = r.value.toLowerCase();
+          const dv = displayValue.toLowerCase();
+          const sv = storedValue.toLowerCase();
+          return rl.includes(dv) || dv.includes(rl) || rv.includes(sv) || sv.includes(rv) ||
+                 rl === dv || rv === sv;
+        });
+        if (radioMatch) {
+          radioMatch.checked = true;
+          triggerEvents(radioMatch);
+          filled++;
+          matched = true;
+          break;
+        }
+      }
+    }
+    if (matched) continue;
+
+    // Work authorization: select based on stored pref or default "Yes"
     if (SELECT_PATTERNS.work_authorization.test(questionText)) {
-      const yesRadio = radios.find((r) =>
-        /^yes$/i.test(r.value) || /^yes$/i.test(getLabel(r))
-      );
+      const prefValue = fields.work_authorization || "yes";
+      const target = prefValue === "no" ? "no" : "yes";
+      const yesRadio = radios.find((r) => {
+        const rv = r.value.toLowerCase();
+        const rl = getLabel(r).toLowerCase();
+        return rv === target || rl === target;
+      });
       if (yesRadio) {
         yesRadio.checked = true;
         triggerEvents(yesRadio);
@@ -331,7 +413,10 @@ function fillRadioGroups(fields) {
 
     // Work setting preference
     if (SELECT_PATTERNS.work_setting.test(questionText)) {
-      for (const pref of ["remote", "hybrid"]) {
+      const prefs = fields.preferred_work_setting
+        ? [fields.preferred_work_setting]
+        : ["remote", "hybrid"];
+      for (const pref of prefs) {
         const match = radios.find((r) =>
           r.value.toLowerCase().includes(pref) ||
           getLabel(r).includes(pref)

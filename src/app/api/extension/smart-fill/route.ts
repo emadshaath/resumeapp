@@ -341,6 +341,20 @@ async function buildVariantFields(
     years_experience: yearsExperience > 0 ? String(yearsExperience) : null,
     education_summary: educationSummary,
     skills_summary: skillsSummary,
+    linkedin_url: (profile.linkedin_url as string) || null,
     profile_url: `${process.env.NEXT_PUBLIC_APP_URL}/p/${profile.slug}`,
+    // Application preferences
+    work_authorization: (profile.work_authorization as string) || null,
+    sponsorship_required: (profile.sponsorship_required as string) || null,
+    gender_identity: (profile.gender_identity as string) || null,
+    pronouns: (profile.pronouns as string) || null,
+    race_ethnicity: (profile.race_ethnicity as string) || null,
+    veteran_status: (profile.veteran_status as string) || null,
+    disability_status: (profile.disability_status as string) || null,
+    lgbtq_identity: (profile.lgbtq_identity as string) || null,
+    salary_expectation: (profile.salary_expectation as string) || null,
+    notice_period: (profile.notice_period as string) || null,
+    preferred_work_setting: (profile.preferred_work_setting as string) || null,
+    how_heard_default: (profile.how_heard_default as string) || null,
   };
 }

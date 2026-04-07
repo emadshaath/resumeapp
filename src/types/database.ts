@@ -28,6 +28,19 @@ export interface Profile {
   stripe_subscription_id: string | null;
   is_published: boolean;
   onboarding_completed: boolean;
+  // Application preferences (EEO & common form fields)
+  work_authorization: string | null;
+  sponsorship_required: string | null;
+  gender_identity: string | null;
+  pronouns: string | null;
+  race_ethnicity: string | null;
+  veteran_status: string | null;
+  disability_status: string | null;
+  lgbtq_identity: string | null;
+  salary_expectation: string | null;
+  notice_period: string | null;
+  preferred_work_setting: string | null;
+  how_heard_default: string | null;
   created_at: string;
   updated_at: string;
 }

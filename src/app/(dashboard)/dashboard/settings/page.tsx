@@ -16,6 +16,7 @@ import {
   AlertCircle,
   Sparkles,
   Crown,
+  ClipboardList,
 } from "lucide-react";
 
 interface ProfileBilling {
@@ -73,7 +74,8 @@ const PLANS = [
 
 export default function SettingsPage() {
   const searchParams = useSearchParams();
-  const defaultTab = searchParams.get("tab") === "billing" ? "billing" : "account";
+  const tabParam = searchParams.get("tab");
+  const defaultTab = tabParam === "billing" ? "billing" : tabParam === "apply" ? "apply" : "account";
 
   return (
     <div className="space-y-6">
@@ -85,11 +87,16 @@ export default function SettingsPage() {
       <Tabs defaultValue={defaultTab}>
         <TabsList>
           <TabsTrigger value="account">Account</TabsTrigger>
+          <TabsTrigger value="apply">Application Preferences</TabsTrigger>
           <TabsTrigger value="billing">Billing & Plan</TabsTrigger>
         </TabsList>
 
         <TabsContent value="account">
           <AccountTab />
+        </TabsContent>
+
+        <TabsContent value="apply">
+          <ApplicationPreferencesTab />
         </TabsContent>
 
         <TabsContent value="billing">
@@ -170,6 +177,340 @@ function AccountTab() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+interface AppPrefs {
+  work_authorization: string | null;
+  sponsorship_required: string | null;
+  gender_identity: string | null;
+  pronouns: string | null;
+  race_ethnicity: string | null;
+  veteran_status: string | null;
+  disability_status: string | null;
+  lgbtq_identity: string | null;
+  salary_expectation: string | null;
+  notice_period: string | null;
+  preferred_work_setting: string | null;
+  how_heard_default: string | null;
+}
+
+const APP_PREF_FIELDS: (keyof AppPrefs)[] = [
+  "work_authorization", "sponsorship_required", "gender_identity", "pronouns",
+  "race_ethnicity", "veteran_status", "disability_status", "lgbtq_identity",
+  "salary_expectation", "notice_period", "preferred_work_setting", "how_heard_default",
+];
+
+function ApplicationPreferencesTab() {
+  const [prefs, setPrefs] = useState<AppPrefs | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const router = useRouter();
+  const supabase = createClient();
+
+  useEffect(() => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.push("/login"); return; }
+
+      const { data } = await supabase
+        .from("profiles")
+        .select(APP_PREF_FIELDS.join(", "))
+        .eq("id", user.id)
+        .single();
+
+      if (data) setPrefs(data as unknown as AppPrefs);
+      setLoading(false);
+    }
+    load();
+  }, [supabase, router]);
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!prefs) return;
+    setSaving(true);
+    setMessage(null);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        work_authorization: prefs.work_authorization || null,
+        sponsorship_required: prefs.sponsorship_required || null,
+        gender_identity: prefs.gender_identity || null,
+        pronouns: prefs.pronouns || null,
+        race_ethnicity: prefs.race_ethnicity || null,
+        veteran_status: prefs.veteran_status || null,
+        disability_status: prefs.disability_status || null,
+        lgbtq_identity: prefs.lgbtq_identity || null,
+        salary_expectation: prefs.salary_expectation || null,
+        notice_period: prefs.notice_period || null,
+        preferred_work_setting: prefs.preferred_work_setting || null,
+        how_heard_default: prefs.how_heard_default || null,
+      })
+      .eq("id", user.id);
+
+    if (error) {
+      setMessage({ type: "error", text: error.message });
+    } else {
+      setMessage({ type: "success", text: "Application preferences saved." });
+    }
+    setSaving(false);
+  }
+
+  function updatePref(key: keyof AppPrefs, value: string) {
+    if (!prefs) return;
+    setPrefs({ ...prefs, [key]: value });
+  }
+
+  if (loading) {
+    return <div className="py-12 text-center text-zinc-500">Loading preferences...</div>;
+  }
+
+  if (!prefs) {
+    return <div className="py-12 text-center text-zinc-500">Profile not found.</div>;
+  }
+
+  return (
+    <form onSubmit={handleSave} className="space-y-6">
+      {message && (
+        <div className={`rounded-md p-3 text-sm ${message.type === "success" ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300" : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"}`}>
+          {message.text}
+        </div>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <ClipboardList className="h-5 w-5" />
+            Application Preferences
+          </CardTitle>
+          <CardDescription>
+            Pre-fill common job application questions. These are stored securely and only used to auto-fill forms via the Chrome extension. All fields are optional.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Work Authorization */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="work_authorization">Authorized to work in the US?</Label>
+              <select
+                id="work_authorization"
+                className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                value={prefs.work_authorization || ""}
+                onChange={(e) => updatePref("work_authorization", e.target.value)}
+              >
+                <option value="">Not set</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="sponsorship_required">Require visa sponsorship?</Label>
+              <select
+                id="sponsorship_required"
+                className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                value={prefs.sponsorship_required || ""}
+                onChange={(e) => updatePref("sponsorship_required", e.target.value)}
+              >
+                <option value="">Not set</option>
+                <option value="no">No</option>
+                <option value="yes">Yes, now</option>
+                <option value="future">Yes, in the future</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Work Preferences */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="preferred_work_setting">Preferred work setting</Label>
+              <select
+                id="preferred_work_setting"
+                className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                value={prefs.preferred_work_setting || ""}
+                onChange={(e) => updatePref("preferred_work_setting", e.target.value)}
+              >
+                <option value="">Not set</option>
+                <option value="remote">Remote</option>
+                <option value="hybrid">Hybrid</option>
+                <option value="onsite">On-site</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notice_period">Notice period</Label>
+              <select
+                id="notice_period"
+                className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                value={prefs.notice_period || ""}
+                onChange={(e) => updatePref("notice_period", e.target.value)}
+              >
+                <option value="">Not set</option>
+                <option value="immediate">Immediately available</option>
+                <option value="1 week">1 week</option>
+                <option value="2 weeks">2 weeks</option>
+                <option value="3 weeks">3 weeks</option>
+                <option value="1 month">1 month</option>
+                <option value="2 months">2 months</option>
+                <option value="3 months">3 months</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Salary & Source */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="salary_expectation">Salary expectation (USD/year)</Label>
+              <Input
+                id="salary_expectation"
+                placeholder="e.g. 120000 or 100000-130000"
+                value={prefs.salary_expectation || ""}
+                onChange={(e) => updatePref("salary_expectation", e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="how_heard_default">Default &quot;How did you hear?&quot;</Label>
+              <Input
+                id="how_heard_default"
+                placeholder="e.g. LinkedIn, Company website, Referral"
+                value={prefs.how_heard_default || ""}
+                onChange={(e) => updatePref("how_heard_default", e.target.value)}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* EEO / Demographics */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Demographic Information (EEO)</CardTitle>
+          <CardDescription>
+            Many applications ask voluntary EEO questions. Set your answers once here and they&apos;ll be auto-filled consistently. Select &quot;Prefer not to say&quot; for any you&apos;d like to skip.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="gender_identity">Gender identity</Label>
+              <select
+                id="gender_identity"
+                className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                value={prefs.gender_identity || ""}
+                onChange={(e) => updatePref("gender_identity", e.target.value)}
+              >
+                <option value="">Not set</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="non_binary">Non-binary</option>
+                <option value="other">Other</option>
+                <option value="prefer_not_to_say">Prefer not to say</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="pronouns">Pronouns</Label>
+              <select
+                id="pronouns"
+                className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                value={prefs.pronouns || ""}
+                onChange={(e) => updatePref("pronouns", e.target.value)}
+              >
+                <option value="">Not set</option>
+                <option value="he/him">He/Him</option>
+                <option value="she/her">She/Her</option>
+                <option value="they/them">They/Them</option>
+                <option value="other">Other</option>
+                <option value="prefer_not_to_say">Prefer not to say</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="race_ethnicity">Race / Ethnicity</Label>
+              <select
+                id="race_ethnicity"
+                className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                value={prefs.race_ethnicity || ""}
+                onChange={(e) => updatePref("race_ethnicity", e.target.value)}
+              >
+                <option value="">Not set</option>
+                <option value="american_indian">American Indian / Alaskan Native</option>
+                <option value="asian">Asian</option>
+                <option value="black">Black or African American</option>
+                <option value="hispanic">Hispanic / Latinx</option>
+                <option value="middle_eastern">Middle Eastern or North African</option>
+                <option value="pacific_islander">Pacific Islander or Native Hawaiian</option>
+                <option value="white">White</option>
+                <option value="two_or_more">Two or more races</option>
+                <option value="other">Other</option>
+                <option value="prefer_not_to_say">Prefer not to say</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="veteran_status">Veteran status</Label>
+              <select
+                id="veteran_status"
+                className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                value={prefs.veteran_status || ""}
+                onChange={(e) => updatePref("veteran_status", e.target.value)}
+              >
+                <option value="">Not set</option>
+                <option value="veteran">I am a veteran</option>
+                <option value="not_veteran">I am not a veteran</option>
+                <option value="prefer_not_to_say">Prefer not to say</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="disability_status">Disability status</Label>
+              <select
+                id="disability_status"
+                className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                value={prefs.disability_status || ""}
+                onChange={(e) => updatePref("disability_status", e.target.value)}
+              >
+                <option value="">Not set</option>
+                <option value="yes">Yes, I have a disability</option>
+                <option value="no">No, I do not have a disability</option>
+                <option value="prefer_not_to_say">Prefer not to say</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="lgbtq_identity">LGBTQIA+ identity</Label>
+              <select
+                id="lgbtq_identity"
+                className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                value={prefs.lgbtq_identity || ""}
+                onChange={(e) => updatePref("lgbtq_identity", e.target.value)}
+              >
+                <option value="">Not set</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+                <option value="prefer_not_to_say">Prefer not to say</option>
+              </select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-end">
+        <Button type="submit" disabled={saving}>
+          {saving ? "Saving..." : "Save Preferences"}
+        </Button>
+      </div>
+    </form>
   );
 }
 
