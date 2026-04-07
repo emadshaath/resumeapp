@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
 import { generateTailoredVariant, applyVariantToResume } from "@/lib/tailor";
-import { hasFeature, getLimit, getRequiredTier } from "@/lib/stripe/feature-gate";
+import { hasFeature, getLimit, getRequiredTier, getEffectiveTier } from "@/lib/stripe/feature-gate";
 import type { Tier } from "@/types/database";
 
 /**
@@ -34,8 +34,8 @@ export async function POST(req: NextRequest) {
   if (!profile)
     return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
-  // Check tier access
-  const tier = (profile.tier || "free") as Tier;
+  // Check tier access (respect tier_override)
+  const tier = getEffectiveTier((profile.tier || "free") as Tier, profile.tier_override as Tier | null);
   if (!hasFeature(tier, "smart_apply")) {
     const requiredTier = getRequiredTier("smart_apply");
     return NextResponse.json(

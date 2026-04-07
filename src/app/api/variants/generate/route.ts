@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
 import { generateTailoredVariant } from "@/lib/tailor";
-import { hasFeature, getRequiredTier } from "@/lib/stripe/feature-gate";
+import { hasFeature, getRequiredTier, getEffectiveTier } from "@/lib/stripe/feature-gate";
 import type { Tier } from "@/types/database";
 
 // POST /api/variants/generate — AI generates a tailored variant for a job
@@ -13,11 +13,11 @@ export async function POST(req: NextRequest) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("tier")
+    .select("tier, tier_override")
     .eq("id", user.id)
     .single();
 
-  const tier = (profile?.tier || "free") as Tier;
+  const tier = getEffectiveTier((profile?.tier || "free") as Tier, profile?.tier_override as Tier | null);
   if (!hasFeature(tier, "smart_apply")) {
     const requiredTier = getRequiredTier("smart_apply");
     return NextResponse.json({
