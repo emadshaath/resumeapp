@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { isValidSlug, slugify } from "@/lib/utils";
+import { signupAction } from "../actions";
 
 export default function SignupPage() {
   const [firstName, setFirstName] = useState("");
@@ -20,7 +20,6 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const router = useRouter();
-  const supabase = createClient();
 
   function handleNameChange(first: string, last: string) {
     setFirstName(first);
@@ -43,33 +42,22 @@ export default function SignupPage() {
       return;
     }
 
-    // Check slug availability
-    const { data: existing } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("slug", slug)
-      .single();
-
-    if (existing) {
-      setError("This profile URL is already taken. Please choose another.");
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
       setLoading(false);
       return;
     }
 
-    const { error: signUpError } = await supabase.auth.signUp({
+    const result = await signupAction({
       email,
       password,
-      options: {
-        data: {
-          first_name: firstName,
-          last_name: lastName,
-          slug,
-        },
-      },
+      firstName,
+      lastName,
+      slug,
     });
 
-    if (signUpError) {
-      setError(signUpError.message);
+    if (!result.success) {
+      setError(result.error || "Signup failed. Please try again.");
       setLoading(false);
     } else {
       setSuccess(true);

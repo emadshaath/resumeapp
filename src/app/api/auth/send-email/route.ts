@@ -4,11 +4,13 @@ import {
   sendPasswordResetEmail,
   sendMagicLinkEmail,
   sendEmailChangedEmail,
-  sendWelcomeEmail,
 } from "@/lib/resend/send";
-import { createAdminClient } from "@/lib/supabase/admin";
 
-// Supabase Auth Hook: Send Email
+// Supabase Auth Hook: Send Email (fallback)
+// The primary email flow uses admin.generateLink() in server actions.
+// This hook acts as a safety net for any Supabase-initiated emails
+// (e.g., re-confirmations triggered by Supabase internals).
+//
 // Configure in Supabase Dashboard > Auth > Hooks > Send Email
 // Set the hook URL to: https://yourdomain.com/api/auth/send-email
 // Set the hook secret in AUTH_HOOK_SECRET env var
@@ -41,72 +43,72 @@ export async function POST(request: Request) {
 
     const emailActionType = email_data.email_action_type;
     const tokenHash = email_data.token_hash;
-    const redirectTo = email_data.redirect_to || process.env.NEXT_PUBLIC_APP_URL;
+    const redirectTo = email_data.redirect_to || "";
 
-    // Build confirmation/action URL
+    // Build confirmation/action URL using proper URL construction
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://rezm.ai";
-    const actionUrl = `${baseUrl}/callback?token_hash=${tokenHash}&type=${emailActionType}&redirect_to=${encodeURIComponent(redirectTo)}`;
+    const actionUrl = new URL("/callback", baseUrl);
+    actionUrl.searchParams.set("token_hash", tokenHash);
+    actionUrl.searchParams.set("type", emailActionType);
+    if (redirectTo) {
+      actionUrl.searchParams.set("redirect_to", redirectTo);
+    }
+    const actionUrlStr = actionUrl.toString();
 
     switch (emailActionType) {
       case "signup":
       case "email": {
-        // Email confirmation for new signup
         await sendConfirmEmail({
           to: email,
           firstName,
-          confirmUrl: actionUrl,
+          confirmUrl: actionUrlStr,
         });
         break;
       }
 
       case "recovery": {
-        // Password reset
         await sendPasswordResetEmail({
           to: email,
           firstName,
-          resetUrl: actionUrl,
+          resetUrl: actionUrlStr,
         });
         break;
       }
 
       case "magiclink": {
-        // Magic link sign-in
         await sendMagicLinkEmail({
           to: email,
-          magicLinkUrl: actionUrl,
+          magicLinkUrl: actionUrlStr,
         });
         break;
       }
 
       case "email_change": {
-        // Email change confirmation
         const newEmail = email_data.new_email || email;
         await sendEmailChangedEmail({
           to: newEmail,
           firstName,
           newEmail,
-          confirmUrl: actionUrl,
+          confirmUrl: actionUrlStr,
         });
         break;
       }
 
       case "invite": {
-        // Invitation (same as confirm for our purposes)
         await sendConfirmEmail({
           to: email,
           firstName,
-          confirmUrl: actionUrl,
+          confirmUrl: actionUrlStr,
         });
         break;
       }
 
       default: {
         console.warn(`Unknown email action type: ${emailActionType}`);
-        // Fallback: send a generic confirm email
         await sendConfirmEmail({
           to: email,
           firstName,
-          confirmUrl: actionUrl,
+          confirmUrl: actionUrlStr,
         });
       }
     }
