@@ -2,15 +2,28 @@
   "name": "rezm.ai",
   "short_name": "rezm.ai",
   "description": "Your Professional Identity, Secured",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#4F46E5",
+  "theme_color": "#1a1a2e",
+  "orientation": "any",
   "icons": [
     {
       "src": "/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml"
     }
-  ]
+  ],
+  "share_target": {
+    "action": "/dashboard/jobs/share",
+    "method": "GET",
+    "params": {
+      "url": "url",
+      "title": "title",
+      "text": "text"
+    }
+  },
+  "categories": ["business", "productivity"],
+  "screenshots": [],
+  "prefer_related_applications": false
 }

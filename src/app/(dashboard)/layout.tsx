@@ -1,4 +1,5 @@
 import { Sidebar, MobileNav } from "@/components/dashboard/sidebar";
+import { PwaInstallPrompt } from "@/components/dashboard/pwa-install-prompt";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,8 @@ export default function DashboardLayout({
       <main className="flex-1 overflow-y-auto bg-zinc-50 dark:bg-zinc-900">
         <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">{children}</div>
       </main>
+      {/* PWA install prompt for mobile */}
+      <PwaInstallPrompt />
     </div>
   );
 }
