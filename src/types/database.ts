@@ -261,3 +261,33 @@ export interface SeoSettings {
   created_at: string;
   updated_at: string;
 }
+
+export interface PseudonymizeOptions {
+  name: boolean;
+  email: boolean;
+  phone: boolean;
+  location: boolean;
+  companies: boolean;
+}
+
+export interface ReviewLink {
+  id: string;
+  profile_id: string;
+  token: string;
+  pseudonymize_options: PseudonymizeOptions;
+  expires_at: string;
+  password_hash: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ReviewComment {
+  id: string;
+  review_link_id: string;
+  profile_id: string;
+  section_id: string | null;
+  section_type: string | null;
+  reviewer_name: string | null;
+  comment_text: string;
+  created_at: string;
+}

@@ -28,7 +28,8 @@ export type Feature =
   | "job_optimizer"
   | "job_tracker"
   | "smart_apply"
-  | "pdf_resume";
+  | "pdf_resume"
+  | "peer_review";
 
 const FEATURE_MIN_TIER: Record<Feature, Tier> = {
   unlimited_sections: "pro",
@@ -48,6 +49,7 @@ const FEATURE_MIN_TIER: Record<Feature, Tier> = {
   job_tracker: "free",
   smart_apply: "pro",
   pdf_resume: "free",
+  peer_review: "premium",
 };
 
 export function hasFeature(tier: Tier, feature: Feature): boolean {
@@ -68,6 +70,7 @@ export const TIER_LIMITS = {
   variants_max: { free: 0, pro: 3, premium: 999 },
   job_optimizations_per_month: { free: 0, pro: 0, premium: 10 },
   jobs_max: { free: 5, pro: 50, premium: 999 },
+  review_links_max: { free: 0, pro: 0, premium: 999 },
 } as const;
 
 export function getLimit(tier: Tier, limit: keyof typeof TIER_LIMITS): number {

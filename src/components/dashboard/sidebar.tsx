@@ -18,6 +18,7 @@ import {
   Search,
   MessageSquare,
   Briefcase,
+  ClipboardCheck,
   Link2,
   Menu,
   X,
@@ -56,6 +57,7 @@ const navigation: NavEntry[] = [
     ],
   },
   { name: "Job Tracker", href: "/dashboard/jobs", icon: Briefcase },
+  { name: "Peer Review", href: "/dashboard/reviews", icon: ClipboardCheck },
   {
     label: "Insights",
     icon: BarChart3,
