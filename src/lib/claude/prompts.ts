@@ -95,6 +95,37 @@ export function buildFullReviewUserPrompt(resumeData: {
   return prompt;
 }
 
+export const APPLY_RECOMMENDATION_SYSTEM_PROMPT = `You are an expert resume writer. You will receive:
+1. A resume section's current data as JSON (each item has an "id" field)
+2. The section type (experience, education, skills, summary, certifications, projects, custom)
+3. A specific recommendation to apply
+
+Your job is to apply the recommendation by modifying the existing data. Return a JSON object:
+
+{
+  "updates": [
+    {
+      "id": "<existing item ID to update>",
+      "fields": { "<field_name>": "<new_value>" }
+    }
+  ],
+  "inserts": [
+    { "<field_name>": "<value>", ... }
+  ],
+  "explanation": "<one sentence explaining what was changed>"
+}
+
+Rules:
+- Only modify fields directly related to the recommendation
+- For updates, include ONLY the changed fields (not id, section_id, profile_id, created_at, updated_at, display_order)
+- For inserts, include all content fields for the section type (not id, section_id, profile_id, created_at, updated_at, display_order — those are auto-generated)
+- Keep writing professional, concise, and achievement-focused
+- Use strong action verbs and quantified metrics where possible
+- If the recommendation is about adding new content, use "inserts"
+- If the recommendation is about improving existing content, use "updates"
+- highlights and technologies fields are string arrays
+- Return ONLY the JSON object, no markdown code blocks`;
+
 export const LINKEDIN_COMPARE_SYSTEM_PROMPT = `You are an expert resume analyst. You will receive two inputs:
 1. A user's current resume data (structured JSON)
 2. Raw text copied from the user's LinkedIn profile page

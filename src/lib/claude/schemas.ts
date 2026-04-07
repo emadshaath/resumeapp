@@ -27,6 +27,15 @@ export interface SectionSuggestions {
   suggestions: SuggestionItem[];
 }
 
+export interface ApplyRecommendationResult {
+  updates: {
+    id: string;
+    fields: Record<string, unknown>;
+  }[];
+  inserts: Record<string, unknown>[];
+  explanation: string;
+}
+
 export interface LinkedInComparisonResult {
   parsed_linkedin: {
     headline: string | null;

@@ -326,7 +326,7 @@ export default function SectionsPage() {
         onImportComplete={loadSections}
       />
       <PdfResumeDrawer open={pdfOpen} onClose={() => setPdfOpen(false)} />
-      <AIReviewDrawer open={reviewOpen} onClose={() => setReviewOpen(false)} />
+      <AIReviewDrawer open={reviewOpen} onClose={() => setReviewOpen(false)} onSectionUpdate={loadSections} />
       <LinkedInAnalyzerDrawer
         open={linkedinOpen}
         onClose={() => setLinkedinOpen(false)}

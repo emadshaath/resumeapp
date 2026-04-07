@@ -18,6 +18,9 @@ import {
   ChevronUp,
   Clock,
   FileText,
+  Play,
+  Check,
+  Loader2,
 } from "lucide-react";
 import type { FullReviewResult, SectionReview } from "@/lib/claude/schemas";
 
@@ -32,9 +35,10 @@ interface SavedReview {
 interface AIReviewDrawerProps {
   open: boolean;
   onClose: () => void;
+  onSectionUpdate?: () => void;
 }
 
-export function AIReviewDrawer({ open, onClose }: AIReviewDrawerProps) {
+export function AIReviewDrawer({ open, onClose, onSectionUpdate }: AIReviewDrawerProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [review, setReview] = useState<FullReviewResult | null>(null);
@@ -138,7 +142,7 @@ export function AIReviewDrawer({ open, onClose }: AIReviewDrawerProps) {
                 <Button variant="ghost" size="sm" onClick={() => { setViewingHistory(null); setReview(null); }}>Clear</Button>
               </div>
             )}
-            <ReviewResults review={review} />
+            <ReviewResults review={review} onSectionUpdate={onSectionUpdate} />
           </>
         )}
 
@@ -217,8 +221,49 @@ function ScoreRing({ score, label }: { score: number; label: string }) {
   );
 }
 
-function SectionCard({ section }: { section: SectionReview }) {
+function SectionCard({
+  section,
+  onSectionUpdate,
+}: {
+  section: SectionReview;
+  onSectionUpdate?: () => void;
+}) {
   const [expanded, setExpanded] = useState(false);
+  const [applyingIndex, setApplyingIndex] = useState<number | null>(null);
+  const [appliedIndices, setAppliedIndices] = useState<Set<number>>(new Set());
+  const [applyError, setApplyError] = useState<string | null>(null);
+
+  async function applyRecommendation(rec: string, index: number) {
+    setApplyingIndex(index);
+    setApplyError(null);
+
+    try {
+      const res = await fetch("/api/ai/apply-recommendation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recommendation: rec,
+          section_type: section.section_type,
+          section_name: section.section_name,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setApplyError(data.error || "Failed to apply.");
+        return;
+      }
+
+      setAppliedIndices((prev) => new Set(prev).add(index));
+      onSectionUpdate?.();
+    } catch {
+      setApplyError("Network error. Please try again.");
+    } finally {
+      setApplyingIndex(null);
+    }
+  }
+
   return (
     <div className="rounded-lg bg-zinc-50 dark:bg-zinc-900 p-3">
       <button onClick={() => setExpanded(!expanded)} className="flex items-center justify-between w-full text-left">
@@ -233,13 +278,45 @@ function SectionCard({ section }: { section: SectionReview }) {
       {expanded && (
         <div className="mt-2 pt-2 border-t border-zinc-200 dark:border-zinc-700 space-y-2">
           <p className="text-sm text-zinc-600 dark:text-zinc-400">{section.feedback}</p>
+          {applyError && (
+            <p className="text-xs text-red-500">{applyError}</p>
+          )}
           {section.recommendations.length > 0 && (
-            <ul className="space-y-0.5">
-              {section.recommendations.map((rec, i) => (
-                <li key={i} className="text-sm text-zinc-600 dark:text-zinc-400 flex items-start gap-2">
-                  <span className="text-brand mt-0.5 shrink-0">•</span>{rec}
-                </li>
-              ))}
+            <ul className="space-y-2">
+              {section.recommendations.map((rec, i) => {
+                const isApplying = applyingIndex === i;
+                const isApplied = appliedIndices.has(i);
+
+                return (
+                  <li key={i} className="text-sm text-zinc-600 dark:text-zinc-400">
+                    <div className="flex items-start gap-2">
+                      <span className="text-brand mt-0.5 shrink-0">•</span>
+                      <span className="flex-1">{rec}</span>
+                    </div>
+                    <div className="ml-4 mt-1.5">
+                      {isApplied ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
+                          <Check className="h-3 w-3" /> Applied
+                        </span>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs px-2.5"
+                          disabled={isApplying || applyingIndex !== null}
+                          onClick={() => applyRecommendation(rec, i)}
+                        >
+                          {isApplying ? (
+                            <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Applying...</>
+                          ) : (
+                            <><Play className="h-3 w-3 mr-1" />Apply</>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
@@ -248,7 +325,7 @@ function SectionCard({ section }: { section: SectionReview }) {
   );
 }
 
-function ReviewResults({ review }: { review: FullReviewResult }) {
+function ReviewResults({ review, onSectionUpdate }: { review: FullReviewResult; onSectionUpdate?: () => void }) {
   return (
     <div className="space-y-5">
       <div className="flex justify-center gap-8">
@@ -289,7 +366,7 @@ function ReviewResults({ review }: { review: FullReviewResult }) {
       {review.sections.length > 0 && (
         <div>
           <h4 className="text-xs font-semibold flex items-center gap-1.5 mb-2"><TrendingUp className="h-3.5 w-3.5 text-purple-500" /> Section Feedback</h4>
-          <div className="space-y-1.5">{review.sections.map((section, i) => <SectionCard key={i} section={section} />)}</div>
+          <div className="space-y-1.5">{review.sections.map((section, i) => <SectionCard key={i} section={section} onSectionUpdate={onSectionUpdate} />)}</div>
         </div>
       )}
     </div>
