@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hasFeature, getLimit, getRequiredTier, getEffectiveTier } from "@/lib/stripe/feature-gate";
 import type { Tier } from "@/types/database";
 
-// GET /api/variants — List user's variants
+// GET /api/variants — List user's variants 
 export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
