@@ -8,6 +8,7 @@ import { MapPin, Globe, Briefcase, GraduationCap, Wrench, Award, FolderOpen, Ext
 import { generatePersonJsonLd, generateBreadcrumbJsonLd } from "@/lib/seo/json-ld";
 import { generateProfileMetadata } from "@/lib/seo/meta";
 import { THEME_CSS_VARS, DEFAULT_THEME } from "@/lib/themes";
+import { ensureAbsoluteUrl } from "@/lib/utils";
 import { ContactForm } from "@/components/profile/contact-form";
 import { VisitorTracker } from "@/components/profile/visitor-tracker";
 import { PdfDownloadButton } from "@/components/profile/pdf-download-button";
@@ -168,7 +169,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
                 )}
                 {profile.website_url && (
                   <a
-                    href={profile.website_url}
+                    href={ensureAbsoluteUrl(profile.website_url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 hover:text-white transition-colors print:text-zinc-600"
@@ -328,7 +329,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
                             {cert.name}
                             {cert.credential_url && (
                               <a
-                                href={cert.credential_url}
+                                href={ensureAbsoluteUrl(cert.credential_url)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
@@ -361,7 +362,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
                           {project.name}
                           {project.url && (
                             <a
-                              href={project.url}
+                              href={ensureAbsoluteUrl(project.url)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"

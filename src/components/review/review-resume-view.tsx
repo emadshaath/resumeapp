@@ -5,6 +5,7 @@ import { MapPin, Briefcase, GraduationCap, Wrench, Award, FolderOpen, ExternalLi
 import { ReviewCommentForm } from "./review-comment-form";
 import { ReviewCommentsList, type ReviewCommentData } from "./review-comments-list";
 import type { Profile, ResumeSection, Experience, Education, Skill, Certification, Project, CustomSection } from "@/types/database";
+import { ensureAbsoluteUrl } from "@/lib/utils";
 
 interface ReviewResumeViewProps {
   profile: Profile;
@@ -210,7 +211,7 @@ export function ReviewResumeView({
                           <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                             {cert.name}
                             {cert.credential_url && (
-                              <a href={cert.credential_url} target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-zinc-600 transition-colors">
+                              <a href={ensureAbsoluteUrl(cert.credential_url)} target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-zinc-600 transition-colors">
                                 <ExternalLink className="h-3.5 w-3.5" />
                               </a>
                             )}
@@ -235,7 +236,7 @@ export function ReviewResumeView({
                         <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                           {project.name}
                           {project.url && (
-                            <a href={project.url} target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-zinc-600 transition-colors">
+                            <a href={ensureAbsoluteUrl(project.url)} target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-zinc-600 transition-colors">
                               <ExternalLink className="h-3.5 w-3.5" />
                             </a>
                           )}
