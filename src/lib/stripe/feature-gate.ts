@@ -28,7 +28,8 @@ export type Feature =
   | "job_tracker"
   | "smart_apply"
   | "pdf_resume"
-  | "peer_review";
+  | "peer_review"
+  | "ai_form_answers";
 
 const FEATURE_MIN_TIER: Record<Feature, Tier> = {
   unlimited_sections: "pro",
@@ -48,6 +49,7 @@ const FEATURE_MIN_TIER: Record<Feature, Tier> = {
   smart_apply: "pro",
   pdf_resume: "free",
   peer_review: "premium",
+  ai_form_answers: "premium",
 };
 
 export function getEffectiveTier(tier: Tier, tierOverride?: Tier | null): Tier {

@@ -92,6 +92,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const details = scrapeJobDetails();
     sendResponse(details);
   }
+  if (message.type === "EXTRACT_QUESTIONS") {
+    const questions = extractFormQuestions();
+    // Strip any non-serializable data before sending
+    sendResponse(questions.map(({ _element, ...rest }) => rest));
+  }
+  if (message.type === "APPLY_AI_ANSWERS") {
+    const filled = applyAIAnswers(message.answers);
+    sendResponse({ success: true, filled });
+  }
 });
 
 // ─── Main fill logic ───
@@ -513,6 +522,213 @@ function detectPlatform() {
     if (platform.detect()) return name;
   }
   return "generic";
+}
+
+// ─── Extract form questions for AI answering ───
+function extractFormQuestions() {
+  const questions = [];
+  let idx = 0;
+
+  // Textareas — these are almost always open-ended questions
+  document.querySelectorAll("textarea").forEach((el) => {
+    if (el.value && el.value.trim().length > 10) return; // already answered
+    const label = getLabel(el);
+    if (!label || label.length < 5) return;
+    questions.push({
+      id: el.id || el.name || `textarea_${idx}`,
+      question: label,
+      type: "textarea",
+      required: el.required || el.getAttribute("aria-required") === "true",
+      _element: null, // stripped before sending to API
+    });
+    idx++;
+  });
+
+  // Text inputs that look like questions (long labels, not standard fields)
+  const standardFields = /^(first|last|full|given|family).?name|email|phone|tel|city|state|zip|postal|address|linkedin|website|portfolio|url$/i;
+  document.querySelectorAll('input[type="text"], input:not([type])').forEach((el) => {
+    if (el.value && el.value.trim()) return; // already filled
+    const label = getLabel(el);
+    const name = (el.name || "").toLowerCase();
+    if (!label || label.length < 10) return;
+    // Skip standard profile fields we already handle
+    if (standardFields.test(name) || standardFields.test(label)) return;
+    // Only include if label looks like a question
+    if (/\?|please|describe|explain|tell|why|what|how|share|elaborate/i.test(label)) {
+      questions.push({
+        id: el.id || el.name || `text_${idx}`,
+        question: label,
+        type: "text",
+        required: el.required || el.getAttribute("aria-required") === "true",
+      });
+      idx++;
+    }
+  });
+
+  // Unfilled selects (that weren't handled by basic fill)
+  document.querySelectorAll("select").forEach((el) => {
+    if (el.value && el.selectedIndex > 0) return; // already selected
+    const label = getLabel(el);
+    if (!label || label.length < 5) return;
+    const options = Array.from(el.options)
+      .filter((o) => o.value && !o.disabled && o.value !== "")
+      .map((o) => o.text.trim());
+    if (options.length === 0) return;
+    questions.push({
+      id: el.id || el.name || `select_${idx}`,
+      question: label,
+      type: "select",
+      options,
+      required: el.required || el.getAttribute("aria-required") === "true",
+    });
+    idx++;
+  });
+
+  // Unfilled radio groups
+  const radioGroups = {};
+  document.querySelectorAll('input[type="radio"]').forEach((radio) => {
+    const name = radio.name;
+    if (!name) return;
+    if (!radioGroups[name]) radioGroups[name] = [];
+    radioGroups[name].push(radio);
+  });
+
+  for (const [groupName, radios] of Object.entries(radioGroups)) {
+    if (radios.some((r) => r.checked)) continue; // already answered
+    const container = radios[0].closest("fieldset, .field, .form-group, [class*=question], [role=radiogroup]");
+    const questionText = container ? container.querySelector("label, legend, [class*=label]")?.textContent?.trim() : getLabel(radios[0]);
+    if (!questionText || questionText.length < 5) continue;
+    const options = radios.map((r) => {
+      const radioLabel = getLabel(r);
+      return radioLabel || r.value;
+    });
+    questions.push({
+      id: groupName,
+      question: questionText,
+      type: "radio",
+      options,
+      required: radios[0].required || radios[0].getAttribute("aria-required") === "true",
+    });
+    idx++;
+  }
+
+  // Unfilled checkboxes with question-like labels (skip consent ones already handled)
+  document.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+    if (cb.checked) return;
+    const label = getLabel(cb);
+    if (!label || label.length < 10) return;
+    if (/agree.?to.?receive|opt.?in|i.?agree|i.?consent|i.?acknowledge/i.test(label)) return; // handled by basic fill
+    questions.push({
+      id: cb.id || cb.name || `checkbox_${idx}`,
+      question: label,
+      type: "checkbox",
+      required: cb.required,
+    });
+    idx++;
+  });
+
+  return questions;
+}
+
+// ─── Apply AI-generated answers to the form ───
+function applyAIAnswers(answers) {
+  let filled = 0;
+
+  for (const { id, answer } of answers) {
+    if (!answer) continue;
+
+    // Try to find the element by id, name, or our indexed ids
+    let element = document.getElementById(id) || document.querySelector(`[name="${id}"]`);
+
+    // For textareas and text inputs
+    if (element && (element.tagName === "TEXTAREA" || element.tagName === "INPUT")) {
+      if (element.type === "checkbox") {
+        const shouldCheck = /^true$/i.test(answer);
+        if (shouldCheck !== element.checked) {
+          element.checked = shouldCheck;
+          triggerEvents(element);
+          highlightElement(element, "#ede9fe");
+          filled++;
+        }
+      } else {
+        setFieldValue(element, answer);
+        highlightElement(element, "#ede9fe"); // Purple tint for AI answers
+        filled++;
+      }
+      continue;
+    }
+
+    // For selects
+    if (element && element.tagName === "SELECT") {
+      const matched = selectBestOption(element, answer);
+      if (matched) {
+        highlightElement(element, "#ede9fe");
+        filled++;
+      }
+      continue;
+    }
+
+    // For radio groups (id is the group name)
+    const radios = document.querySelectorAll(`input[type="radio"][name="${id}"]`);
+    if (radios.length > 0) {
+      const answerLower = answer.toLowerCase();
+      for (const radio of radios) {
+        const radioLabel = getLabel(radio).toLowerCase();
+        const radioValue = radio.value.toLowerCase();
+        if (radioLabel.includes(answerLower) || answerLower.includes(radioLabel) ||
+            radioValue.includes(answerLower) || answerLower.includes(radioValue) ||
+            radioLabel === answerLower || radioValue === answerLower) {
+          radio.checked = true;
+          triggerEvents(radio);
+          highlightElement(radio.closest("label") || radio, "#ede9fe");
+          filled++;
+          break;
+        }
+      }
+      continue;
+    }
+
+    // Fallback: try matching by indexed id pattern (textarea_0, text_1, select_2, etc.)
+    const idxMatch = id.match(/^(textarea|text|select|checkbox)_(\d+)$/);
+    if (idxMatch) {
+      const [, elType, idxStr] = idxMatch;
+      const idx = parseInt(idxStr);
+      let els;
+      if (elType === "textarea") els = document.querySelectorAll("textarea");
+      else if (elType === "text") els = document.querySelectorAll('input[type="text"], input:not([type])');
+      else if (elType === "select") els = document.querySelectorAll("select");
+      else if (elType === "checkbox") els = document.querySelectorAll('input[type="checkbox"]');
+
+      // Count to the right index (skipping already-filled ones as we did during extraction)
+      if (els) {
+        let count = 0;
+        for (const el of els) {
+          // Match the same filtering logic from extractFormQuestions
+          if (elType === "textarea" && el.value && el.value.trim().length > 10) continue;
+          if ((elType === "text") && el.value && el.value.trim()) continue;
+          if (elType === "select" && el.selectedIndex > 0) continue;
+          if (elType === "checkbox" && el.checked) continue;
+
+          if (count === idx) {
+            if (elType === "select") {
+              selectBestOption(el, answer);
+            } else if (elType === "checkbox") {
+              el.checked = /^true$/i.test(answer);
+              triggerEvents(el);
+            } else {
+              setFieldValue(el, answer);
+            }
+            highlightElement(el, "#ede9fe");
+            filled++;
+            break;
+          }
+          count++;
+        }
+      }
+    }
+  }
+
+  return filled;
 }
 
 // ─── Scrape job details from the page ───
