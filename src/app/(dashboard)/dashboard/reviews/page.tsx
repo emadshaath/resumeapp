@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,7 @@ import {
   Filter,
   ChevronDown,
   ExternalLink,
+  Eye,
   Briefcase,
   GraduationCap,
   Wrench,
@@ -201,10 +203,12 @@ function LinkHeader({
   return (
     <div className="flex items-center justify-between py-2">
       <div className="flex items-center gap-2 min-w-0">
-        <Link2 className="h-4 w-4 text-zinc-400 shrink-0" />
-        <code className="text-xs font-mono text-zinc-500 truncate max-w-[120px]">
-          {link.token.slice(0, 8)}...
-        </code>
+        <Link href={`/dashboard/reviews/${link.id}`} className="flex items-center gap-2 hover:text-brand transition-colors" title="View resume & feedback">
+          <Link2 className="h-4 w-4 text-zinc-400 shrink-0" />
+          <code className="text-xs font-mono text-zinc-500 truncate max-w-[120px] hover:text-brand">
+            {link.token.slice(0, 8)}...
+          </code>
+        </Link>
         <StatusBadge status={status} />
         <span className="text-xs text-zinc-400">
           {commentCount} {commentCount === 1 ? "comment" : "comments"}
@@ -542,6 +546,13 @@ export default function ReviewsPage() {
                 <MessageSquare className="h-3 w-3" />
                 {link.comment_count}
               </span>
+              <Link
+                href={`/dashboard/reviews/${link.id}`}
+                className="text-zinc-400 hover:text-brand transition-colors"
+                title="View resume & feedback"
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </Link>
               {link.status === "active" && (
                 <button
                   onClick={() => copyLink(link.id, link.url)}
