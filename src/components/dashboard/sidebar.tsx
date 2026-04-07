@@ -21,6 +21,7 @@ import {
   MessageSquare,
   Voicemail,
   Briefcase,
+  Wand2,
   ClipboardCheck,
   Link2,
   Menu,
@@ -61,6 +62,7 @@ const navigation: NavEntry[] = [
     ],
   },
   { name: "Job Tracker", href: "/dashboard/jobs", icon: Briefcase },
+  { name: "Smart Variants", href: "/dashboard/variants", icon: Wand2 },
   { name: "Peer Review", href: "/dashboard/reviews", icon: ClipboardCheck },
   {
     label: "Insights",

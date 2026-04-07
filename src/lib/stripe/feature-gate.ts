@@ -24,8 +24,7 @@ export type Feature =
   | "custom_domain"
   | "analytics_export"
   | "profile_variants"
-  | "linkedin_integration"
-  | "job_optimizer"
+  | "smart_tailor"
   | "job_tracker"
   | "smart_apply"
   | "pdf_resume"
@@ -44,8 +43,7 @@ const FEATURE_MIN_TIER: Record<Feature, Tier> = {
   custom_domain: "premium",
   analytics_export: "premium",
   profile_variants: "pro",
-  linkedin_integration: "premium",
-  job_optimizer: "premium",
+  smart_tailor: "pro",
   job_tracker: "free",
   smart_apply: "pro",
   pdf_resume: "free",
@@ -72,7 +70,7 @@ export const TIER_LIMITS = {
   contacts_per_day: { free: 5, pro: 50, premium: 999 },
   snapshots_max: { free: 5, pro: 50, premium: 999 },
   variants_max: { free: 0, pro: 3, premium: 999 },
-  job_optimizations_per_month: { free: 0, pro: 0, premium: 10 },
+  variants_per_month: { free: 0, pro: 3, premium: 999 },
   jobs_max: { free: 5, pro: 50, premium: 999 },
   review_links_max: { free: 0, pro: 0, premium: 999 },
 } as const;
