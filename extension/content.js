@@ -88,6 +88,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     attachPDFFromBlob(message.blob);
     sendResponse({ success: true });
   }
+  if (message.type === "SCRAPE_JOB") {
+    const details = scrapeJobDetails();
+    sendResponse(details);
+  }
 });
 
 // ─── Main fill logic ───
@@ -509,6 +513,101 @@ function detectPlatform() {
     if (platform.detect()) return name;
   }
   return "generic";
+}
+
+// ─── Scrape job details from the page ───
+function scrapeJobDetails() {
+  const details = {
+    job_title: null,
+    company_name: null,
+    description: null,
+    location: null,
+    remote_type: null,
+  };
+
+  // Title: structured data > OG tag > h1
+  const ldJson = document.querySelector('script[type="application/ld+json"]');
+  if (ldJson) {
+    try {
+      const ld = JSON.parse(ldJson.textContent);
+      const posting = ld["@type"] === "JobPosting" ? ld : ld["@graph"]?.find((n) => n["@type"] === "JobPosting");
+      if (posting) {
+        details.job_title = posting.title || null;
+        details.company_name = posting.hiringOrganization?.name || null;
+        details.description = posting.description
+          ? posting.description.replace(/<[^>]*>/g, " ").substring(0, 3000)
+          : null;
+        details.location = posting.jobLocation?.address?.addressLocality || null;
+        if (posting.jobLocationType === "TELECOMMUTE") details.remote_type = "remote";
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Fallback: OG tags
+  if (!details.job_title) {
+    const og = document.querySelector('meta[property="og:title"]');
+    if (og) details.job_title = og.content;
+  }
+
+  // Fallback: page title
+  if (!details.job_title) {
+    details.job_title = document.title.split("|")[0].split("-")[0].trim() || document.title;
+  }
+
+  // Fallback: company from domain or meta
+  if (!details.company_name) {
+    const ogSite = document.querySelector('meta[property="og:site_name"]');
+    if (ogSite) {
+      details.company_name = ogSite.content;
+    } else {
+      details.company_name = window.location.hostname.replace("www.", "").split(".")[0];
+      // Capitalize
+      details.company_name = details.company_name.charAt(0).toUpperCase() + details.company_name.slice(1);
+    }
+  }
+
+  // Fallback: description from ATS-specific selectors
+  if (!details.description) {
+    const descSelectors = [
+      ".job-description",
+      '[class*="job-description"]',
+      '[class*="jobDescription"]',
+      '[data-automation-id="jobDescription"]',
+      "#job-description",
+      ".posting-page .content",
+      ".description .content",
+      '[class*="posting-description"]',
+      "article",
+    ];
+    for (const sel of descSelectors) {
+      const el = document.querySelector(sel);
+      if (el && el.textContent.trim().length > 50) {
+        details.description = el.textContent.trim().substring(0, 3000);
+        break;
+      }
+    }
+  }
+
+  // Location fallback: look for location elements
+  if (!details.location) {
+    const locSelectors = [
+      '[class*="location"]',
+      '[class*="Location"]',
+      '[data-automation-id="locations"]',
+      ".posting-categories .location",
+    ];
+    for (const sel of locSelectors) {
+      const el = document.querySelector(sel);
+      if (el && el.textContent.trim().length < 100) {
+        details.location = el.textContent.trim();
+        break;
+      }
+    }
+  }
+
+  return details;
 }
 
 // ─── Auth token listener (from bridge page) ───

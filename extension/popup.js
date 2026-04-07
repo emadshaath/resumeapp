@@ -59,6 +59,11 @@ function showConnected() {
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
       Auto-Fill This Form
     </button>
+    <button class="btn btn-accent" id="smart-fill-btn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      Smart Tailor &amp; Fill
+    </button>
+    <p class="smart-hint">AI-tailors your resume for this job, then fills the form</p>
     <button class="btn btn-secondary" id="track-btn">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
       Track This Job
@@ -71,6 +76,7 @@ function showConnected() {
   `;
 
   document.getElementById("fill-btn").addEventListener("click", handleFill);
+  document.getElementById("smart-fill-btn").addEventListener("click", handleSmartFill);
   document.getElementById("track-btn").addEventListener("click", handleTrack);
   document.getElementById("disconnect-btn").addEventListener("click", handleDisconnect);
 }
@@ -140,6 +146,95 @@ async function handleFill() {
   btn.innerHTML = `
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
     Auto-Fill This Form
+  `;
+}
+
+async function handleSmartFill() {
+  const btn = document.getElementById("smart-fill-btn");
+  const resultDiv = document.getElementById("result");
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Analyzing job...';
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    // Step 1: Scrape job details from the page via content script
+    btn.innerHTML = '<div class="spinner"></div> Scraping job details...';
+    const jobDetails = await new Promise((resolve, reject) => {
+      chrome.tabs.sendMessage(tab.id, { type: "SCRAPE_JOB" }, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error("Could not read page. Refresh and try again."));
+        } else {
+          resolve(response || {});
+        }
+      });
+    });
+
+    if (!jobDetails.job_title) {
+      throw new Error("Could not detect job details on this page.");
+    }
+
+    // Step 2: Call smart-fill endpoint (creates job + generates variant + returns fields)
+    btn.innerHTML = '<div class="spinner"></div> AI tailoring resume...';
+    const smartRes = await apiFetch("/api/extension/smart-fill", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        job_title: jobDetails.job_title,
+        company_name: jobDetails.company_name || "Unknown",
+        job_url: tab.url,
+        description: jobDetails.description || null,
+        location: jobDetails.location || null,
+        remote_type: jobDetails.remote_type || null,
+      }),
+    });
+
+    const smartData = await smartRes.json();
+
+    if (!smartRes.ok) {
+      if (smartData.upgrade_required) {
+        throw new Error(smartData.error);
+      }
+      throw new Error(smartData.error || "Smart fill failed");
+    }
+
+    // Step 3: Fetch the tailored PDF as blob
+    btn.innerHTML = '<div class="spinner"></div> Preparing tailored PDF...';
+    let pdfBlob = null;
+    try {
+      const pdfRes = await apiFetch(smartData.resume_pdf_url);
+      if (pdfRes.ok) {
+        const buffer = await pdfRes.arrayBuffer();
+        pdfBlob = Array.from(new Uint8Array(buffer));
+      }
+    } catch (e) {
+      console.warn("Could not fetch tailored PDF:", e);
+    }
+
+    // Step 4: Fill the form with tailored fields + PDF
+    btn.innerHTML = '<div class="spinner"></div> Filling form...';
+    chrome.tabs.sendMessage(tab.id, {
+      type: "EXECUTE_FILL",
+      fields: smartData.fields,
+      pdfBlob,
+    });
+
+    const score = smartData.match_score ? ` (${smartData.match_score}% match)` : "";
+    const reused = smartData.reused ? " (reused existing)" : "";
+    const limited = smartData.limit_reached ? " ⚠️ Using default profile (variant limit reached)" : "";
+
+    resultDiv.innerHTML = `<div class="result success">
+      Smart filled!${score}${reused}${limited}<br>
+      <span style="font-size:11px;opacity:0.8">Variant saved to dashboard</span>
+    </div>`;
+  } catch (err) {
+    resultDiv.innerHTML = `<div class="result error">${err.message}</div>`;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    Smart Tailor &amp; Fill
   `;
 }
 
