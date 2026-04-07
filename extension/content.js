@@ -54,7 +54,8 @@ const FIELD_PATTERNS = {
   address: /^address$|street.?address|address.?line/i,
   current_title: /current.?title|job.?title|most.?recent.?title|position/i,
   current_company: /current.?company|company|employer|organization/i,
-  linkedin: /linkedin/i,
+  linkedin: /linkedin|linked.?in/i,
+  linkedin_url: /linkedin.?(?:profile|url)|linked.?in/i,
   website: /website|portfolio|personal.?url|homepage/i,
   headline: /headline|summary|objective|about/i,
   years_experience: /years?.?(?:of)?.?experience|experience.?years|how.?many.?years/i,
@@ -71,11 +72,42 @@ const SELECT_PATTERNS = {
   education_level: /education.?level|highest.?degree|degree.?level/i,
 };
 
-// ─── Default answers for common questions ───
+// ─── Default answers for common questions (overridden by profile prefs) ───
 const DEFAULT_ANSWERS = {
   work_authorization: { preferred: ["yes", "true", "authorized"], value: "Yes" },
   work_setting: { preferred: ["remote", "hybrid"], value: "Remote" },
   contact_preference: { preferred: ["email", "text", "sms"], value: "Email" },
+};
+
+// ─── Patterns for EEO / demographic fields ───
+const EEO_PATTERNS = {
+  gender_identity: /gender|i.?identify.?my.?gender/i,
+  pronouns: /pronoun/i,
+  race_ethnicity: /race|ethnicity|ethnic/i,
+  veteran_status: /veteran/i,
+  disability_status: /disability|disabilities|ada\b/i,
+  lgbtq_identity: /lgbtq|sexual.?orientation|lgb/i,
+  sponsorship_required: /sponsorship|visa.?status|h.?1b|immigration|will.?you.?(?:now|in.?the.?future).?require/i,
+  how_heard_default: /how.?did.?you.?hear|how.?did.?you.?find|where.?did.?you.?hear|referral.?source/i,
+  salary_expectation: /salary|compensation|pay.?expectation|minimum.?required.?(?:yearly|annual)/i,
+  notice_period: /(?:when|earliest).?(?:can.?you|could.?you)?.?start|notice.?period|start.?date|availability/i,
+};
+
+// ─── Map stored preference values to form-friendly display values ───
+const PREF_VALUE_MAP = {
+  gender_identity: { male: "Male", female: "Female", non_binary: "Non-binary", other: "Other", prefer_not_to_say: "I prefer not to say" },
+  pronouns: { "he/him": "He/Him", "she/her": "She/Her", "they/them": "They/Them", other: "Other", prefer_not_to_say: "I prefer not to say" },
+  race_ethnicity: {
+    american_indian: "American Indian", asian: "Asian", black: "Black or African American",
+    hispanic: "Hispanic", middle_eastern: "Middle Eastern", pacific_islander: "Pacific Islander",
+    white: "White", two_or_more: "Two or more", other: "Other", prefer_not_to_say: "I prefer not to say",
+  },
+  veteran_status: { veteran: "I am a veteran", not_veteran: "I am not a veteran", prefer_not_to_say: "I prefer not to say" },
+  disability_status: { yes: "Yes", no: "No", prefer_not_to_say: "I prefer not to say" },
+  lgbtq_identity: { yes: "Yes", no: "No", prefer_not_to_say: "I prefer not to say" },
+  work_authorization: { yes: "Yes", no: "No" },
+  sponsorship_required: { yes: "Yes", no: "No", future: "Yes, in the future" },
+  preferred_work_setting: { remote: "Remote", hybrid: "Hybrid", onsite: "On-site" },
 };
 
 // ─── Listen for fill commands from popup ───
@@ -91,6 +123,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "SCRAPE_JOB") {
     const details = scrapeJobDetails();
     sendResponse(details);
+  }
+  if (message.type === "EXTRACT_QUESTIONS") {
+    const questions = extractFormQuestions();
+    // Strip any non-serializable data before sending
+    sendResponse(questions.map(({ _element, ...rest }) => rest));
+  }
+  if (message.type === "APPLY_AI_ANSWERS") {
+    const filled = applyAIAnswers(message.answers);
+    sendResponse({ success: true, filled });
   }
 });
 
@@ -186,12 +227,31 @@ function fillSelect(select, fields) {
     }
   }
 
-  // Try matching to common question patterns
+  // Try matching EEO/preference fields from stored profile prefs
+  for (const [prefKey, pattern] of Object.entries(EEO_PATTERNS)) {
+    if (pattern.test(searchText) && fields[prefKey]) {
+      const storedValue = fields[prefKey];
+      const displayMap = PREF_VALUE_MAP[prefKey];
+      const displayValue = displayMap ? (displayMap[storedValue] || storedValue) : storedValue;
+      // Try display value first, then stored value
+      const matched = selectBestOption(select, displayValue) || selectBestOption(select, storedValue);
+      if (matched) return true;
+    }
+  }
+
+  // Try matching to common question patterns (fallback defaults)
   for (const [questionKey, pattern] of Object.entries(SELECT_PATTERNS)) {
     if (pattern.test(searchText)) {
+      // Check if user has a stored preference that overrides the default
+      if (questionKey === "work_setting" && fields.preferred_work_setting) {
+        const displayMap = PREF_VALUE_MAP.preferred_work_setting;
+        const val = displayMap[fields.preferred_work_setting] || fields.preferred_work_setting;
+        const matched = selectBestOption(select, val);
+        if (matched) return true;
+      }
+
       const defaults = DEFAULT_ANSWERS[questionKey];
       if (defaults) {
-        // Try preferred values
         for (const pref of defaults.preferred) {
           const matched = selectBestOption(select, pref);
           if (matched) return true;
@@ -307,11 +367,42 @@ function fillRadioGroups(fields) {
       ? container.textContent.toLowerCase()
       : getLabel(radios[0]);
 
-    // Work authorization: select "Yes"
+    let matched = false;
+
+    // Try matching EEO/preference patterns from stored profile prefs
+    for (const [prefKey, pattern] of Object.entries(EEO_PATTERNS)) {
+      if (pattern.test(questionText) && fields[prefKey]) {
+        const storedValue = fields[prefKey];
+        const displayMap = PREF_VALUE_MAP[prefKey];
+        const displayValue = displayMap ? (displayMap[storedValue] || storedValue) : storedValue;
+        const radioMatch = radios.find((r) => {
+          const rl = getLabel(r).toLowerCase();
+          const rv = r.value.toLowerCase();
+          const dv = displayValue.toLowerCase();
+          const sv = storedValue.toLowerCase();
+          return rl.includes(dv) || dv.includes(rl) || rv.includes(sv) || sv.includes(rv) ||
+                 rl === dv || rv === sv;
+        });
+        if (radioMatch) {
+          radioMatch.checked = true;
+          triggerEvents(radioMatch);
+          filled++;
+          matched = true;
+          break;
+        }
+      }
+    }
+    if (matched) continue;
+
+    // Work authorization: select based on stored pref or default "Yes"
     if (SELECT_PATTERNS.work_authorization.test(questionText)) {
-      const yesRadio = radios.find((r) =>
-        /^yes$/i.test(r.value) || /^yes$/i.test(getLabel(r))
-      );
+      const prefValue = fields.work_authorization || "yes";
+      const target = prefValue === "no" ? "no" : "yes";
+      const yesRadio = radios.find((r) => {
+        const rv = r.value.toLowerCase();
+        const rl = getLabel(r).toLowerCase();
+        return rv === target || rl === target;
+      });
       if (yesRadio) {
         yesRadio.checked = true;
         triggerEvents(yesRadio);
@@ -322,7 +413,10 @@ function fillRadioGroups(fields) {
 
     // Work setting preference
     if (SELECT_PATTERNS.work_setting.test(questionText)) {
-      for (const pref of ["remote", "hybrid"]) {
+      const prefs = fields.preferred_work_setting
+        ? [fields.preferred_work_setting]
+        : ["remote", "hybrid"];
+      for (const pref of prefs) {
         const match = radios.find((r) =>
           r.value.toLowerCase().includes(pref) ||
           getLabel(r).includes(pref)
@@ -513,6 +607,213 @@ function detectPlatform() {
     if (platform.detect()) return name;
   }
   return "generic";
+}
+
+// ─── Extract form questions for AI answering ───
+function extractFormQuestions() {
+  const questions = [];
+  let idx = 0;
+
+  // Textareas — these are almost always open-ended questions
+  document.querySelectorAll("textarea").forEach((el) => {
+    if (el.value && el.value.trim().length > 10) return; // already answered
+    const label = getLabel(el);
+    if (!label || label.length < 5) return;
+    questions.push({
+      id: el.id || el.name || `textarea_${idx}`,
+      question: label,
+      type: "textarea",
+      required: el.required || el.getAttribute("aria-required") === "true",
+      _element: null, // stripped before sending to API
+    });
+    idx++;
+  });
+
+  // Text inputs that look like questions (long labels, not standard fields)
+  const standardFields = /^(first|last|full|given|family).?name|email|phone|tel|city|state|zip|postal|address|linkedin|website|portfolio|url$/i;
+  document.querySelectorAll('input[type="text"], input:not([type])').forEach((el) => {
+    if (el.value && el.value.trim()) return; // already filled
+    const label = getLabel(el);
+    const name = (el.name || "").toLowerCase();
+    if (!label || label.length < 10) return;
+    // Skip standard profile fields we already handle
+    if (standardFields.test(name) || standardFields.test(label)) return;
+    // Only include if label looks like a question
+    if (/\?|please|describe|explain|tell|why|what|how|share|elaborate/i.test(label)) {
+      questions.push({
+        id: el.id || el.name || `text_${idx}`,
+        question: label,
+        type: "text",
+        required: el.required || el.getAttribute("aria-required") === "true",
+      });
+      idx++;
+    }
+  });
+
+  // Unfilled selects (that weren't handled by basic fill)
+  document.querySelectorAll("select").forEach((el) => {
+    if (el.value && el.selectedIndex > 0) return; // already selected
+    const label = getLabel(el);
+    if (!label || label.length < 5) return;
+    const options = Array.from(el.options)
+      .filter((o) => o.value && !o.disabled && o.value !== "")
+      .map((o) => o.text.trim());
+    if (options.length === 0) return;
+    questions.push({
+      id: el.id || el.name || `select_${idx}`,
+      question: label,
+      type: "select",
+      options,
+      required: el.required || el.getAttribute("aria-required") === "true",
+    });
+    idx++;
+  });
+
+  // Unfilled radio groups
+  const radioGroups = {};
+  document.querySelectorAll('input[type="radio"]').forEach((radio) => {
+    const name = radio.name;
+    if (!name) return;
+    if (!radioGroups[name]) radioGroups[name] = [];
+    radioGroups[name].push(radio);
+  });
+
+  for (const [groupName, radios] of Object.entries(radioGroups)) {
+    if (radios.some((r) => r.checked)) continue; // already answered
+    const container = radios[0].closest("fieldset, .field, .form-group, [class*=question], [role=radiogroup]");
+    const questionText = container ? container.querySelector("label, legend, [class*=label]")?.textContent?.trim() : getLabel(radios[0]);
+    if (!questionText || questionText.length < 5) continue;
+    const options = radios.map((r) => {
+      const radioLabel = getLabel(r);
+      return radioLabel || r.value;
+    });
+    questions.push({
+      id: groupName,
+      question: questionText,
+      type: "radio",
+      options,
+      required: radios[0].required || radios[0].getAttribute("aria-required") === "true",
+    });
+    idx++;
+  }
+
+  // Unfilled checkboxes with question-like labels (skip consent ones already handled)
+  document.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+    if (cb.checked) return;
+    const label = getLabel(cb);
+    if (!label || label.length < 10) return;
+    if (/agree.?to.?receive|opt.?in|i.?agree|i.?consent|i.?acknowledge/i.test(label)) return; // handled by basic fill
+    questions.push({
+      id: cb.id || cb.name || `checkbox_${idx}`,
+      question: label,
+      type: "checkbox",
+      required: cb.required,
+    });
+    idx++;
+  });
+
+  return questions;
+}
+
+// ─── Apply AI-generated answers to the form ───
+function applyAIAnswers(answers) {
+  let filled = 0;
+
+  for (const { id, answer } of answers) {
+    if (!answer) continue;
+
+    // Try to find the element by id, name, or our indexed ids
+    let element = document.getElementById(id) || document.querySelector(`[name="${id}"]`);
+
+    // For textareas and text inputs
+    if (element && (element.tagName === "TEXTAREA" || element.tagName === "INPUT")) {
+      if (element.type === "checkbox") {
+        const shouldCheck = /^true$/i.test(answer);
+        if (shouldCheck !== element.checked) {
+          element.checked = shouldCheck;
+          triggerEvents(element);
+          highlightElement(element, "#ede9fe");
+          filled++;
+        }
+      } else {
+        setFieldValue(element, answer);
+        highlightElement(element, "#ede9fe"); // Purple tint for AI answers
+        filled++;
+      }
+      continue;
+    }
+
+    // For selects
+    if (element && element.tagName === "SELECT") {
+      const matched = selectBestOption(element, answer);
+      if (matched) {
+        highlightElement(element, "#ede9fe");
+        filled++;
+      }
+      continue;
+    }
+
+    // For radio groups (id is the group name)
+    const radios = document.querySelectorAll(`input[type="radio"][name="${id}"]`);
+    if (radios.length > 0) {
+      const answerLower = answer.toLowerCase();
+      for (const radio of radios) {
+        const radioLabel = getLabel(radio).toLowerCase();
+        const radioValue = radio.value.toLowerCase();
+        if (radioLabel.includes(answerLower) || answerLower.includes(radioLabel) ||
+            radioValue.includes(answerLower) || answerLower.includes(radioValue) ||
+            radioLabel === answerLower || radioValue === answerLower) {
+          radio.checked = true;
+          triggerEvents(radio);
+          highlightElement(radio.closest("label") || radio, "#ede9fe");
+          filled++;
+          break;
+        }
+      }
+      continue;
+    }
+
+    // Fallback: try matching by indexed id pattern (textarea_0, text_1, select_2, etc.)
+    const idxMatch = id.match(/^(textarea|text|select|checkbox)_(\d+)$/);
+    if (idxMatch) {
+      const [, elType, idxStr] = idxMatch;
+      const idx = parseInt(idxStr);
+      let els;
+      if (elType === "textarea") els = document.querySelectorAll("textarea");
+      else if (elType === "text") els = document.querySelectorAll('input[type="text"], input:not([type])');
+      else if (elType === "select") els = document.querySelectorAll("select");
+      else if (elType === "checkbox") els = document.querySelectorAll('input[type="checkbox"]');
+
+      // Count to the right index (skipping already-filled ones as we did during extraction)
+      if (els) {
+        let count = 0;
+        for (const el of els) {
+          // Match the same filtering logic from extractFormQuestions
+          if (elType === "textarea" && el.value && el.value.trim().length > 10) continue;
+          if ((elType === "text") && el.value && el.value.trim()) continue;
+          if (elType === "select" && el.selectedIndex > 0) continue;
+          if (elType === "checkbox" && el.checked) continue;
+
+          if (count === idx) {
+            if (elType === "select") {
+              selectBestOption(el, answer);
+            } else if (elType === "checkbox") {
+              el.checked = /^true$/i.test(answer);
+              triggerEvents(el);
+            } else {
+              setFieldValue(el, answer);
+            }
+            highlightElement(el, "#ede9fe");
+            filled++;
+            break;
+          }
+          count++;
+        }
+      }
+    }
+  }
+
+  return filled;
 }
 
 // ─── Scrape job details from the page ───

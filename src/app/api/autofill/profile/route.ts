@@ -126,7 +126,21 @@ export async function GET(req: NextRequest) {
     years_experience: yearsExperience > 0 ? String(yearsExperience) : null,
     education_summary: educationSummary,
     skills_summary: skillsSummary,
+    linkedin_url: profile.linkedin_url || null,
     profile_url: `${process.env.NEXT_PUBLIC_APP_URL}/p/${profile.slug}`,
+    // Application preferences
+    work_authorization: profile.work_authorization || null,
+    sponsorship_required: profile.sponsorship_required || null,
+    gender_identity: profile.gender_identity || null,
+    pronouns: profile.pronouns || null,
+    race_ethnicity: profile.race_ethnicity || null,
+    veteran_status: profile.veteran_status || null,
+    disability_status: profile.disability_status || null,
+    lgbtq_identity: profile.lgbtq_identity || null,
+    salary_expectation: profile.salary_expectation || null,
+    notice_period: profile.notice_period || null,
+    preferred_work_setting: profile.preferred_work_setting || null,
+    how_heard_default: profile.how_heard_default || null,
   };
 
   const pdfUrl = variantId

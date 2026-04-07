@@ -122,7 +122,13 @@ async function handleFill() {
       pdfBlob,
     });
 
-    resultDiv.innerHTML = '<div class="result success">Form filled! Review and submit.</div>';
+    resultDiv.innerHTML = `<div class="result success">Form filled! Review and submit.</div>
+      <button class="btn btn-accent" id="ai-answer-btn" style="margin-top:8px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        AI Answer Remaining Questions
+      </button>`;
+    const aiBtn = document.getElementById("ai-answer-btn");
+    if (aiBtn) aiBtn.addEventListener("click", () => handleAIAnswers(tab));
 
     // Auto-track if not already tracked
     if (!matchingJob && pageUrl.startsWith("http")) {
@@ -147,6 +153,88 @@ async function handleFill() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
     Auto-Fill This Form
   `;
+}
+
+async function handleAIAnswers(tab, jobContext) {
+  const btn = document.getElementById("ai-answer-btn") || document.getElementById("ai-answer-btn-smart");
+  const resultDiv = document.getElementById("result");
+  if (!btn) return;
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Scanning questions...';
+
+  try {
+    // Step 1: Extract unanswered questions from the page
+    const questions = await new Promise((resolve, reject) => {
+      chrome.tabs.sendMessage(tab.id, { type: "EXTRACT_QUESTIONS" }, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error("Could not read form. Refresh and try again."));
+        } else {
+          resolve(response || []);
+        }
+      });
+    });
+
+    if (!questions || questions.length === 0) {
+      resultDiv.innerHTML = '<div class="result success">No unanswered questions found!</div>';
+      btn.remove();
+      return;
+    }
+
+    btn.innerHTML = `<div class="spinner"></div> AI answering ${questions.length} questions...`;
+
+    // Step 2: Get job context if we don't have it
+    let jobInfo = jobContext;
+    if (!jobInfo) {
+      jobInfo = await new Promise((resolve) => {
+        chrome.tabs.sendMessage(tab.id, { type: "SCRAPE_JOB" }, (response) => {
+          resolve(response || { job_title: tab.title, company_name: new URL(tab.url).hostname });
+        });
+      });
+    }
+
+    // Step 3: Send questions to AI endpoint
+    const aiRes = await apiFetch("/api/extension/ai-answers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        questions,
+        job_context: {
+          job_title: jobInfo.job_title,
+          company_name: jobInfo.company_name,
+          description: jobInfo.description || null,
+        },
+      }),
+    });
+
+    const aiData = await aiRes.json();
+
+    if (!aiRes.ok) {
+      if (aiData.upgrade_required) {
+        throw new Error(aiData.error);
+      }
+      throw new Error(aiData.error || "AI answering failed");
+    }
+
+    // Step 4: Apply answers to the form
+    btn.innerHTML = '<div class="spinner"></div> Filling answers...';
+    const fillResult = await new Promise((resolve) => {
+      chrome.tabs.sendMessage(tab.id, {
+        type: "APPLY_AI_ANSWERS",
+        answers: aiData.answers,
+      }, (response) => {
+        resolve(response || { filled: 0 });
+      });
+    });
+
+    resultDiv.innerHTML = `<div class="result success">
+      AI answered ${fillResult.filled} question${fillResult.filled !== 1 ? "s" : ""}!<br>
+      <span style="font-size:11px;opacity:0.8;color:#7c3aed;">Purple-highlighted = AI answers — please review before submitting</span>
+    </div>`;
+  } catch (err) {
+    resultDiv.innerHTML += `<div class="result error" style="margin-top:8px;">${err.message}</div>`;
+  }
+
+  btn.remove();
 }
 
 async function handleSmartFill() {
@@ -226,7 +314,13 @@ async function handleSmartFill() {
     resultDiv.innerHTML = `<div class="result success">
       Smart filled!${score}${reused}${limited}<br>
       <span style="font-size:11px;opacity:0.8">Variant saved to dashboard</span>
-    </div>`;
+    </div>
+    <button class="btn btn-accent" id="ai-answer-btn-smart" style="margin-top:8px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      AI Answer Remaining Questions
+    </button>`;
+    const aiBtnSmart = document.getElementById("ai-answer-btn-smart");
+    if (aiBtnSmart) aiBtnSmart.addEventListener("click", () => handleAIAnswers(tab, jobDetails));
   } catch (err) {
     resultDiv.innerHTML = `<div class="result error">${err.message}</div>`;
   }
