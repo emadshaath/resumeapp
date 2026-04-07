@@ -1,6 +1,6 @@
 -- Application preferences: EEO, work authorization, and common form-fill fields
 -- These are stored so the extension can fill them consistently without AI guessing.
--- All fields are optional and nullable.
+-- All fields are optional and nullable. 
 
 ALTER TABLE profiles
   ADD COLUMN IF NOT EXISTS work_authorization TEXT DEFAULT NULL,        -- 'yes' | 'no'
