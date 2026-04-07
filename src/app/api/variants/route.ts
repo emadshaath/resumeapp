@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { hasFeature, getLimit, getRequiredTier } from "@/lib/stripe/feature-gate";
+import { hasFeature, getLimit, getRequiredTier, getEffectiveTier } from "@/lib/stripe/feature-gate";
 import type { Tier } from "@/types/database";
 
 // GET /api/variants — List user's variants
@@ -49,11 +49,11 @@ export async function POST(req: NextRequest) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("tier")
+    .select("tier, tier_override")
     .eq("id", user.id)
     .single();
 
-  const tier = (profile?.tier || "free") as Tier;
+  const tier = getEffectiveTier((profile?.tier || "free") as Tier, profile?.tier_override as Tier | null);
   if (!hasFeature(tier, "profile_variants")) {
     const requiredTier = getRequiredTier("profile_variants");
     return NextResponse.json({
