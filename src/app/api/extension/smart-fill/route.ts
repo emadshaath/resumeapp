@@ -211,7 +211,7 @@ export async function POST(req: NextRequest) {
         variant_data,
         match_score,
         job_application_id: jobId,
-        source: "extension",
+        source: "ai",
       })
       .select("id")
       .single();
