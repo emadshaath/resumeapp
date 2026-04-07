@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
 import { generateTailoredVariant } from "@/lib/tailor";
-import { hasFeature } from "@/lib/stripe/feature-gate";
+import { hasFeature, getRequiredTier } from "@/lib/stripe/feature-gate";
 import type { Tier } from "@/types/database";
 
 // POST /api/variants/generate — AI generates a tailored variant for a job
@@ -19,8 +19,9 @@ export async function POST(req: NextRequest) {
 
   const tier = (profile?.tier || "free") as Tier;
   if (!hasFeature(tier, "smart_apply")) {
+    const requiredTier = getRequiredTier("smart_apply");
     return NextResponse.json({
-      error: "Upgrade to Pro to use AI Smart Tailor",
+      error: `Smart Tailor requires the ${requiredTier.charAt(0).toUpperCase() + requiredTier.slice(1)} plan. Your current plan: ${tier}.`,
     }, { status: 403 });
   }
 

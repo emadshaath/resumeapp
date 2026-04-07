@@ -97,11 +97,23 @@ async function handleFill() {
     if (!profileRes.ok) throw new Error("Failed to fetch profile");
     const { fields, resume_pdf_url } = await profileRes.json();
 
+    // Fetch the PDF as a blob to pass to content script (cross-origin safe)
+    let pdfBlob = null;
+    try {
+      const pdfRes = await apiFetch(resume_pdf_url);
+      if (pdfRes.ok) {
+        const buffer = await pdfRes.arrayBuffer();
+        pdfBlob = Array.from(new Uint8Array(buffer));
+      }
+    } catch (e) {
+      console.warn("Could not fetch PDF for auto-attach:", e);
+    }
+
     // Send to content script
     chrome.tabs.sendMessage(tab.id, {
       type: "EXECUTE_FILL",
       fields,
-      pdfUrl: `${API_BASE}${resume_pdf_url}`,
+      pdfBlob,
     });
 
     resultDiv.innerHTML = '<div class="result success">Form filled! Review and submit.</div>';
