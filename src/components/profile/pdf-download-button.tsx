@@ -26,7 +26,7 @@ export function PdfDownloadButton({ slug }: { slug: string }) {
   }
 
   return (
-    <Button variant="outline" size="sm" onClick={handleDownload} disabled={downloading} className="print:hidden">
+    <Button variant="outline" size="sm" onClick={handleDownload} disabled={downloading} className="print:hidden text-zinc-900 dark:text-zinc-100">
       {downloading ? (
         <Loader2 className="h-4 w-4 animate-spin mr-2" />
       ) : (
