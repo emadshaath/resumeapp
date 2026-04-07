@@ -187,7 +187,7 @@ export default function CommunicationPage() {
             <div className="text-center py-6">
               <Mail className="h-10 w-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
               <p className="font-medium mb-1">
-                Get your email: <span className="font-mono">{profile?.slug}@resmail.ai</span>
+                Get your email: <span className="font-mono">{profile?.slug}@rezm.ai</span>
               </p>
               <p className="text-sm text-zinc-500 mb-4">
                 Receive professional emails without exposing your personal address.

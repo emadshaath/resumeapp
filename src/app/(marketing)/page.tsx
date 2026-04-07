@@ -44,7 +44,7 @@ const features = [
   {
     icon: Mail,
     title: "Platform Email",
-    description: "Receive emails at yourname@resmail.ai. Forward to your inbox or read in-app.",
+    description: "Receive emails at yourname@rezm.ai. Forward to your inbox or read in-app.",
   },
   {
     icon: Phone,
