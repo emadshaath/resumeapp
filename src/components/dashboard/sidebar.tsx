@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { RezmaiLogo } from "@/components/rezmai-logo";
+import { NotificationBell } from "@/components/dashboard/notification-bell";
 import {
   User,
   LayoutDashboard,
@@ -13,10 +14,12 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  Inbox,
   Mail,
   Phone,
   Search,
   MessageSquare,
+  Voicemail,
   Briefcase,
   ClipboardCheck,
   Link2,
@@ -53,7 +56,9 @@ const navigation: NavEntry[] = [
     items: [
       { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
       { name: "Email", href: "/dashboard/communication", icon: Mail },
+      { name: "Inbox", href: "/dashboard/inbox", icon: Inbox },
       { name: "Phone", href: "/dashboard/phone", icon: Phone },
+      { name: "Voicemails", href: "/dashboard/voicemails", icon: Voicemail },
     ],
   },
   { name: "Job Tracker", href: "/dashboard/jobs", icon: Briefcase },
@@ -323,16 +328,19 @@ export function Sidebar() {
         collapsed ? "w-16" : "w-64"
       )}
     >
-      <div className="flex h-16 items-center border-b border-sidebar-border px-3">
+      <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-3">
         {collapsed ? (
           <Link href="/" className="flex w-full items-center justify-center text-sidebar-logo" title="rezm.ai">
             <RezmaiLogo size={24} />
           </Link>
         ) : (
-          <Link href="/" className="flex items-center gap-2 px-3 text-lg font-bold tracking-tight text-sidebar-logo">
-            <RezmaiLogo size={24} />
-            rezm.ai
-          </Link>
+          <>
+            <Link href="/" className="flex items-center gap-2 px-3 text-lg font-bold tracking-tight text-sidebar-logo">
+              <RezmaiLogo size={24} />
+              rezm.ai
+            </Link>
+            <NotificationBell />
+          </>
         )}
       </div>
       <SidebarContent collapsed={collapsed} />
@@ -381,13 +389,16 @@ export function MobileNav() {
           <RezmaiLogo size={24} />
           rezm.ai
         </Link>
-        <button
-          onClick={() => setOpen(true)}
-          className="p-2 -mr-2 text-muted-foreground hover:text-foreground"
-          aria-label="Open navigation"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          <button
+            onClick={() => setOpen(true)}
+            className="p-2 -mr-2 text-muted-foreground hover:text-foreground"
+            aria-label="Open navigation"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       {/* Backdrop */}
