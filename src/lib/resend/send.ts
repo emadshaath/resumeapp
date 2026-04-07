@@ -8,13 +8,15 @@ import { EmailChangedEmail } from "@/emails/email-changed";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://rezm.ai";
 
+type SendResult = { data: { id: string } | null; error: { message: string; name: string } | null };
+
 export async function sendConfirmEmail(params: {
   to: string;
   firstName: string;
   confirmUrl: string;
-}) {
+}): Promise<SendResult> {
   const resend = getResend();
-  return resend.emails.send({
+  const result = await resend.emails.send({
     from: EMAIL_FROM,
     to: params.to,
     subject: "Confirm your email address",
@@ -23,15 +25,16 @@ export async function sendConfirmEmail(params: {
       confirmUrl: params.confirmUrl,
     }),
   });
+  return result as SendResult;
 }
 
 export async function sendPasswordResetEmail(params: {
   to: string;
   firstName: string;
   resetUrl: string;
-}) {
+}): Promise<SendResult> {
   const resend = getResend();
-  return resend.emails.send({
+  const result = await resend.emails.send({
     from: EMAIL_FROM,
     to: params.to,
     subject: "Reset your password",
@@ -40,14 +43,15 @@ export async function sendPasswordResetEmail(params: {
       resetUrl: params.resetUrl,
     }),
   });
+  return result as SendResult;
 }
 
 export async function sendMagicLinkEmail(params: {
   to: string;
   magicLinkUrl: string;
-}) {
+}): Promise<SendResult> {
   const resend = getResend();
-  return resend.emails.send({
+  const result = await resend.emails.send({
     from: EMAIL_FROM,
     to: params.to,
     subject: "Your sign-in link",
@@ -56,15 +60,16 @@ export async function sendMagicLinkEmail(params: {
       magicLinkUrl: params.magicLinkUrl,
     }),
   });
+  return result as SendResult;
 }
 
 export async function sendWelcomeEmail(params: {
   to: string;
   firstName: string;
   slug: string;
-}) {
+}): Promise<SendResult> {
   const resend = getResend();
-  return resend.emails.send({
+  const result = await resend.emails.send({
     from: EMAIL_FROM,
     to: params.to,
     subject: `Welcome to rezm.ai, ${params.firstName}!`,
@@ -75,6 +80,7 @@ export async function sendWelcomeEmail(params: {
       profileUrl: `${APP_URL}/p/${params.slug}`,
     }),
   });
+  return result as SendResult;
 }
 
 export async function sendContactNotification(params: {
@@ -84,9 +90,9 @@ export async function sendContactNotification(params: {
   senderEmail: string;
   subject?: string;
   message: string;
-}) {
+}): Promise<SendResult> {
   const resend = getResend();
-  return resend.emails.send({
+  const result = await resend.emails.send({
     from: EMAIL_FROM,
     to: params.to,
     subject: `New message from ${params.senderName}`,
@@ -100,6 +106,7 @@ export async function sendContactNotification(params: {
     }),
     replyTo: params.senderEmail,
   });
+  return result as SendResult;
 }
 
 export async function sendEmailChangedEmail(params: {
@@ -107,9 +114,9 @@ export async function sendEmailChangedEmail(params: {
   firstName: string;
   newEmail: string;
   confirmUrl: string;
-}) {
+}): Promise<SendResult> {
   const resend = getResend();
-  return resend.emails.send({
+  const result = await resend.emails.send({
     from: EMAIL_FROM,
     to: params.to,
     subject: "Confirm your new email address",
@@ -119,6 +126,7 @@ export async function sendEmailChangedEmail(params: {
       confirmUrl: params.confirmUrl,
     }),
   });
+  return result as SendResult;
 }
 
 // Generic send for forwarding platform emails to personal inbox
@@ -129,9 +137,9 @@ export async function forwardEmail(params: {
   html: string;
   text?: string;
   replyTo?: string;
-}) {
+}): Promise<SendResult> {
   const resend = getResend();
-  return resend.emails.send({
+  const result = await resend.emails.send({
     from: EMAIL_FROM,
     to: params.to,
     subject: `[Forwarded] ${params.subject}`,
@@ -139,4 +147,5 @@ export async function forwardEmail(params: {
     text: params.text,
     replyTo: params.replyTo,
   });
+  return result as SendResult;
 }
