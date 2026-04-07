@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { hasFeature, getLimit } from "@/lib/stripe/feature-gate";
+import { hasFeature, getLimit, getRequiredTier } from "@/lib/stripe/feature-gate";
 import type { Tier } from "@/types/database";
 
 // GET /api/variants — List user's variants
@@ -55,7 +55,10 @@ export async function POST(req: NextRequest) {
 
   const tier = (profile?.tier || "free") as Tier;
   if (!hasFeature(tier, "profile_variants")) {
-    return NextResponse.json({ error: "Upgrade to Pro to save profile variants" }, { status: 403 });
+    const requiredTier = getRequiredTier("profile_variants");
+    return NextResponse.json({
+      error: `Profile variants require the ${requiredTier.charAt(0).toUpperCase() + requiredTier.slice(1)} plan. Your current plan: ${tier}.`,
+    }, { status: 403 });
   }
 
   // Check variant limit

@@ -84,6 +84,30 @@ export async function GET(req: NextRequest) {
   let skillsSummary = skills?.map((s) => s.name).join(", ") || null;
   if (tailoredSkills) skillsSummary = tailoredSkills;
 
+  // Parse location into city, state, zip_code
+  const locationStr = profile.location || "";
+  const locationParts = locationStr.split(",").map((s: string) => s.trim());
+  let city: string | null = null;
+  let state: string | null = null;
+  let zip_code: string | null = null;
+
+  if (locationParts.length >= 1) city = locationParts[0] || null;
+  if (locationParts.length >= 2) {
+    // State might include zip: "CA 94105" or just "CA"
+    const stateZip = locationParts[1].match(/^([A-Za-z\s]+?)(?:\s+(\d{5}(?:-\d{4})?))?$/);
+    if (stateZip) {
+      state = stateZip[1]?.trim() || null;
+      zip_code = stateZip[2] || null;
+    } else {
+      state = locationParts[1] || null;
+    }
+  }
+  if (locationParts.length >= 3 && !zip_code) {
+    // Third part might be zip or country
+    const maybeZip = locationParts[2];
+    if (/^\d{5}/.test(maybeZip)) zip_code = maybeZip;
+  }
+
   const fields = {
     first_name: profile.first_name,
     last_name: profile.last_name,
@@ -92,6 +116,9 @@ export async function GET(req: NextRequest) {
     phone: profile.phone_personal || null,
     website_url: profile.website_url || null,
     location: profile.location || null,
+    city,
+    state,
+    zip_code,
     headline: tailoredHeadline || profile.headline || null,
     summary: tailoredSummary || null,
     current_title: currentJob?.position || null,
