@@ -28,10 +28,10 @@ export async function signupAction(formData: {
   slug: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = createAdminClient();
+    const admin = createAdminClient();
 
     // Check slug availability
-    const { data: existing } = await supabase
+    const { data: existing } = await admin
       .from("profiles")
       .select("id")
       .eq("slug", formData.slug)
@@ -41,8 +41,8 @@ export async function signupAction(formData: {
       return { success: false, error: "This profile URL is already taken. Please choose another." };
     }
 
-    // Generate signup link without Supabase sending an email
-    const { data, error } = await supabase.auth.admin.generateLink({
+    // Use admin.generateLink to create user + get token without Supabase sending email
+    const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
       type: "signup",
       email: formData.email,
       password: formData.password,
@@ -56,23 +56,30 @@ export async function signupAction(formData: {
       },
     });
 
-    if (error) {
-      return { success: false, error: error.message };
+    if (linkError) {
+      console.error("generateLink signup error:", linkError.message);
+      return { success: false, error: linkError.message };
     }
 
-    const tokenHash = data.properties?.hashed_token;
+    const tokenHash = linkData.properties?.hashed_token;
     if (!tokenHash) {
+      console.error("generateLink returned no hashed_token", linkData);
       return { success: false, error: "Failed to generate confirmation token." };
     }
 
     const confirmUrl = buildCallbackUrl(tokenHash, "signup", `${BASE_URL}/dashboard`);
 
     // Send our own themed email via Resend
-    await sendConfirmEmail({
+    const emailResult = await sendConfirmEmail({
       to: formData.email,
       firstName: formData.firstName,
       confirmUrl,
     });
+
+    if (emailResult.error) {
+      console.error("Resend sendConfirmEmail error:", emailResult.error);
+      return { success: false, error: "Failed to send confirmation email. Please try again." };
+    }
 
     return { success: true };
   } catch (err) {
@@ -85,10 +92,10 @@ export async function forgotPasswordAction(formData: {
   email: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = createAdminClient();
+    const admin = createAdminClient();
 
     // Generate recovery link without Supabase sending an email
-    const { data, error } = await supabase.auth.admin.generateLink({
+    const { data, error } = await admin.auth.admin.generateLink({
       type: "recovery",
       email: formData.email,
       options: {
@@ -97,13 +104,14 @@ export async function forgotPasswordAction(formData: {
     });
 
     if (error) {
-      // Don't reveal whether the email exists
+      // Don't reveal whether the email exists - log for debugging
+      console.error("generateLink recovery error:", error.message);
       return { success: true };
     }
 
     const tokenHash = data.properties?.hashed_token;
     if (!tokenHash) {
-      // Still return success to not reveal email existence
+      console.error("generateLink recovery returned no hashed_token");
       return { success: true };
     }
 
@@ -114,11 +122,15 @@ export async function forgotPasswordAction(formData: {
       data.user?.email?.split("@")[0] ||
       "there";
 
-    await sendPasswordResetEmail({
+    const emailResult = await sendPasswordResetEmail({
       to: formData.email,
       firstName,
       resetUrl,
     });
+
+    if (emailResult.error) {
+      console.error("Resend sendPasswordResetEmail error:", emailResult.error);
+    }
 
     return { success: true };
   } catch (err) {
@@ -132,9 +144,9 @@ export async function magicLinkAction(formData: {
   email: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = createAdminClient();
+    const admin = createAdminClient();
 
-    const { data, error } = await supabase.auth.admin.generateLink({
+    const { data, error } = await admin.auth.admin.generateLink({
       type: "magiclink",
       email: formData.email,
       options: {
@@ -143,6 +155,7 @@ export async function magicLinkAction(formData: {
     });
 
     if (error) {
+      console.error("generateLink magiclink error:", error.message);
       return { success: true };
     }
 
@@ -153,10 +166,14 @@ export async function magicLinkAction(formData: {
 
     const magicLinkUrl = buildCallbackUrl(tokenHash, "magiclink", `${BASE_URL}/dashboard`);
 
-    await sendMagicLinkEmail({
+    const emailResult = await sendMagicLinkEmail({
       to: formData.email,
       magicLinkUrl,
     });
+
+    if (emailResult.error) {
+      console.error("Resend sendMagicLinkEmail error:", emailResult.error);
+    }
 
     return { success: true };
   } catch (err) {
@@ -170,11 +187,17 @@ export async function emailChangeAction(formData: {
   newEmail: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = createAdminClient();
+    const admin = createAdminClient();
 
-    const { data, error } = await supabase.auth.admin.generateLink({
+    // Get current user's email for the generateLink call
+    const { data: userData, error: userError } = await admin.auth.admin.getUserById(formData.userId);
+    if (userError || !userData.user) {
+      return { success: false, error: "User not found." };
+    }
+
+    const { data, error } = await admin.auth.admin.generateLink({
       type: "email_change_new",
-      email: formData.newEmail,
+      email: userData.user.email!,
       newEmail: formData.newEmail,
       options: {
         redirectTo: `${BASE_URL}/dashboard/settings`,
@@ -182,6 +205,7 @@ export async function emailChangeAction(formData: {
     });
 
     if (error) {
+      console.error("generateLink email_change error:", error.message);
       return { success: false, error: error.message };
     }
 
@@ -197,12 +221,17 @@ export async function emailChangeAction(formData: {
       data.user?.email?.split("@")[0] ||
       "there";
 
-    await sendEmailChangedEmail({
+    const emailResult = await sendEmailChangedEmail({
       to: formData.newEmail,
       firstName,
       newEmail: formData.newEmail,
       confirmUrl,
     });
+
+    if (emailResult.error) {
+      console.error("Resend sendEmailChangedEmail error:", emailResult.error);
+      return { success: false, error: "Failed to send confirmation email. Please try again." };
+    }
 
     return { success: true };
   } catch (err) {
