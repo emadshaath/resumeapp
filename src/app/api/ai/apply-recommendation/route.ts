@@ -240,6 +240,8 @@ Apply this recommendation to the section data. Return ONLY the JSON object.`;
     return NextResponse.json({
       success: true,
       explanation: result.explanation,
+      changes_summary: result.changes_summary || [],
+      has_placeholders: result.has_placeholders || false,
       updates_count: result.updates.length,
       inserts_count: result.inserts.length,
     });

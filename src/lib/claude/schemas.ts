@@ -34,6 +34,8 @@ export interface ApplyRecommendationResult {
   }[];
   inserts: Record<string, unknown>[];
   explanation: string;
+  changes_summary: string[];
+  has_placeholders: boolean;
 }
 
 export interface LinkedInComparisonResult {

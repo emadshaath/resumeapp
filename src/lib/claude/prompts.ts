@@ -112,7 +112,11 @@ Your job is to apply the recommendation by modifying the existing data. Return a
   "inserts": [
     { "<field_name>": "<value>", ... }
   ],
-  "explanation": "<one sentence explaining what was changed>"
+  "explanation": "<one sentence explaining what was changed>",
+  "changes_summary": [
+    "<human-readable description of each individual change, e.g. 'Updated description for Software Engineer at Google to include metrics'>"
+  ],
+  "has_placeholders": <boolean - true if any value contains a placeholder>
 }
 
 Rules:
@@ -124,6 +128,8 @@ Rules:
 - If the recommendation is about adding new content, use "inserts"
 - If the recommendation is about improving existing content, use "updates"
 - highlights and technologies fields are string arrays
+- CRITICAL: If the recommendation requires factual information you do not have (graduation dates, GPA, specific metrics, certifications, company names, etc.), use a clear placeholder wrapped in brackets like [Your Graduation Year], [X% improvement], [Your GPA], [Certification Name]. Set "has_placeholders" to true.
+- NEVER invent factual data. Only rewrite, restructure, or improve language for content that already exists.
 - Return ONLY the JSON object, no markdown code blocks`;
 
 export const LINKEDIN_COMPARE_SYSTEM_PROMPT = `You are an expert resume analyst. You will receive two inputs:

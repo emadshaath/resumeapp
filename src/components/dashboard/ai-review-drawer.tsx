@@ -233,7 +233,9 @@ function SectionCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [applyingIndex, setApplyingIndex] = useState<number | null>(null);
-  const [appliedIndices, setAppliedIndices] = useState<Set<number>>(new Set());
+  const [appliedResults, setAppliedResults] = useState<Record<number, { changes: string[]; hasPlaceholders: boolean }>>(
+    {}
+  );
   const [applyError, setApplyError] = useState<string | null>(null);
 
   async function applyRecommendation(rec: string, index: number) {
@@ -258,7 +260,13 @@ function SectionCard({
         return;
       }
 
-      setAppliedIndices((prev) => new Set(prev).add(index));
+      setAppliedResults((prev) => ({
+        ...prev,
+        [index]: {
+          changes: data.changes_summary || [data.explanation],
+          hasPlaceholders: data.has_placeholders || false,
+        },
+      }));
       onSectionUpdate?.();
     } catch {
       setApplyError("Network error. Please try again.");
@@ -288,7 +296,7 @@ function SectionCard({
             <ul className="space-y-2">
               {section.recommendations.map((rec, i) => {
                 const isApplying = applyingIndex === i;
-                const isApplied = appliedIndices.has(i);
+                const applied = appliedResults[i];
 
                 return (
                   <li key={i} className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -297,10 +305,22 @@ function SectionCard({
                       <span className="flex-1">{rec}</span>
                     </div>
                     <div className="ml-4 mt-1.5">
-                      {isApplied ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
-                          <Check className="h-3 w-3" /> Applied
-                        </span>
+                      {applied ? (
+                        <div className="space-y-1">
+                          <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
+                            <Check className="h-3 w-3" /> Applied
+                          </span>
+                          {applied.changes.map((change, ci) => (
+                            <p key={ci} className="text-xs text-zinc-500 dark:text-zinc-400 ml-4">
+                              {change}
+                            </p>
+                          ))}
+                          {applied.hasPlaceholders && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400 ml-4 font-medium">
+                              Contains [placeholders] — edit the section to fill in your actual details.
+                            </p>
+                          )}
+                        </div>
                       ) : canApply ? (
                         <Button
                           variant="outline"
