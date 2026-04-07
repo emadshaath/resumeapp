@@ -17,6 +17,10 @@ import {
   Users,
   Eye,
   Star,
+  ClipboardCheck,
+  MessageSquare,
+  UserCheck,
+  Heart,
 } from "lucide-react";
 import { FadeIn, StaggerChildren, CountUp } from "@/components/landing/animations";
 import { HeroMockup } from "@/components/landing/hero-mockup";
@@ -67,6 +71,11 @@ const features = [
     title: "Easy Section Editor",
     description: "Drag-and-drop sections for experience, education, skills, projects, and more.",
   },
+  {
+    icon: ClipboardCheck,
+    title: "Peer Review",
+    description: "Share a pseudonymized version of your resume and collect targeted feedback from peers and mentors.",
+  },
 ];
 
 const plans = [
@@ -108,6 +117,7 @@ const plans = [
     description: "The complete professional identity",
     features: [
       "Everything in Pro",
+      "Peer Review: anonymous feedback links",
       "Dedicated phone number",
       "Email inbox in-app",
       "Unlimited AI reviews",
@@ -310,6 +320,67 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Peer Review Feature Spotlight */}
+      <section className="py-20">
+        <div className="mx-auto max-w-6xl px-6">
+          <FadeIn>
+            <div className="text-center mb-14">
+              <Badge variant="secondary" className="mb-4">Premium Feature</Badge>
+              <h2 className="text-3xl font-bold tracking-tight">
+                Get real feedback, keep your privacy
+              </h2>
+              <p className="mt-4 text-zinc-600 dark:text-zinc-400 max-w-2xl mx-auto">
+                Share a pseudonymized version of your resume with peers, mentors, or career coaches.
+                They see the content &mdash; not your identity.
+              </p>
+            </div>
+          </FadeIn>
+          <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+            {[
+              {
+                icon: UserCheck,
+                title: "Pseudonymized sharing",
+                description: "Choose what to hide: name, email, phone, location, or even company names. Each gets replaced with a realistic placeholder.",
+              },
+              {
+                icon: MessageSquare,
+                title: "Section-level comments",
+                description: "Reviewers leave targeted feedback on specific sections like Experience or Skills, plus general impressions.",
+              },
+              {
+                icon: Lock,
+                title: "Controlled access",
+                description: "Set link expiration (24h, 7d, 30d) and add an optional password. Deactivate any link at any time.",
+              },
+            ].map((item, i) => (
+              <FadeIn key={item.title} delay={i * 120}>
+                <div className="text-center space-y-3">
+                  <div
+                    className="mx-auto h-12 w-12 rounded-xl flex items-center justify-center bg-brand-muted"
+                  >
+                    <item.icon className="h-6 w-6 text-brand" />
+                  </div>
+                  <h3 className="text-lg font-semibold">{item.title}</h3>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                    {item.description}
+                  </p>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+          <FadeIn delay={400}>
+            <div className="mt-12 text-center">
+              <Link href="/signup">
+                <Button variant="outline" size="lg">
+                  Try Peer Review
+                  <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
+              </Link>
+            </div>
+          </FadeIn>
+        </div>
+      </section>
+
       {/* Pricing */}
       <section id="pricing" className="py-20">
         <div className="mx-auto max-w-6xl px-6">
@@ -368,6 +439,55 @@ export default function LandingPage() {
               </FadeIn>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Community Program */}
+      <section id="community" className="py-20 bg-zinc-50 dark:bg-zinc-950">
+        <div className="mx-auto max-w-3xl px-6">
+          <FadeIn>
+            <div className="text-center space-y-6">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand-muted">
+                <Heart className="h-7 w-7 text-brand" />
+              </div>
+              <h2 className="text-3xl font-bold tracking-tight">
+                Currently unemployed? We&apos;ve got you.
+              </h2>
+              <p className="text-zinc-600 dark:text-zinc-400 max-w-xl mx-auto">
+                We believe everyone deserves the best tools to land their next role.
+                If you&apos;re currently between jobs, we&apos;ll upgrade your account to
+                <span className="font-semibold text-foreground"> Premium for free</span> while you search.
+              </p>
+              <Card className="text-left max-w-lg mx-auto border-zinc-200 dark:border-zinc-800">
+                <CardContent className="pt-6 space-y-4">
+                  <h3 className="font-semibold text-lg">How to apply</h3>
+                  <ol className="space-y-3 text-sm text-zinc-600 dark:text-zinc-400">
+                    <li className="flex items-start gap-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand text-white text-xs font-bold">1</span>
+                      <span>Sign up for a free rezm.ai account and complete your profile.</span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand text-white text-xs font-bold">2</span>
+                      <span>Send us an email at <a href="mailto:community@rezm.ai" className="font-medium text-brand hover:underline">community@rezm.ai</a> with your account email and a brief note about your situation.</span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand text-white text-xs font-bold">3</span>
+                      <span>We&apos;ll review your request and upgrade your account to Premium within 24 hours.</span>
+                    </li>
+                  </ol>
+                  <p className="text-xs text-zinc-500 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                    No proof required &mdash; we trust you. The upgrade stays active while you&apos;re looking for work.
+                  </p>
+                </CardContent>
+              </Card>
+              <Link href="/signup">
+                <Button size="lg" className="mt-2">
+                  Sign Up &amp; Apply
+                  <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
+              </Link>
+            </div>
+          </FadeIn>
         </div>
       </section>
 
