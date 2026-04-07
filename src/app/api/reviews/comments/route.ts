@@ -12,7 +12,7 @@ export async function GET() {
 
     const admin = createAdminClient();
 
-    // Get all comments for the user's resumes, joined with link info
+    // Get all comments with full link metadata for grouping
     const { data: comments, error } = await admin
       .from("review_comments")
       .select(`
@@ -24,13 +24,17 @@ export async function GET() {
         comment_text,
         created_at,
         review_links!inner (
+          id,
           token,
+          is_active,
+          expires_at,
+          pseudonymize_options,
           created_at
         )
       `)
       .eq("profile_id", user.id)
       .order("created_at", { ascending: false })
-      .limit(100);
+      .limit(200);
 
     if (error) {
       console.error("Comments fetch error:", error);
