@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Sparkles, X } from "lucide-react";
+import { Plus, Trash2, Sparkles, X, ChevronUp, ChevronDown } from "lucide-react";
 import type { ResumeSection, Experience, Education, Skill, Certification, Project } from "@/types/database";
 import type { SuggestionItem } from "@/lib/claude/schemas";
 
@@ -265,6 +265,20 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
     setItems(items.map((i) => (i.id === id ? { ...i, ...updates } : i)));
   }
 
+  async function moveItem(id: string, direction: "up" | "down") {
+    const index = items.findIndex((i) => i.id === id);
+    if ((direction === "up" && index === 0) || (direction === "down" && index === items.length - 1)) return;
+    const newItems = [...items];
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    [newItems[index], newItems[swapIndex]] = [newItems[swapIndex], newItems[index]];
+    const updated = newItems.map((i, idx) => ({ ...i, display_order: idx }));
+    setItems(updated);
+    await Promise.all([
+      supabase.from("experiences").update({ display_order: updated[index].display_order }).eq("id", updated[index].id),
+      supabase.from("experiences").update({ display_order: updated[swapIndex].display_order }).eq("id", updated[swapIndex].id),
+    ]);
+  }
+
   async function deleteItem(id: string) {
     await supabase.from("experiences").delete().eq("id", id);
     setItems(items.filter((i) => i.id !== id));
@@ -275,7 +289,7 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
 
   return (
     <div className="space-y-4">
-      {items.map((item) => (
+      {items.map((item, index) => (
         <Card key={item.id} className="bg-zinc-50 dark:bg-zinc-900">
           <CardContent className="p-4 space-y-3">
             <div className="flex justify-between items-start">
@@ -324,14 +338,17 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
                   </div>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-red-500 ml-2"
-                onClick={() => deleteItem(item.id)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <div className="flex flex-col items-center gap-0.5 ml-2">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => moveItem(item.id, "up")} disabled={index === 0}>
+                  <ChevronUp className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => moveItem(item.id, "down")} disabled={index === items.length - 1}>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => deleteItem(item.id)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <input
@@ -399,6 +416,20 @@ function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
     setItems(items.map((i) => (i.id === id ? { ...i, ...updates } : i)));
   }
 
+  async function moveItem(id: string, direction: "up" | "down") {
+    const index = items.findIndex((i) => i.id === id);
+    if ((direction === "up" && index === 0) || (direction === "down" && index === items.length - 1)) return;
+    const newItems = [...items];
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    [newItems[index], newItems[swapIndex]] = [newItems[swapIndex], newItems[index]];
+    const updated = newItems.map((i, idx) => ({ ...i, display_order: idx }));
+    setItems(updated);
+    await Promise.all([
+      supabase.from("educations").update({ display_order: updated[index].display_order }).eq("id", updated[index].id),
+      supabase.from("educations").update({ display_order: updated[swapIndex].display_order }).eq("id", updated[swapIndex].id),
+    ]);
+  }
+
   async function deleteItem(id: string) {
     await supabase.from("educations").delete().eq("id", id);
     setItems(items.filter((i) => i.id !== id));
@@ -409,7 +440,7 @@ function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
 
   return (
     <div className="space-y-4">
-      {items.map((item) => (
+      {items.map((item, index) => (
         <Card key={item.id} className="bg-zinc-50 dark:bg-zinc-900">
           <CardContent className="p-4 space-y-3">
             <div className="flex justify-between items-start">
@@ -465,14 +496,17 @@ function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
                   </div>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-red-500 ml-2"
-                onClick={() => deleteItem(item.id)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <div className="flex flex-col items-center gap-0.5 ml-2">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => moveItem(item.id, "up")} disabled={index === 0}>
+                  <ChevronUp className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => moveItem(item.id, "down")} disabled={index === items.length - 1}>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => deleteItem(item.id)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -522,6 +556,20 @@ function SkillsEditor({ section, onUpdate }: SectionContentEditorProps) {
     setItems(items.map((i) => (i.id === id ? { ...i, ...updates } : i)));
   }
 
+  async function moveItem(id: string, direction: "up" | "down") {
+    const index = items.findIndex((i) => i.id === id);
+    if ((direction === "up" && index === 0) || (direction === "down" && index === items.length - 1)) return;
+    const newItems = [...items];
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    [newItems[index], newItems[swapIndex]] = [newItems[swapIndex], newItems[index]];
+    const updated = newItems.map((i, idx) => ({ ...i, display_order: idx }));
+    setItems(updated);
+    await Promise.all([
+      supabase.from("skills").update({ display_order: updated[index].display_order }).eq("id", updated[index].id),
+      supabase.from("skills").update({ display_order: updated[swapIndex].display_order }).eq("id", updated[swapIndex].id),
+    ]);
+  }
+
   async function deleteItem(id: string) {
     await supabase.from("skills").delete().eq("id", id);
     setItems(items.filter((i) => i.id !== id));
@@ -531,7 +579,7 @@ function SkillsEditor({ section, onUpdate }: SectionContentEditorProps) {
 
   return (
     <div className="space-y-3">
-      {items.map((item) => (
+      {items.map((item, index) => (
         <div key={item.id} className="flex flex-col sm:flex-row gap-2">
           <Input
             value={item.name}
@@ -557,6 +605,12 @@ function SkillsEditor({ section, onUpdate }: SectionContentEditorProps) {
               <option value="advanced">Advanced</option>
               <option value="expert">Expert</option>
             </select>
+            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => moveItem(item.id, "up")} disabled={index === 0}>
+              <ChevronUp className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => moveItem(item.id, "down")} disabled={index === items.length - 1}>
+              <ChevronDown className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 shrink-0" onClick={() => deleteItem(item.id)}>
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -608,6 +662,20 @@ function CertificationsEditor({ section, onUpdate }: SectionContentEditorProps) 
     setItems(items.map((i) => (i.id === id ? { ...i, ...updates } : i)));
   }
 
+  async function moveItem(id: string, direction: "up" | "down") {
+    const index = items.findIndex((i) => i.id === id);
+    if ((direction === "up" && index === 0) || (direction === "down" && index === items.length - 1)) return;
+    const newItems = [...items];
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    [newItems[index], newItems[swapIndex]] = [newItems[swapIndex], newItems[index]];
+    const updated = newItems.map((i, idx) => ({ ...i, display_order: idx }));
+    setItems(updated);
+    await Promise.all([
+      supabase.from("certifications").update({ display_order: updated[index].display_order }).eq("id", updated[index].id),
+      supabase.from("certifications").update({ display_order: updated[swapIndex].display_order }).eq("id", updated[swapIndex].id),
+    ]);
+  }
+
   async function deleteItem(id: string) {
     await supabase.from("certifications").delete().eq("id", id);
     setItems(items.filter((i) => i.id !== id));
@@ -617,7 +685,7 @@ function CertificationsEditor({ section, onUpdate }: SectionContentEditorProps) 
 
   return (
     <div className="space-y-4">
-      {items.map((item) => (
+      {items.map((item, index) => (
         <Card key={item.id} className="bg-zinc-50 dark:bg-zinc-900">
           <CardContent className="p-4 space-y-3">
             <div className="flex justify-between items-start">
@@ -656,14 +724,17 @@ function CertificationsEditor({ section, onUpdate }: SectionContentEditorProps) 
                   />
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-red-500 ml-2"
-                onClick={() => deleteItem(item.id)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <div className="flex flex-col items-center gap-0.5 ml-2">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => moveItem(item.id, "up")} disabled={index === 0}>
+                  <ChevronUp className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => moveItem(item.id, "down")} disabled={index === items.length - 1}>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => deleteItem(item.id)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -713,6 +784,20 @@ function ProjectsEditor({ section, onUpdate }: SectionContentEditorProps) {
     setItems(items.map((i) => (i.id === id ? { ...i, ...updates } : i)));
   }
 
+  async function moveItem(id: string, direction: "up" | "down") {
+    const index = items.findIndex((i) => i.id === id);
+    if ((direction === "up" && index === 0) || (direction === "down" && index === items.length - 1)) return;
+    const newItems = [...items];
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    [newItems[index], newItems[swapIndex]] = [newItems[swapIndex], newItems[index]];
+    const updated = newItems.map((i, idx) => ({ ...i, display_order: idx }));
+    setItems(updated);
+    await Promise.all([
+      supabase.from("projects").update({ display_order: updated[index].display_order }).eq("id", updated[index].id),
+      supabase.from("projects").update({ display_order: updated[swapIndex].display_order }).eq("id", updated[swapIndex].id),
+    ]);
+  }
+
   async function deleteItem(id: string) {
     await supabase.from("projects").delete().eq("id", id);
     setItems(items.filter((i) => i.id !== id));
@@ -722,7 +807,7 @@ function ProjectsEditor({ section, onUpdate }: SectionContentEditorProps) {
 
   return (
     <div className="space-y-4">
-      {items.map((item) => (
+      {items.map((item, index) => (
         <Card key={item.id} className="bg-zinc-50 dark:bg-zinc-900">
           <CardContent className="p-4 space-y-3">
             <div className="flex justify-between items-start">
@@ -745,14 +830,17 @@ function ProjectsEditor({ section, onUpdate }: SectionContentEditorProps) {
                   />
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-red-500 ml-2"
-                onClick={() => deleteItem(item.id)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <div className="flex flex-col items-center gap-0.5 ml-2">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => moveItem(item.id, "up")} disabled={index === 0}>
+                  <ChevronUp className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => moveItem(item.id, "down")} disabled={index === items.length - 1}>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => deleteItem(item.id)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Description</Label>

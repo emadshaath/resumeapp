@@ -192,8 +192,18 @@ export default async function PublicProfilePage({ params }: PageProps) {
       <main className="mx-auto max-w-3xl px-6 py-10 md:py-14">
         <div className="space-y-10">
           {sections.map((section) => {
-            const sectionExperiences = experiences.filter((e) => e.section_id === section.id);
-            const sectionEducations = educations.filter((e) => e.section_id === section.id);
+            const sectionExperiences = experiences
+              .filter((e) => e.section_id === section.id)
+              .sort((a, b) => {
+                if (a.is_current !== b.is_current) return a.is_current ? -1 : 1;
+                return (b.start_date || "").localeCompare(a.start_date || "");
+              });
+            const sectionEducations = educations
+              .filter((e) => e.section_id === section.id)
+              .sort((a, b) => {
+                if (a.is_current !== b.is_current) return a.is_current ? -1 : 1;
+                return (b.start_date || "").localeCompare(a.start_date || "");
+              });
             const sectionSkills = skills.filter((s) => s.section_id === section.id);
             const sectionCerts = certifications.filter((c) => c.section_id === section.id);
             const sectionProjects = projects.filter((p) => p.section_id === section.id);
