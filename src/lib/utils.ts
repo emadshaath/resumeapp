@@ -35,6 +35,11 @@ export function isValidSlug(slug: string): boolean {
   return true;
 }
 
+export function ensureAbsoluteUrl(url: string): string {
+  if (/^https?:\/\//i.test(url)) return url;
+  return `https://${url}`;
+}
+
 export function slugify(text: string): string {
   return text
     .toLowerCase()
