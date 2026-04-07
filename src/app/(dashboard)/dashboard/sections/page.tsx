@@ -30,7 +30,7 @@ import {
   History,
   Link2,
 } from "lucide-react";
-import type { ResumeSection, SectionType } from "@/types/database";
+import type { ResumeSection, SectionType, Tier } from "@/types/database";
 import { SectionContentEditor } from "@/components/dashboard/section-editor";
 import { ImportResumeDialog } from "@/components/dashboard/import-resume-dialog";
 import { PdfResumeDrawer } from "@/components/dashboard/pdf-resume-drawer";
@@ -53,6 +53,7 @@ export default function SectionsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [userTier, setUserTier] = useState<Tier>("free");
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -78,13 +79,24 @@ export default function SectionsPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.push("/login"); return; }
 
-    const { data } = await supabase
-      .from("resume_sections")
-      .select("*")
-      .eq("profile_id", user.id)
-      .order("display_order");
+    const [{ data }, { data: profile }] = await Promise.all([
+      supabase
+        .from("resume_sections")
+        .select("*")
+        .eq("profile_id", user.id)
+        .order("display_order"),
+      supabase
+        .from("profiles")
+        .select("tier, tier_override")
+        .eq("id", user.id)
+        .single(),
+    ]);
 
     if (data) setSections(data as ResumeSection[]);
+    if (profile) {
+      const effective = (profile.tier_override || profile.tier || "free") as Tier;
+      setUserTier(effective);
+    }
     setLoading(false);
   }, [supabase, router]);
 
@@ -326,7 +338,7 @@ export default function SectionsPage() {
         onImportComplete={loadSections}
       />
       <PdfResumeDrawer open={pdfOpen} onClose={() => setPdfOpen(false)} />
-      <AIReviewDrawer open={reviewOpen} onClose={() => setReviewOpen(false)} />
+      <AIReviewDrawer open={reviewOpen} onClose={() => setReviewOpen(false)} onSectionUpdate={loadSections} userTier={userTier} />
       <LinkedInAnalyzerDrawer
         open={linkedinOpen}
         onClose={() => setLinkedinOpen(false)}
