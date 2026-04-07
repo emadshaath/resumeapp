@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { hasFeature, getLimit } from "@/lib/stripe/feature-gate";
+import { hasFeature, getLimit, getEffectiveTier } from "@/lib/stripe/feature-gate";
 import { z } from "zod";
 import { createHash } from "crypto";
 import type { Tier } from "@/types/database";
@@ -39,11 +39,12 @@ export async function POST(request: Request) {
     // Check tier
     const { data: profile } = await supabase
       .from("profiles")
-      .select("tier")
+      .select("tier, tier_override")
       .eq("id", user.id)
       .single();
 
-    if (!profile || !hasFeature(profile.tier as Tier, "peer_review")) {
+    const effectiveTier = profile ? getEffectiveTier(profile.tier as Tier, profile.tier_override as Tier | null) : null;
+    if (!profile || !effectiveTier || !hasFeature(effectiveTier, "peer_review")) {
       return NextResponse.json(
         { error: "Peer review is a Premium feature. Please upgrade to access it." },
         { status: 403 }
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
       .eq("profile_id", user.id)
       .eq("is_active", true);
 
-    const limit = getLimit(profile.tier as Tier, "review_links_max");
+    const limit = getLimit(effectiveTier, "review_links_max");
     if ((count ?? 0) >= limit) {
       return NextResponse.json(
         { error: "Review link limit reached" },

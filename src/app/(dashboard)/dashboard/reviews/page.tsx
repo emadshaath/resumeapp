@@ -21,7 +21,7 @@ import {
   Inbox,
 } from "lucide-react";
 import type { Tier } from "@/types/database";
-import { hasFeature } from "@/lib/stripe/feature-gate";
+import { hasFeature, getEffectiveTier } from "@/lib/stripe/feature-gate";
 
 interface ReviewLinkItem {
   id: string;
@@ -67,11 +67,11 @@ export default function ReviewsPage() {
     // Get tier
     const { data: profile } = await supabase
       .from("profiles")
-      .select("tier")
+      .select("tier, tier_override")
       .eq("id", user.id)
       .single();
 
-    if (profile) setTier(profile.tier as Tier);
+    if (profile) setTier(getEffectiveTier(profile.tier as Tier, profile.tier_override as Tier | null));
 
     // Fetch links and comments in parallel
     const [linksRes, commentsRes] = await Promise.all([

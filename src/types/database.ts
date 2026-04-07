@@ -23,6 +23,7 @@ export interface Profile {
   linkedin_url: string | null;
   phone_personal: string | null;
   tier: Tier;
+  tier_override: Tier | null;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   is_published: boolean;

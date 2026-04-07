@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { captureSnapshot } from "@/lib/snapshots/service";
-import { getLimit } from "@/lib/stripe/feature-gate";
+import { getLimit, getEffectiveTier } from "@/lib/stripe/feature-gate";
 import type { Tier } from "@/types/database";
 import { z } from "zod";
 
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     // Check tier limits
     const { data: profile } = await admin
       .from("profiles")
-      .select("tier")
+      .select("tier, tier_override")
       .eq("id", user.id)
       .single();
 
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Profile not found." }, { status: 404 });
     }
 
-    const maxSnapshots = getLimit(profile.tier as Tier, "snapshots_max");
+    const maxSnapshots = getLimit(getEffectiveTier(profile.tier as Tier, profile.tier_override as Tier | null), "snapshots_max");
 
     const { count } = await admin
       .from("profile_snapshots")

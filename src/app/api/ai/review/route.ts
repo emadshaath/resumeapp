@@ -4,7 +4,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAnthropicClient, AI_MODEL, AI_MAX_TOKENS } from "@/lib/claude/client";
 import { FULL_REVIEW_SYSTEM_PROMPT, buildFullReviewUserPrompt } from "@/lib/claude/prompts";
 import { rateLimit } from "@/lib/rate-limit";
+import { getEffectiveTier } from "@/lib/stripe/feature-gate";
 import type { FullReviewResult } from "@/lib/claude/schemas";
+import type { Tier } from "@/types/database";
 
 // Tier-based monthly limits
 const TIER_LIMITS: Record<string, number> = {
@@ -35,7 +37,7 @@ export async function POST(request: Request) {
     }
 
     // Check tier-based rate limit (monthly)
-    const tier = profile.tier || "free";
+    const tier = getEffectiveTier((profile.tier || "free") as Tier, profile.tier_override as Tier | null);
     const monthlyLimit = TIER_LIMITS[tier] || 1;
 
     const startOfMonth = new Date();

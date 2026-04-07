@@ -52,6 +52,10 @@ const FEATURE_MIN_TIER: Record<Feature, Tier> = {
   peer_review: "premium",
 };
 
+export function getEffectiveTier(tier: Tier, tierOverride?: Tier | null): Tier {
+  return tierOverride ?? tier;
+}
+
 export function hasFeature(tier: Tier, feature: Feature): boolean {
   const required = FEATURE_MIN_TIER[feature];
   return TIER_LEVEL[tier] >= TIER_LEVEL[required];

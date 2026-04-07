@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { EMAIL_DOMAIN } from "@/lib/resend/client";
+import { getEffectiveTier } from "@/lib/stripe/feature-gate";
+import type { Tier } from "@/types/database";
 
 export async function POST(request: Request) {
   try {
@@ -17,7 +19,7 @@ export async function POST(request: Request) {
     // Get user profile for slug
     const { data: profile } = await admin
       .from("profiles")
-      .select("slug, tier")
+      .select("slug, tier, tier_override")
       .eq("id", user.id)
       .single();
 
@@ -26,7 +28,8 @@ export async function POST(request: Request) {
     }
 
     // Check tier — email is available for Pro+ users
-    if (profile.tier === "free") {
+    const effectiveTier = getEffectiveTier(profile.tier as Tier, profile.tier_override as Tier | null);
+    if (effectiveTier === "free") {
       return NextResponse.json(
         { error: "Platform email requires a Pro or Premium plan" },
         { status: 403 }

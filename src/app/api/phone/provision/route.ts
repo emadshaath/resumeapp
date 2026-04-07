@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTwilioClient } from "@/lib/twilio/client";
+import { getEffectiveTier } from "@/lib/stripe/feature-gate";
+import type { Tier } from "@/types/database";
 
 export async function POST() {
   try {
@@ -17,7 +19,7 @@ export async function POST() {
     // Check tier — Premium only
     const { data: profile } = await admin
       .from("profiles")
-      .select("id, tier, slug, first_name, last_name")
+      .select("id, tier, tier_override, slug, first_name, last_name")
       .eq("id", user.id)
       .single();
 
@@ -25,7 +27,8 @@ export async function POST() {
       return NextResponse.json({ error: "Profile not found." }, { status: 404 });
     }
 
-    if (profile.tier !== "premium") {
+    const effectiveTier = getEffectiveTier(profile.tier as Tier, profile.tier_override as Tier | null);
+    if (effectiveTier !== "premium") {
       return NextResponse.json(
         { error: "Phone numbers are available on the Premium plan." },
         { status: 403 }
