@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hasFeature, getLimit, getRequiredTier, getEffectiveTier } from "@/lib/stripe/feature-gate";
 import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
 import { applyVariantToResume } from "@/lib/tailor";
+import { captureSnapshot } from "@/lib/snapshots/service";
 import type { Tier, VariantData } from "@/types/database";
 
 // GET /api/variants — List user's variants 
@@ -114,6 +115,14 @@ export async function POST(req: NextRequest) {
       .eq("id", job_application_id)
       .eq("profile_id", user.id);
   }
+
+  // Auto-snapshot: capture base resume state at variant creation time
+  captureSnapshot(
+    user.id,
+    `Resume state when tailored for ${name}`,
+    "auto_variant",
+    { variant_id: variant.id, job_application_id: job_application_id || null }
+  ).catch(() => {}); // Best-effort, don't block response
 
   return NextResponse.json({ variant }, { status: 201 });
 }

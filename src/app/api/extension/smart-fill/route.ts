@@ -206,6 +206,9 @@ export async function POST(req: NextRequest) {
       location: location || null,
       remote_type: remote_type || null,
       description_summary: description || null,
+      job_description: description_html
+        ? description_html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+        : null,
     };
 
     const { variant_data, match_score } = await generateTailoredVariant(
