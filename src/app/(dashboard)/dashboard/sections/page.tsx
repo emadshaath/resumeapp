@@ -266,11 +266,11 @@ export default function SectionsPage() {
                 >
                   <GripVertical className="h-4 w-4 text-zinc-400 flex-shrink-0" />
                   <Icon className="h-4 w-4 text-zinc-500 flex-shrink-0" />
-                  <span className="font-medium text-sm flex-1">{section.title}</span>
-                  <Badge variant="secondary" className="text-xs">
+                  <span className="font-medium text-sm flex-1 truncate min-w-0">{section.title}</span>
+                  <Badge variant="secondary" className="text-xs hidden sm:inline-flex">
                     {typeConfig?.label}
                   </Badge>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 shrink-0">
                     <Button
                       variant="ghost"
                       size="icon"
