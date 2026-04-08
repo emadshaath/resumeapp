@@ -489,17 +489,22 @@ export default function ReviewsPage() {
           {/* Mobile: Comments sheet */}
           <Sheet open={mobileCommentsOpen} onOpenChange={setMobileCommentsOpen}>
             <SheetContent open={mobileCommentsOpen} onClose={() => setMobileCommentsOpen(false)}>
-              <CommentsPanel
-                sections={preview.resume.sections}
-                comments={comments}
-                generalComments={generalComments}
-                activeSection={activeSection}
-                getCommentsForSection={getCommentsForSection}
-                onScrollToSection={(id) => {
-                  setMobileCommentsOpen(false);
-                  scrollToSection(id);
-                }}
-              />
+              <div className="flex flex-col h-full min-h-0">
+                <div className="flex-1 overflow-y-auto">
+                  <CommentsPanel
+                    sections={preview.resume.sections}
+                    comments={comments}
+                    generalComments={generalComments}
+                    activeSection={activeSection}
+                    getCommentsForSection={getCommentsForSection}
+                    onScrollToSection={(id) => {
+                      setMobileCommentsOpen(false);
+                      scrollToSection(id);
+                    }}
+                    inSheet
+                  />
+                </div>
+              </div>
             </SheetContent>
           </Sheet>
         </div>
@@ -749,6 +754,7 @@ function CommentsPanel({
   activeSection,
   getCommentsForSection,
   onScrollToSection,
+  inSheet,
 }: {
   sections: ResumeSection[];
   comments: CommentData[];
@@ -756,11 +762,12 @@ function CommentsPanel({
   activeSection: string | null;
   getCommentsForSection: (sectionId: string | null) => CommentData[];
   onScrollToSection: (id: string) => void;
+  inSheet?: boolean;
 }) {
   return (
     <>
       {/* Panel header */}
-      <div className="sticky top-0 z-10 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-sm border-b border-zinc-200 dark:border-zinc-800 px-5 py-3">
+      <div className={`sticky top-0 z-10 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-sm border-b border-zinc-200 dark:border-zinc-800 px-5 py-3 ${inSheet ? "pr-12" : ""}`}>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
             <MessageSquare className="h-4 w-4 text-zinc-400" />
