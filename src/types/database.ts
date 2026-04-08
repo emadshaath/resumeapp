@@ -301,6 +301,7 @@ export interface ProfileVariant {
   job_application_id: string | null;
   name: string;
   variant_data: VariantData;
+  resolved_resume: Record<string, unknown> | null;
   match_score: number | null;
   source: "ai" | "manual";
   is_default: boolean;

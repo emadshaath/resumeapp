@@ -213,7 +213,8 @@ export async function POST(req: NextRequest) {
       parsedJob
     );
 
-    // Step 5: Save variant
+    // Step 5: Save variant with frozen resolved_resume
+    const resolvedResume = applyVariantToResume(resumeData, variant_data);
     const variantName = `${company_name} — ${job_title}`;
     const { data: savedVariant, error: variantError } = await supabase
       .from("profile_variants")
@@ -221,6 +222,7 @@ export async function POST(req: NextRequest) {
         profile_id: user.id,
         name: variantName.substring(0, 100),
         variant_data,
+        resolved_resume: resolvedResume,
         match_score,
         job_application_id: jobId,
         source: "ai",
