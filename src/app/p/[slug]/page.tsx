@@ -8,7 +8,7 @@ import { MapPin, Globe, Briefcase, GraduationCap, Wrench, Award, FolderOpen, Ext
 import { generatePersonJsonLd, generateBreadcrumbJsonLd } from "@/lib/seo/json-ld";
 import { generateProfileMetadata } from "@/lib/seo/meta";
 import { THEME_CSS_VARS, DEFAULT_THEME } from "@/lib/themes";
-import { ensureAbsoluteUrl } from "@/lib/utils";
+import { ensureAbsoluteUrl, parseHighlights } from "@/lib/utils";
 import { ContactForm } from "@/components/profile/contact-form";
 import { VisitorTracker } from "@/components/profile/visitor-tracker";
 import { PdfDownloadButton } from "@/components/profile/pdf-download-button";
@@ -85,7 +85,7 @@ async function getProfile(slug: string) {
   return {
     profile: profile as Profile,
     sections: sections as ResumeSection[],
-    experiences: (experiences.data || []) as Experience[],
+    experiences: (experiences.data || []).map((e: Record<string, unknown>) => ({ ...e, highlights: parseHighlights(e.highlights) })) as Experience[],
     educations: (educations.data || []) as Education[],
     skills: (skills.data || []) as Skill[],
     certifications: (certifications.data || []) as Certification[],

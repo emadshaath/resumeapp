@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ResumeData } from "./types";
 import type { Profile, ResumeSection, Experience, Education, Skill, Certification, Project, CustomSection } from "@/types/database";
+import { parseHighlights } from "@/lib/utils";
 
 /**
  * Fetches all resume data for a given profile ID.
@@ -54,7 +55,7 @@ export async function fetchResumeData(
   return {
     profile: profile as Profile,
     sections: sectionList,
-    experiences: (experiences.data || []) as Experience[],
+    experiences: (experiences.data || []).map((e: Record<string, unknown>) => ({ ...e, highlights: parseHighlights(e.highlights) })) as Experience[],
     educations: (educations.data || []) as Education[],
     skills: (skills.data || []) as Skill[],
     certifications: (certifications.data || []) as Certification[],

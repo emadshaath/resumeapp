@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Sparkles, X, ChevronUp, ChevronDown } from "lucide-react";
 import type { ResumeSection, Experience, Education, Skill, Certification, Project } from "@/types/database";
 import type { SuggestionItem } from "@/lib/claude/schemas";
+import { parseHighlights } from "@/lib/utils";
 
 interface SectionContentEditorProps {
   section: ResumeSection;
@@ -238,7 +239,7 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
       .select("*")
       .eq("section_id", section.id)
       .order("display_order");
-    if (data) setItems(data as Experience[]);
+    if (data) setItems(data.map((e: Record<string, unknown>) => ({ ...e, highlights: parseHighlights(e.highlights) })) as Experience[]);
     setLoading(false);
   }, [section.id, supabase]);
 
