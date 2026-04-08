@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
 import { generateTailoredVariant, applyVariantToResume } from "@/lib/tailor";
 import { hasFeature, getLimit, getRequiredTier, getEffectiveTier } from "@/lib/stripe/feature-gate";
+import { sanitizeJobDescription } from "@/lib/jobs/sanitize-description";
 import type { Tier } from "@/types/database";
 
 /**
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
     company_name,
     job_url,
     description,
+    description_html,
     location,
     remote_type,
   } = body;
@@ -81,6 +83,10 @@ export async function POST(req: NextRequest) {
         jobId = existingJob.id;
         existingVariantId = existingJob.variant_id;
       } else {
+        const sanitizedHtml = description_html
+          ? sanitizeJobDescription(description_html)
+          : null;
+
         const { data: newJob, error: jobError } = await supabase
           .from("job_applications")
           .insert({
@@ -93,6 +99,7 @@ export async function POST(req: NextRequest) {
             parsed_data: description
               ? { description_summary: description }
               : null,
+            job_description_html: sanitizedHtml,
             status: "applied",
             source: "extension",
           })
@@ -108,6 +115,10 @@ export async function POST(req: NextRequest) {
       }
     } else {
       // No URL — always create new
+      const sanitizedHtml = description_html
+        ? sanitizeJobDescription(description_html)
+        : null;
+
       const { data: newJob, error: jobError } = await supabase
         .from("job_applications")
         .insert({
@@ -119,6 +130,7 @@ export async function POST(req: NextRequest) {
           parsed_data: description
             ? { description_summary: description }
             : null,
+          job_description_html: sanitizedHtml,
           status: "applied",
           source: "extension",
         })

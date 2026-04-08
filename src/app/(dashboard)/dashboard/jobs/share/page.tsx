@@ -44,6 +44,7 @@ function ShareTargetContent() {
     try {
       // Step 1: Parse the job URL with AI
       let parsedData: Record<string, unknown> = {};
+      let descriptionHtml: string | null = null;
       try {
         const parseRes = await fetch("/api/jobs/parse-url", {
           method: "POST",
@@ -51,8 +52,9 @@ function ShareTargetContent() {
           body: JSON.stringify({ url }),
         });
         if (parseRes.ok) {
-          const { parsed } = await parseRes.json();
-          parsedData = parsed;
+          const result = await parseRes.json();
+          parsedData = result.parsed;
+          descriptionHtml = result.description_html || null;
         }
       } catch {
         // Parse failed, continue with basic data
@@ -82,6 +84,7 @@ function ShareTargetContent() {
           source: "share_target",
           notes: parsedData.description_summary || null,
           parsed_data: parsedData,
+          job_description_html: descriptionHtml,
         }),
       });
 

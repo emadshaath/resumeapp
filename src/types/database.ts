@@ -236,6 +236,7 @@ export interface JobApplication {
   location: string | null;
   remote_type: RemoteType | null;
   parsed_data: Record<string, unknown>;
+  job_description_html: string | null;
   match_score: number | null;
   notes: string | null;
   follow_up_date: string | null;
