@@ -7,7 +7,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CreateReviewLinkDialog } from "@/components/dashboard/create-review-link-dialog";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
   Plus,
   Copy,
@@ -171,9 +170,24 @@ export default function ReviewsPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
+  const [sheetOffset, setSheetOffset] = useState(0);
+  const [sheetDragging, setSheetDragging] = useState(false);
+  const dragStartYRef = useRef(0);
 
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
   const commentPanelRef = useRef<HTMLDivElement>(null);
+
+  // Lock body scroll when mobile bottom sheet is open
+  useEffect(() => {
+    if (mobileCommentsOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+      setSheetOffset(0);
+      setSheetDragging(false);
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileCommentsOpen]);
   const router = useRouter();
   const supabase = createClient();
 
@@ -486,27 +500,65 @@ export default function ReviewsPage() {
             </button>
           )}
 
-          {/* Mobile: Comments sheet */}
-          <Sheet open={mobileCommentsOpen} onOpenChange={setMobileCommentsOpen}>
-            <SheetContent open={mobileCommentsOpen} onClose={() => setMobileCommentsOpen(false)}>
-              <div className="flex flex-col h-full min-h-0">
-                <div className="flex-1 overflow-y-auto">
-                  <CommentsPanel
-                    sections={preview.resume.sections}
-                    comments={comments}
-                    generalComments={generalComments}
-                    activeSection={activeSection}
-                    getCommentsForSection={getCommentsForSection}
-                    onScrollToSection={(id) => {
-                      setMobileCommentsOpen(false);
-                      scrollToSection(id);
-                    }}
-                    inSheet
-                  />
-                </div>
+          {/* Mobile: Bottom sheet for comments */}
+          <div
+            className={`md:hidden fixed inset-0 z-50 transition-opacity duration-300 ${
+              mobileCommentsOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+            }`}
+          >
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => setMobileCommentsOpen(false)}
+            />
+            {/* Panel */}
+            <div
+              className="absolute inset-x-0 bottom-0 flex flex-col bg-white dark:bg-zinc-950 rounded-t-2xl shadow-2xl will-change-transform"
+              style={{
+                maxHeight: "85vh",
+                transform: mobileCommentsOpen
+                  ? `translateY(${sheetOffset}px)`
+                  : "translateY(100%)",
+                transition: sheetDragging ? "none" : "transform 300ms ease-out",
+              }}
+            >
+              {/* Drag handle */}
+              <div
+                className="flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing touch-none shrink-0"
+                onTouchStart={(e) => {
+                  dragStartYRef.current = e.touches[0].clientY;
+                  setSheetDragging(true);
+                }}
+                onTouchMove={(e) => {
+                  const delta = e.touches[0].clientY - dragStartYRef.current;
+                  setSheetOffset(Math.max(0, delta));
+                }}
+                onTouchEnd={() => {
+                  if (sheetOffset > 120) {
+                    setMobileCommentsOpen(false);
+                  }
+                  setSheetOffset(0);
+                  setSheetDragging(false);
+                }}
+              >
+                <div className="w-10 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600" />
               </div>
-            </SheetContent>
-          </Sheet>
+              {/* Scrollable comments */}
+              <div className="flex-1 overflow-y-auto min-h-0">
+                <CommentsPanel
+                  sections={preview.resume.sections}
+                  comments={comments}
+                  generalComments={generalComments}
+                  activeSection={activeSection}
+                  getCommentsForSection={getCommentsForSection}
+                  onScrollToSection={(id) => {
+                    setMobileCommentsOpen(false);
+                    scrollToSection(id);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -754,7 +806,6 @@ function CommentsPanel({
   activeSection,
   getCommentsForSection,
   onScrollToSection,
-  inSheet,
 }: {
   sections: ResumeSection[];
   comments: CommentData[];
@@ -762,12 +813,11 @@ function CommentsPanel({
   activeSection: string | null;
   getCommentsForSection: (sectionId: string | null) => CommentData[];
   onScrollToSection: (id: string) => void;
-  inSheet?: boolean;
 }) {
   return (
     <>
       {/* Panel header */}
-      <div className={`sticky top-0 z-10 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-sm border-b border-zinc-200 dark:border-zinc-800 px-5 py-3 ${inSheet ? "pr-12" : ""}`}>
+      <div className="sticky top-0 z-10 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-sm border-b border-zinc-200 dark:border-zinc-800 px-5 py-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
             <MessageSquare className="h-4 w-4 text-zinc-400" />
