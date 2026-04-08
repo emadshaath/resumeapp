@@ -40,6 +40,18 @@ export function ensureAbsoluteUrl(url: string): string {
   return `https://${url}`;
 }
 
+/**
+ * Supabase may return JSONB columns as strings. This ensures
+ * the `highlights` field on Experience rows is always a string[].
+ */
+export function parseHighlights(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string") {
+    try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return parsed; } catch { /* ignore */ }
+  }
+  return [];
+}
+
 export function slugify(text: string): string {
   return text
     .toLowerCase()

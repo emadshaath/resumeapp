@@ -8,10 +8,11 @@ import { MapPin, Globe, Briefcase, GraduationCap, Wrench, Award, FolderOpen, Ext
 import { generatePersonJsonLd, generateBreadcrumbJsonLd } from "@/lib/seo/json-ld";
 import { generateProfileMetadata } from "@/lib/seo/meta";
 import { THEME_CSS_VARS, DEFAULT_THEME } from "@/lib/themes";
-import { ensureAbsoluteUrl } from "@/lib/utils";
+import { ensureAbsoluteUrl, parseHighlights } from "@/lib/utils";
 import { ContactForm } from "@/components/profile/contact-form";
 import { VisitorTracker } from "@/components/profile/visitor-tracker";
 import { PdfDownloadButton } from "@/components/profile/pdf-download-button";
+import { MarkdownText } from "@/components/ui/markdown-text";
 import type { PdfSettings } from "@/lib/pdf/types";
 
 // ISR: revalidate every 5 minutes
@@ -84,7 +85,7 @@ async function getProfile(slug: string) {
   return {
     profile: profile as Profile,
     sections: sections as ResumeSection[],
-    experiences: (experiences.data || []) as Experience[],
+    experiences: (experiences.data || []).map((e: Record<string, unknown>) => ({ ...e, highlights: parseHighlights(e.highlights) })) as Experience[],
     educations: (educations.data || []) as Education[],
     skills: (skills.data || []) as Skill[],
     certifications: (certifications.data || []) as Certification[],
@@ -248,8 +249,18 @@ export default async function PublicProfilePage({ params }: PageProps) {
                         </div>
                         {exp.description && (
                           <p className="mt-2.5 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed whitespace-pre-wrap">
-                            {exp.description}
+                            <MarkdownText>{exp.description}</MarkdownText>
                           </p>
+                        )}
+                        {exp.highlights && exp.highlights.length > 0 && (
+                          <ul className="mt-2 space-y-1 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                            {exp.highlights.map((h: string, i: number) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-zinc-400 mt-0.5 select-none">•</span>
+                                <span><MarkdownText>{h}</MarkdownText></span>
+                              </li>
+                            ))}
+                          </ul>
                         )}
                       </div>
                     ))}

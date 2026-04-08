@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Sparkles, X, ChevronUp, ChevronDown } from "lucide-react";
 import type { ResumeSection, Experience, Education, Skill, Certification, Project } from "@/types/database";
 import type { SuggestionItem } from "@/lib/claude/schemas";
+import { parseHighlights } from "@/lib/utils";
 
 interface SectionContentEditorProps {
   section: ResumeSection;
@@ -238,7 +239,7 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
       .select("*")
       .eq("section_id", section.id)
       .order("display_order");
-    if (data) setItems(data as Experience[]);
+    if (data) setItems(data.map((e: Record<string, unknown>) => ({ ...e, highlights: parseHighlights(e.highlights) })) as Experience[]);
     setLoading(false);
   }, [section.id, supabase]);
 
@@ -364,9 +365,50 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
               <Textarea
                 value={item.description || ""}
                 onChange={(e) => updateItem(item.id, { description: e.target.value })}
-                placeholder="Describe your role and responsibilities..."
+                placeholder="Describe your role and responsibilities... (supports **bold** and *italic*)"
                 rows={3}
               />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Bullet Points</Label>
+              {(item.highlights || []).map((highlight, hIdx) => (
+                <div key={hIdx} className="flex items-start gap-2">
+                  <span className="text-zinc-400 mt-2.5 text-xs">•</span>
+                  <Input
+                    value={highlight}
+                    onChange={(e) => {
+                      const updated = [...(item.highlights || [])];
+                      updated[hIdx] = e.target.value;
+                      updateItem(item.id, { highlights: updated });
+                    }}
+                    placeholder="Achievement or responsibility... (supports **bold** and *italic*)"
+                    className="flex-1"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-red-500 shrink-0"
+                    onClick={() => {
+                      const updated = (item.highlights || []).filter((_, i) => i !== hIdx);
+                      updateItem(item.id, { highlights: updated });
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+                onClick={() => {
+                  const updated = [...(item.highlights || []), ""];
+                  updateItem(item.id, { highlights: updated });
+                }}
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Add Bullet
+              </Button>
             </div>
           </CardContent>
         </Card>

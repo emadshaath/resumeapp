@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createHash } from "crypto";
 import { pseudonymizeResume } from "@/lib/reviews/pseudonymize";
+import { parseHighlights } from "@/lib/utils";
 import type {
   Profile,
   ResumeSection,
@@ -95,7 +96,7 @@ export async function GET(request: Request, context: RouteContext) {
         supabase.from("custom_sections").select("*").in("section_id", sectionIds).order("display_order"),
       ]);
 
-      experiences = (expRes.data || []) as Experience[];
+      experiences = (expRes.data || []).map((e: Record<string, unknown>) => ({ ...e, highlights: parseHighlights(e.highlights) })) as Experience[];
       educations = (eduRes.data || []) as Education[];
       skills = (skillRes.data || []) as Skill[];
       certifications = (certRes.data || []) as Certification[];
