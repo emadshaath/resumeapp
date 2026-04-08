@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ResumePreview } from "@/components/variants/resume-preview";
 import { JobDescriptionDisplay } from "@/components/jobs/job-description-display";
+import { CreateReviewLinkDialog } from "@/components/dashboard/create-review-link-dialog";
 import type { ResumeData } from "@/lib/pdf/types";
 import type { VariantData } from "@/types/database";
 import {
@@ -23,6 +24,7 @@ import {
   Building2,
   MapPin,
   DollarSign,
+  Share2,
 } from "lucide-react";
 
 interface PreviewData {
@@ -59,6 +61,7 @@ export default function VariantPreviewPage() {
   const [error, setError] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [settingDefault, setSettingDefault] = useState(false);
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
 
   const fetchPreview = useCallback(async () => {
     setLoading(true);
@@ -179,7 +182,7 @@ export default function VariantPreviewPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
             {job && (
               <Button
                 variant="outline"
@@ -202,6 +205,14 @@ export default function VariantPreviewPage() {
                 PDF
               </Button>
             </a>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setReviewDialogOpen(true)}
+            >
+              <Share2 className="h-3.5 w-3.5 mr-1" />
+              Share for Review
+            </Button>
             {!variant.is_default && (
               <Button
                 variant="outline"
@@ -271,6 +282,14 @@ export default function VariantPreviewPage() {
           </TabsContent>
         )}
       </Tabs>
+
+      <CreateReviewLinkDialog
+        open={reviewDialogOpen}
+        onOpenChange={setReviewDialogOpen}
+        onCreated={() => {}}
+        variantId={variant.id}
+        variantName={variant.name}
+      />
     </div>
   );
 }

@@ -325,6 +325,7 @@ export interface ReviewLink {
   expires_at: string;
   password_hash: string | null;
   is_active: boolean;
+  variant_id: string | null;
   created_at: string;
 }
 
