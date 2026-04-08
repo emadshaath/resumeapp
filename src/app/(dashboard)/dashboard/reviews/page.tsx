@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CreateReviewLinkDialog } from "@/components/dashboard/create-review-link-dialog";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
   Plus,
   Copy,
@@ -169,6 +170,7 @@ export default function ReviewsPage() {
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
 
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
   const commentPanelRef = useRef<HTMLDivElement>(null);
@@ -454,10 +456,11 @@ export default function ReviewsPage() {
               activeSection={activeSection}
               sectionRefs={sectionRefs}
               onScrollToSection={scrollToSection}
+              onMobileCommentTap={() => setMobileCommentsOpen(true)}
             />
           </div>
 
-          {/* RIGHT: Comments Panel (35%) */}
+          {/* RIGHT: Comments Panel (35%) — desktop only */}
           <div
             ref={commentPanelRef}
             className="hidden md:block w-[35%] overflow-y-auto bg-white dark:bg-zinc-950"
@@ -471,6 +474,34 @@ export default function ReviewsPage() {
               onScrollToSection={scrollToSection}
             />
           </div>
+
+          {/* Mobile: Floating button to open comments sheet */}
+          {comments.length > 0 && (
+            <button
+              onClick={() => setMobileCommentsOpen(true)}
+              className="md:hidden fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-brand px-4 py-3 text-white shadow-lg hover:bg-brand-hover transition-colors"
+            >
+              <MessageSquare className="h-5 w-5" />
+              <span className="text-sm font-medium">{comments.length} {comments.length === 1 ? "Comment" : "Comments"}</span>
+            </button>
+          )}
+
+          {/* Mobile: Comments sheet */}
+          <Sheet open={mobileCommentsOpen} onOpenChange={setMobileCommentsOpen}>
+            <SheetContent open={mobileCommentsOpen} onClose={() => setMobileCommentsOpen(false)}>
+              <CommentsPanel
+                sections={preview.resume.sections}
+                comments={comments}
+                generalComments={generalComments}
+                activeSection={activeSection}
+                getCommentsForSection={getCommentsForSection}
+                onScrollToSection={(id) => {
+                  setMobileCommentsOpen(false);
+                  scrollToSection(id);
+                }}
+              />
+            </SheetContent>
+          </Sheet>
         </div>
       )}
 
@@ -487,12 +518,14 @@ function ResumePreview({
   activeSection,
   sectionRefs,
   onScrollToSection,
+  onMobileCommentTap,
 }: {
   resume: PreviewData["resume"];
   comments: CommentData[];
   activeSection: string | null;
   sectionRefs: React.MutableRefObject<Map<string, HTMLElement>>;
   onScrollToSection: (id: string) => void;
+  onMobileCommentTap?: () => void;
 }) {
   const { profile, sections, experiences, educations, skills, certifications, projects, customSections } = resume;
   const fullName = `${profile.first_name} ${profile.last_name}`.trim();
@@ -565,7 +598,10 @@ function ResumePreview({
                 </h2>
                 {commentCount > 0 && (
                   <button
-                    onClick={() => onScrollToSection(section.id)}
+                    onClick={() => {
+                      onScrollToSection(section.id);
+                      onMobileCommentTap?.();
+                    }}
                     className="flex items-center gap-1 text-xs text-brand hover:underline"
                   >
                     <MessageSquare className="h-3 w-3" />
