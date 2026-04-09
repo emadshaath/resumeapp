@@ -169,9 +169,25 @@ export default function ReviewsPage() {
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
+  const [sheetOffset, setSheetOffset] = useState(0);
+  const [sheetDragging, setSheetDragging] = useState(false);
+  const dragStartYRef = useRef(0);
 
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
   const commentPanelRef = useRef<HTMLDivElement>(null);
+
+  // Lock body scroll when mobile bottom sheet is open
+  useEffect(() => {
+    if (mobileCommentsOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+      setSheetOffset(0);
+      setSheetDragging(false);
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileCommentsOpen]);
   const router = useRouter();
   const supabase = createClient();
 
@@ -454,10 +470,11 @@ export default function ReviewsPage() {
               activeSection={activeSection}
               sectionRefs={sectionRefs}
               onScrollToSection={scrollToSection}
+              onMobileCommentTap={() => setMobileCommentsOpen(true)}
             />
           </div>
 
-          {/* RIGHT: Comments Panel (35%) */}
+          {/* RIGHT: Comments Panel (35%) — desktop only */}
           <div
             ref={commentPanelRef}
             className="hidden md:block w-[35%] overflow-y-auto bg-white dark:bg-zinc-950"
@@ -470,6 +487,77 @@ export default function ReviewsPage() {
               getCommentsForSection={getCommentsForSection}
               onScrollToSection={scrollToSection}
             />
+          </div>
+
+          {/* Mobile: Floating button to open comments sheet */}
+          {comments.length > 0 && (
+            <button
+              onClick={() => setMobileCommentsOpen(true)}
+              className="md:hidden fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-brand px-4 py-3 text-white shadow-lg hover:bg-brand-hover transition-colors"
+            >
+              <MessageSquare className="h-5 w-5" />
+              <span className="text-sm font-medium">{comments.length} {comments.length === 1 ? "Comment" : "Comments"}</span>
+            </button>
+          )}
+
+          {/* Mobile: Bottom sheet for comments */}
+          <div
+            className={`md:hidden fixed inset-0 z-50 transition-opacity duration-300 ${
+              mobileCommentsOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+            }`}
+          >
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => setMobileCommentsOpen(false)}
+            />
+            {/* Panel */}
+            <div
+              className="absolute inset-x-0 bottom-0 flex flex-col bg-white dark:bg-zinc-950 rounded-t-2xl shadow-2xl will-change-transform"
+              style={{
+                maxHeight: "85vh",
+                transform: mobileCommentsOpen
+                  ? `translateY(${sheetOffset}px)`
+                  : "translateY(100%)",
+                transition: sheetDragging ? "none" : "transform 300ms ease-out",
+              }}
+            >
+              {/* Drag handle */}
+              <div
+                className="flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing touch-none shrink-0"
+                onTouchStart={(e) => {
+                  dragStartYRef.current = e.touches[0].clientY;
+                  setSheetDragging(true);
+                }}
+                onTouchMove={(e) => {
+                  const delta = e.touches[0].clientY - dragStartYRef.current;
+                  setSheetOffset(Math.max(0, delta));
+                }}
+                onTouchEnd={() => {
+                  if (sheetOffset > 120) {
+                    setMobileCommentsOpen(false);
+                  }
+                  setSheetOffset(0);
+                  setSheetDragging(false);
+                }}
+              >
+                <div className="w-10 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600" />
+              </div>
+              {/* Scrollable comments */}
+              <div className="flex-1 overflow-y-auto min-h-0">
+                <CommentsPanel
+                  sections={preview.resume.sections}
+                  comments={comments}
+                  generalComments={generalComments}
+                  activeSection={activeSection}
+                  getCommentsForSection={getCommentsForSection}
+                  onScrollToSection={(id) => {
+                    setMobileCommentsOpen(false);
+                    scrollToSection(id);
+                  }}
+                />
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -487,12 +575,14 @@ function ResumePreview({
   activeSection,
   sectionRefs,
   onScrollToSection,
+  onMobileCommentTap,
 }: {
   resume: PreviewData["resume"];
   comments: CommentData[];
   activeSection: string | null;
   sectionRefs: React.MutableRefObject<Map<string, HTMLElement>>;
   onScrollToSection: (id: string) => void;
+  onMobileCommentTap?: () => void;
 }) {
   const { profile, sections, experiences, educations, skills, certifications, projects, customSections } = resume;
   const fullName = `${profile.first_name} ${profile.last_name}`.trim();
@@ -565,7 +655,10 @@ function ResumePreview({
                 </h2>
                 {commentCount > 0 && (
                   <button
-                    onClick={() => onScrollToSection(section.id)}
+                    onClick={() => {
+                      onScrollToSection(section.id);
+                      onMobileCommentTap?.();
+                    }}
                     className="flex items-center gap-1 text-xs text-brand hover:underline"
                   >
                     <MessageSquare className="h-3 w-3" />
