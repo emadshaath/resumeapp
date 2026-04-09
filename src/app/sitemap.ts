@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAllPosts } from "@/lib/blog/posts";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://rezm.ai";
 
@@ -15,6 +16,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 1,
     },
     {
+      url: `${APP_URL}/how-it-works`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
+    {
+      url: `${APP_URL}/about`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${APP_URL}/blog`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
       url: `${APP_URL}/login`,
       lastModified: new Date(),
       changeFrequency: "monthly",
@@ -27,6 +46,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.5,
     },
   ];
+
+  // Add blog posts to sitemap
+  const posts = getAllPosts();
+  for (const post of posts) {
+    entries.push({
+      url: `${APP_URL}/blog/${post.slug}`,
+      lastModified: new Date(post.updatedAt),
+      changeFrequency: "monthly",
+      priority: 0.7,
+    });
+  }
 
   try {
     const supabase = createAdminClient();
