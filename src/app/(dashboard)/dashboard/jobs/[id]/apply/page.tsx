@@ -22,6 +22,7 @@ import {
   Wrench,
   Loader2,
   CheckCircle2,
+  Eye,
 } from "lucide-react";
 import type { JobApplication } from "@/types/database";
 
@@ -162,17 +163,28 @@ export default function QuickApplyPage({ params }: { params: Promise<{ id: strin
               )}
             </div>
           </div>
-          {job.job_url && (
-            <a
-              href={job.job_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-3 flex items-center gap-1.5 text-sm text-brand hover:text-brand-hover transition-colors"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              Open job posting
-            </a>
-          )}
+          <div className="flex items-center gap-3 mt-3 flex-wrap">
+            {job.job_url && (
+              <a
+                href={job.job_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-sm text-brand hover:text-brand-hover transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                Open job posting
+              </a>
+            )}
+            {job.variant_id && (
+              <a
+                href={`/dashboard/variants/${job.variant_id}`}
+                className="flex items-center gap-1.5 text-sm text-brand hover:text-brand-hover transition-colors"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Preview tailored resume
+              </a>
+            )}
+          </div>
         </CardContent>
       </Card>
 

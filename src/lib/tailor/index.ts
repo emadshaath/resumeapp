@@ -12,6 +12,7 @@ interface ParsedJobData {
   required_education?: string | null;
   key_responsibilities?: string[];
   description_summary?: string | null;
+  job_description?: string | null;
 }
 
 /**
@@ -49,6 +50,7 @@ ${parsedJob.required_experience_years ? `Experience Required: ${parsedJob.requir
 ${parsedJob.required_education ? `Education Required: ${parsedJob.required_education}` : ""}
 ${parsedJob.key_responsibilities?.length ? `Key Responsibilities:\n${parsedJob.key_responsibilities.map((r) => `- ${r}`).join("\n")}` : ""}
 ${parsedJob.description_summary ? `Summary: ${parsedJob.description_summary}` : ""}
+${parsedJob.job_description ? `\nFull Job Description:\n${parsedJob.job_description.slice(0, 8000)}` : ""}
 
 TASK: Generate an optimized resume variant for this specific job. Return ONLY valid JSON with this exact structure:
 

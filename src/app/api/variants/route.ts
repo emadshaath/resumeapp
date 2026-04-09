@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { hasFeature, getLimit, getRequiredTier, getEffectiveTier } from "@/lib/stripe/feature-gate";
-import type { Tier } from "@/types/database";
+import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
+import { applyVariantToResume } from "@/lib/tailor";
+import { captureSnapshot } from "@/lib/snapshots/service";
+import type { Tier, VariantData } from "@/types/database";
 
 // GET /api/variants — List user's variants 
 export async function GET() {
@@ -81,12 +84,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Name and variant_data are required" }, { status: 400 });
   }
 
+  // Compute frozen resolved_resume
+  let resolvedResume = null;
+  const resumeData = await fetchResumeData(supabase, user.id);
+  if (resumeData) {
+    resolvedResume = applyVariantToResume(resumeData, variant_data as VariantData);
+  }
+
   const { data: variant, error } = await supabase
     .from("profile_variants")
     .insert({
       profile_id: user.id,
       name,
       variant_data,
+      resolved_resume: resolvedResume,
       match_score: match_score || null,
       job_application_id: job_application_id || null,
       source: source || "manual",
@@ -104,6 +115,14 @@ export async function POST(req: NextRequest) {
       .eq("id", job_application_id)
       .eq("profile_id", user.id);
   }
+
+  // Auto-snapshot: capture base resume state at variant creation time
+  captureSnapshot(
+    user.id,
+    `Resume state when tailored for ${name}`,
+    "auto_variant",
+    { variant_id: variant.id, job_application_id: job_application_id || null }
+  ).catch(() => {}); // Best-effort, don't block response
 
   return NextResponse.json({ variant }, { status: 201 });
 }

@@ -236,6 +236,7 @@ export interface JobApplication {
   location: string | null;
   remote_type: RemoteType | null;
   parsed_data: Record<string, unknown>;
+  job_description_html: string | null;
   match_score: number | null;
   notes: string | null;
   follow_up_date: string | null;
@@ -300,6 +301,7 @@ export interface ProfileVariant {
   job_application_id: string | null;
   name: string;
   variant_data: VariantData;
+  resolved_resume: Record<string, unknown> | null;
   match_score: number | null;
   source: "ai" | "manual";
   is_default: boolean;
@@ -323,6 +325,7 @@ export interface ReviewLink {
   expires_at: string;
   password_hash: string | null;
   is_active: boolean;
+  variant_id: string | null;
   created_at: string;
 }
 

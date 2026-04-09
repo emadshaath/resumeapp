@@ -6,12 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Check, Copy, Link2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Check, Copy, Link2, Sparkles } from "lucide-react";
 
 interface CreateReviewLinkDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: () => void;
+  variantId?: string;
+  variantName?: string;
 }
 
 const EXPIRY_OPTIONS = [
@@ -20,7 +23,7 @@ const EXPIRY_OPTIONS = [
   { value: "30d", label: "30 days" },
 ] as const;
 
-export function CreateReviewLinkDialog({ open, onOpenChange, onCreated }: CreateReviewLinkDialogProps) {
+export function CreateReviewLinkDialog({ open, onOpenChange, onCreated, variantId, variantName }: CreateReviewLinkDialogProps) {
   const [options, setOptions] = useState({
     name: true,
     email: true,
@@ -51,6 +54,7 @@ export function CreateReviewLinkDialog({ open, onOpenChange, onCreated }: Create
           pseudonymize_options: options,
           expires_in: expiresIn,
           password: password.trim() || undefined,
+          variant_id: variantId || undefined,
         }),
       });
 
@@ -95,6 +99,16 @@ export function CreateReviewLinkDialog({ open, onOpenChange, onCreated }: Create
             Generate a shareable link for others to review your pseudonymized resume and leave feedback.
           </DialogDescription>
         </DialogHeader>
+
+        {variantName && (
+          <div className="rounded-md bg-brand-subtle/50 border border-brand-subtle px-3 py-2.5 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-brand shrink-0" />
+            <div className="text-sm">
+              <span className="text-zinc-500">Sharing: </span>
+              <span className="font-medium">{variantName}</span>
+            </div>
+          </div>
+        )}
 
         {createdUrl ? (
           <div className="space-y-4">
