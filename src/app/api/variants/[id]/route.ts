@@ -50,6 +50,7 @@ export async function PUT(
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates.name = body.name;
   if (body.variant_data !== undefined) updates.variant_data = body.variant_data;
+  if (body.resolved_resume !== undefined) updates.resolved_resume = body.resolved_resume;
   if (body.is_default !== undefined) updates.is_default = body.is_default;
 
   const { data: variant, error } = await supabase

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ResumePreview } from "@/components/variants/resume-preview";
+import { VariantEditor } from "@/components/variants/variant-editor";
 import { JobDescriptionDisplay } from "@/components/jobs/job-description-display";
 import { CreateReviewLinkDialog } from "@/components/dashboard/create-review-link-dialog";
 import type { ResumeData } from "@/lib/pdf/types";
@@ -25,6 +26,8 @@ import {
   MapPin,
   DollarSign,
   Share2,
+  Pencil,
+  X,
 } from "lucide-react";
 
 interface PreviewData {
@@ -62,6 +65,8 @@ export default function VariantPreviewPage() {
   const [deleting, setDeleting] = useState(false);
   const [settingDefault, setSettingDefault] = useState(false);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const fetchPreview = useCallback(async () => {
     setLoading(true);
@@ -88,6 +93,20 @@ export default function VariantPreviewPage() {
     } else {
       setDeleting(false);
     }
+  }
+
+  async function handleSaveEdit(updated: ResumeData) {
+    setSavingEdit(true);
+    const res = await fetch(`/api/variants/${params.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resolved_resume: updated }),
+    });
+    if (res.ok) {
+      setEditing(false);
+      await fetchPreview();
+    }
+    setSavingEdit(false);
   }
 
   async function handleSetDefault() {
@@ -254,20 +273,53 @@ export default function VariantPreviewPage() {
           {job && <TabsTrigger value="job">Saved Job</TabsTrigger>}
         </TabsList>
 
-        {/* Tab 1: Resume Preview */}
+        {/* Tab 1: Resume Preview / Edit */}
         <TabsContent value="resume">
-          <Card>
-            <CardContent className="p-6">
-              {variant.resolved_resume ? (
-                <ResumePreview data={variant.resolved_resume} />
-              ) : (
+          {variant.resolved_resume ? (
+            <>
+              <div className="flex items-center justify-end mb-3">
+                <Button
+                  variant={editing ? "outline" : "secondary"}
+                  size="sm"
+                  onClick={() => setEditing(!editing)}
+                >
+                  {editing ? (
+                    <>
+                      <X className="h-3.5 w-3.5 mr-1" />
+                      Cancel Edit
+                    </>
+                  ) : (
+                    <>
+                      <Pencil className="h-3.5 w-3.5 mr-1" />
+                      Edit
+                    </>
+                  )}
+                </Button>
+              </div>
+              <Card>
+                <CardContent className="p-6">
+                  {editing ? (
+                    <VariantEditor
+                      data={variant.resolved_resume}
+                      onSave={handleSaveEdit}
+                      saving={savingEdit}
+                    />
+                  ) : (
+                    <ResumePreview data={variant.resolved_resume} />
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <Card>
+              <CardContent className="p-6">
                 <p className="text-sm text-zinc-500 text-center py-8">
                   No frozen preview available for this variant. It was created
                   before frozen snapshots were enabled.
                 </p>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Tab 2: What Changed */}
