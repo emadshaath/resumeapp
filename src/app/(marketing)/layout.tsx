@@ -15,9 +15,10 @@ export default function MarketingLayout({
             <RezmaiLogo size={26} />
             rezm.ai
           </Link>
-          <nav className="hidden md:flex items-center gap-6 text-sm text-zinc-600 dark:text-zinc-400">
-            <a href="#features" className="hover:text-zinc-900 dark:hover:text-white transition-colors">Features</a>
-            <a href="#pricing" className="hover:text-zinc-900 dark:hover:text-white transition-colors">Pricing</a>
+          <nav aria-label="Main navigation" className="hidden md:flex items-center gap-6 text-sm text-zinc-600 dark:text-zinc-400">
+            <Link href="/how-it-works" className="hover:text-zinc-900 dark:hover:text-white transition-colors">How It Works</Link>
+            <Link href="/blog" className="hover:text-zinc-900 dark:hover:text-white transition-colors">Blog</Link>
+            <Link href="/about" className="hover:text-zinc-900 dark:hover:text-white transition-colors">About</Link>
           </nav>
           <div className="flex items-center gap-3">
             <Link href="/login">
@@ -30,9 +31,43 @@ export default function MarketingLayout({
         </div>
       </header>
       <main className="flex-1">{children}</main>
-      <footer className="border-t border-zinc-200 dark:border-zinc-800 py-8">
-        <div className="mx-auto max-w-6xl px-6 text-center text-sm text-zinc-500">
-          &copy; {new Date().getFullYear()} rezm.ai. All rights reserved.
+      <footer className="border-t border-zinc-200 dark:border-zinc-800 py-12">
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
+            <div>
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3">Product</h3>
+              <nav aria-label="Product links" className="space-y-2 text-sm text-zinc-500">
+                <Link href="/how-it-works" className="block hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">How It Works</Link>
+                <a href="/#features" className="block hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Features</a>
+                <a href="/#pricing" className="block hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Pricing</a>
+              </nav>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3">Resources</h3>
+              <nav aria-label="Resource links" className="space-y-2 text-sm text-zinc-500">
+                <Link href="/blog" className="block hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Blog</Link>
+                <Link href="/about" className="block hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">About Us</Link>
+                <a href="/#faq" className="block hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">FAQ</a>
+              </nav>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3">Community</h3>
+              <nav aria-label="Community links" className="space-y-2 text-sm text-zinc-500">
+                <a href="/#community" className="block hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Job Seekers Program</a>
+                <a href="mailto:community@rezm.ai" className="block hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Contact Us</a>
+              </nav>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3">Get Started</h3>
+              <nav aria-label="Platform links" className="space-y-2 text-sm text-zinc-500">
+                <Link href="/signup" className="block hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Create Profile</Link>
+                <Link href="/login" className="block hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Sign In</Link>
+              </nav>
+            </div>
+          </div>
+          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-6 text-center text-sm text-zinc-500">
+            &copy; {new Date().getFullYear()} rezm.ai. All rights reserved.
+          </div>
         </div>
       </footer>
     </div>
