@@ -5,7 +5,7 @@ import type { Profile, ResumeSection, Experience, Education, Skill, Certificatio
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { MapPin, Globe, Briefcase, GraduationCap, Wrench, Award, FolderOpen, ExternalLink, MessageSquare } from "lucide-react";
-import { generatePersonJsonLd, generateBreadcrumbJsonLd } from "@/lib/seo/json-ld";
+import { generatePersonJsonLd, generateBreadcrumbJsonLd, generateProfilePageJsonLd } from "@/lib/seo/json-ld";
 import { generateProfileMetadata } from "@/lib/seo/meta";
 import { THEME_CSS_VARS, DEFAULT_THEME } from "@/lib/themes";
 import { ensureAbsoluteUrl, parseHighlights } from "@/lib/utils";
@@ -116,6 +116,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
   // Generate JSON-LD structured data
   const personJsonLd = generatePersonJsonLd(profile, experiences, educations, skills, certifications);
   const breadcrumbJsonLd = generateBreadcrumbJsonLd(profile);
+  const profilePageJsonLd = generateProfilePageJsonLd(profile, experiences, educations, skills, certifications);
 
   return (
     <div
@@ -136,6 +137,10 @@ export default async function PublicProfilePage({ params }: PageProps) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(profilePageJsonLd) }}
       />
 
       {/* Header */}

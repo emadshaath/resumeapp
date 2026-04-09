@@ -21,9 +21,16 @@ import {
   MessageSquare,
   UserCheck,
   Heart,
+  HelpCircle,
 } from "lucide-react";
 import { FadeIn, StaggerChildren, CountUp } from "@/components/landing/animations";
 import { HeroMockup } from "@/components/landing/hero-mockup";
+import {
+  generateWebSiteJsonLd,
+  generateOrganizationJsonLd,
+  generateSoftwareApplicationJsonLd,
+  generateFAQJsonLd,
+} from "@/lib/seo/json-ld";
 
 const features = [
   {
@@ -137,9 +144,70 @@ const stats = [
   { value: 98, suffix: "%", label: "Satisfaction Rate", icon: Star },
 ];
 
+const faqs = [
+  {
+    question: "What is rezm.ai?",
+    answer:
+      "rezm.ai is a professional resume profile platform that gives you a beautiful, SEO-optimized online resume at your own subdomain (yourname.rezm.ai). It includes a secure platform email, dedicated phone number, AI-powered resume review, peer feedback, and visitor analytics.",
+  },
+  {
+    question: "Is rezm.ai free to use?",
+    answer:
+      "Yes, rezm.ai offers a free plan that includes a public profile with your own subdomain, up to 3 resume sections, 1 AI review per month, basic visitor count, and a contact form. Paid plans start at $12/month for more features.",
+  },
+  {
+    question: "How does the AI resume review work?",
+    answer:
+      "Our AI analyzes your resume content for clarity, impact, ATS compatibility, and completeness. It provides a score and actionable recommendations to strengthen each section of your profile, helping you stand out to recruiters and hiring managers.",
+  },
+  {
+    question: "How does rezm.ai protect my privacy?",
+    answer:
+      "rezm.ai keeps your personal email and phone number hidden. Visitors contact you through the platform's secure email (yourname@rezm.ai) and optional dedicated phone number. Privacy-respecting analytics track visitors without cookies or third-party trackers.",
+  },
+  {
+    question: "What is the Peer Review feature?",
+    answer:
+      "Peer Review lets you share a pseudonymized version of your resume with colleagues, mentors, or career coaches. Reviewers see your content but not your real identity. You control what to hide (name, email, company names) and can set link expiration and passwords.",
+  },
+  {
+    question: "Can I use rezm.ai with my own custom domain?",
+    answer:
+      "Yes, Premium plan users can connect a custom domain to their rezm.ai profile. Your profile will be accessible at both your custom domain and your rezm.ai subdomain.",
+  },
+  {
+    question: "Does rezm.ai help with SEO and being found on Google?",
+    answer:
+      "Absolutely. Every rezm.ai profile is automatically optimized with meta tags, structured data (JSON-LD), Open Graph images, and included in our sitemap. Pro and Premium users get additional SEO controls to customize their title, description, and keywords.",
+  },
+];
+
 export default function LandingPage() {
+  const webSiteJsonLd = generateWebSiteJsonLd();
+  const organizationJsonLd = generateOrganizationJsonLd();
+  const softwareAppJsonLd = generateSoftwareApplicationJsonLd();
+  const faqJsonLd = generateFAQJsonLd(faqs);
+
   return (
     <div className="overflow-x-hidden">
+      {/* Structured Data for Search Engines & AI */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(webSiteJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareAppJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
+
       {/* Hero */}
       <section className="relative py-16 md:py-24 overflow-hidden">
         {/* Subtle background pattern */}
@@ -488,6 +556,41 @@ export default function LandingPage() {
               </Link>
             </div>
           </FadeIn>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="py-20">
+        <div className="mx-auto max-w-3xl px-6">
+          <FadeIn>
+            <div className="text-center mb-14">
+              <h2 className="text-3xl font-bold tracking-tight">
+                Frequently Asked Questions
+              </h2>
+              <p className="mt-4 text-zinc-600 dark:text-zinc-400">
+                Everything you need to know about rezm.ai.
+              </p>
+            </div>
+          </FadeIn>
+          <StaggerChildren className="space-y-4" staggerMs={80}>
+            {faqs.map((faq) => (
+              <details
+                key={faq.question}
+                className="group rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+              >
+                <summary className="flex cursor-pointer items-center justify-between gap-4 p-5 text-left font-medium text-zinc-900 dark:text-zinc-100 [&::-webkit-details-marker]:hidden">
+                  <span className="flex items-center gap-3">
+                    <HelpCircle className="h-4 w-4 text-brand shrink-0" />
+                    {faq.question}
+                  </span>
+                  <span className="text-zinc-400 transition-transform group-open:rotate-45 text-xl leading-none select-none">+</span>
+                </summary>
+                <div className="px-5 pb-5 pt-0 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                  {faq.answer}
+                </div>
+              </details>
+            ))}
+          </StaggerChildren>
         </div>
       </section>
 
