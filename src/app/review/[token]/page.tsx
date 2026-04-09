@@ -5,7 +5,7 @@ import { PasswordGate } from "@/components/review/password-gate";
 import { ReviewResumeView } from "@/components/review/review-resume-view";
 import type { ReviewCommentData } from "@/components/review/review-comments-list";
 import type { Profile, ResumeSection, Experience, Education, Skill, Certification, Project, CustomSection } from "@/types/database";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2, Sparkles } from "lucide-react";
 
 interface ReviewData {
   profile: Profile;
@@ -17,6 +17,8 @@ interface ReviewData {
   projects: Project[];
   customSections: CustomSection[];
   comments: ReviewCommentData[];
+  is_variant?: boolean;
+  variant_name?: string | null;
 }
 
 export default function ReviewPage({ params }: { params: Promise<{ token: string }> }) {
@@ -113,19 +115,31 @@ export default function ReviewPage({ params }: { params: Promise<{ token: string
   if (!data) return null;
 
   return (
-    <ReviewResumeView
-      profile={data.profile}
-      sections={data.sections}
-      experiences={data.experiences}
-      educations={data.educations}
-      skills={data.skills}
-      certifications={data.certifications}
-      projects={data.projects}
-      customSections={data.customSections}
-      comments={data.comments}
-      token={token}
-      password={password}
-      onNewComment={handleNewComment}
-    />
+    <>
+      {data.is_variant && data.variant_name && (
+        <div className="bg-brand-subtle border-b border-brand-subtle">
+          <div className="max-w-3xl mx-auto px-6 py-2.5 flex items-center gap-2 text-sm">
+            <Sparkles className="h-4 w-4 text-brand shrink-0" />
+            <span className="text-zinc-700 dark:text-zinc-300">
+              You are reviewing a <strong>tailored resume</strong>
+            </span>
+          </div>
+        </div>
+      )}
+      <ReviewResumeView
+        profile={data.profile}
+        sections={data.sections}
+        experiences={data.experiences}
+        educations={data.educations}
+        skills={data.skills}
+        certifications={data.certifications}
+        projects={data.projects}
+        customSections={data.customSections}
+        comments={data.comments}
+        token={token}
+        password={password}
+        onNewComment={handleNewComment}
+      />
+    </>
   );
 }

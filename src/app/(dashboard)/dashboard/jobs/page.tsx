@@ -29,8 +29,12 @@ import {
   Trash2,
   Sparkles,
   Zap,
+  Download,
+  Eye,
+  RefreshCw,
 } from "lucide-react";
 import { VariantDiff } from "@/components/jobs/variant-diff";
+import { JobDescriptionDisplay } from "@/components/jobs/job-description-display";
 import type { JobApplication, JobStatus, VariantData } from "@/types/database";
 
 const STATUS_COLUMNS: { key: JobStatus; label: string; color: string }[] = [
@@ -446,6 +450,7 @@ function AddJobModal({
   const [url, setUrl] = useState("");
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState("");
+  const [descriptionHtml, setDescriptionHtml] = useState<string | null>(null);
   const [form, setForm] = useState({
     company_name: "",
     job_title: "",
@@ -456,6 +461,7 @@ function AddJobModal({
     salary_max: "",
     status: "saved" as JobStatus,
     notes: "",
+    description: "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -475,7 +481,8 @@ function AddJobModal({
         setParsing(false);
         return;
       }
-      const { parsed } = await res.json();
+      const { parsed, description_html } = await res.json();
+      if (description_html) setDescriptionHtml(description_html);
       setForm({
         company_name: parsed.company_name || "",
         job_title: parsed.job_title || "",
@@ -486,6 +493,7 @@ function AddJobModal({
         salary_max: parsed.salary_max ? String(parsed.salary_max) : "",
         status: "saved",
         notes: parsed.description_summary || "",
+        description: "",
       });
       setMode("manual"); // Switch to manual to show/edit parsed fields
     } catch {
@@ -501,6 +509,16 @@ function AddJobModal({
     }
     setSaving(true);
     setError("");
+
+    // Use parsed HTML if available, otherwise convert manual description to HTML
+    let finalDescriptionHtml = descriptionHtml;
+    if (!finalDescriptionHtml && form.description.trim()) {
+      finalDescriptionHtml = form.description
+        .split(/\n\s*\n/)
+        .map((para) => `<p>${para.replace(/\n/g, "<br>")}</p>`)
+        .join("");
+    }
+
     const res = await fetch("/api/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -514,6 +532,7 @@ function AddJobModal({
         salary_max: form.salary_max ? Number(form.salary_max) : null,
         status: form.status,
         notes: form.notes || null,
+        job_description_html: finalDescriptionHtml || null,
       }),
     });
     if (!res.ok) {
@@ -686,6 +705,27 @@ function AddJobModal({
                 </select>
               </div>
 
+              {!descriptionHtml && (
+                <div>
+                  <label className="text-xs font-medium text-zinc-500 mb-1 block">
+                    Job Description
+                    <span className="font-normal text-zinc-400 ml-1">(optional)</span>
+                  </label>
+                  <textarea
+                    placeholder="Paste the job description here to save a local copy..."
+                    value={form.description}
+                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm min-h-[100px] resize-y"
+                  />
+                </div>
+              )}
+              {descriptionHtml && (
+                <div className="rounded-md bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 p-3 text-xs text-green-700 dark:text-green-400 flex items-center gap-2">
+                  <Check className="h-3.5 w-3.5 shrink-0" />
+                  Job description captured from URL
+                </div>
+              )}
+
               <div>
                 <label className="text-xs font-medium text-zinc-500 mb-1 block">Notes</label>
                 <textarea
@@ -741,12 +781,32 @@ function JobDetailDrawer({
   } | null>(null);
   const [savingVariant, setSavingVariant] = useState(false);
   const [tailorError, setTailorError] = useState("");
+  const [linkedVariant, setLinkedVariant] = useState<{
+    id: string;
+    name: string;
+    match_score: number | null;
+  } | null>(null);
 
   useEffect(() => {
     fetch(`/api/jobs/${job.id}`)
       .then((r) => r.json())
       .then((data) => setEvents(data.events || []));
-  }, [job.id]);
+
+    if (job.variant_id) {
+      fetch(`/api/variants/${job.variant_id}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => {
+          if (data?.variant) {
+            setLinkedVariant({
+              id: data.variant.id,
+              name: data.variant.name,
+              match_score: data.variant.match_score,
+            });
+          }
+        })
+        .catch(() => {});
+    }
+  }, [job.id, job.variant_id]);
 
   async function handleTailor() {
     setTailoring(true);
@@ -891,58 +951,124 @@ function JobDetailDrawer({
             </a>
           )}
 
-          {/* Smart Tailor */}
-          <div className="border border-brand-subtle rounded-lg p-4 bg-brand-subtle/30">
-            {tailorResult ? (
-              <VariantDiff
-                variantData={tailorResult.variant_data}
-                matchScore={tailorResult.match_score}
-                jobTitle={job.job_title}
-                companyName={job.company_name}
-                jobApplicationId={job.id}
-                onAccept={handleSaveVariant}
-                onReject={() => setTailorResult(null)}
-                saving={savingVariant}
-              />
-            ) : (
-              <div className="text-center">
-                <Sparkles className="h-6 w-6 text-brand mx-auto mb-2" />
-                <p className="text-sm font-medium mb-1">Smart Tailor</p>
-                <p className="text-xs text-zinc-500 mb-3">
-                  AI will optimize your resume for this specific role
-                </p>
-                {tailorError && (
-                  <p className="text-xs text-red-500 mb-2">{tailorError}</p>
-                )}
-                <Button
-                  size="sm"
-                  onClick={handleTailor}
-                  disabled={tailoring}
-                >
-                  {tailoring ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                      Analyzing & Tailoring...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="h-4 w-4 mr-1" />
-                      Tailor for this Job
-                    </>
+          {/* Job Description */}
+          {job.job_description_html && (
+            <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+              <h3 className="text-sm font-medium mb-3">Job Description</h3>
+              <JobDescriptionDisplay html={job.job_description_html} />
+            </div>
+          )}
+
+          {/* Smart Tailor / Variant Card */}
+          {linkedVariant && !tailorResult ? (
+            <div className="border border-brand rounded-lg p-4 bg-brand-subtle/30">
+              <div className="flex items-start gap-3">
+                <div className="h-9 w-9 rounded-lg bg-brand-subtle flex items-center justify-center shrink-0">
+                  <Sparkles className="h-4 w-4 text-brand" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold truncate">
+                    {linkedVariant.name}
+                  </p>
+                  {linkedVariant.match_score && (
+                    <Badge variant="accent" className="text-[10px] mt-1">
+                      {linkedVariant.match_score}% match
+                    </Badge>
                   )}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                <a href={`/dashboard/variants/${linkedVariant.id}`}>
+                  <Button variant="outline" size="sm">
+                    <Eye className="h-3.5 w-3.5 mr-1" />
+                    Preview Resume
+                  </Button>
+                </a>
+                <a href={`/dashboard/jobs/${job.id}/apply`}>
+                  <Button variant="outline" size="sm">
+                    <FileText className="h-3.5 w-3.5 mr-1" />
+                    Quick Apply
+                  </Button>
+                </a>
+                <a
+                  href={`/api/autofill/resume.pdf?variant=${linkedVariant.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button variant="outline" size="sm">
+                    <Download className="h-3.5 w-3.5 mr-1" />
+                    PDF
+                  </Button>
+                </a>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setLinkedVariant(null);
+                    handleTailor();
+                  }}
+                  className="text-zinc-500"
+                >
+                  <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                  Re-tailor
                 </Button>
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="border border-brand-subtle rounded-lg p-4 bg-brand-subtle/30">
+              {tailorResult ? (
+                <VariantDiff
+                  variantData={tailorResult.variant_data}
+                  matchScore={tailorResult.match_score}
+                  jobTitle={job.job_title}
+                  companyName={job.company_name}
+                  jobApplicationId={job.id}
+                  onAccept={handleSaveVariant}
+                  onReject={() => setTailorResult(null)}
+                  saving={savingVariant}
+                />
+              ) : (
+                <div className="text-center">
+                  <Sparkles className="h-6 w-6 text-brand mx-auto mb-2" />
+                  <p className="text-sm font-medium mb-1">Smart Tailor</p>
+                  <p className="text-xs text-zinc-500 mb-3">
+                    AI will optimize your resume for this specific role
+                  </p>
+                  {tailorError && (
+                    <p className="text-xs text-red-500 mb-2">{tailorError}</p>
+                  )}
+                  <Button
+                    size="sm"
+                    onClick={handleTailor}
+                    disabled={tailoring}
+                  >
+                    {tailoring ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        Analyzing & Tailoring...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="h-4 w-4 mr-1" />
+                        Tailor for this Job
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
 
-          {/* Quick Apply link */}
-          <a
-            href={`/dashboard/jobs/${job.id}/apply`}
-            className="flex items-center gap-2 text-sm text-brand hover:text-brand-hover font-medium transition-colors"
-          >
-            <FileText className="h-4 w-4" />
-            Open Quick Apply Card
-          </a>
+          {/* Quick Apply link (shown only when no variant card) */}
+          {!linkedVariant && (
+            <a
+              href={`/dashboard/jobs/${job.id}/apply`}
+              className="flex items-center gap-2 text-sm text-brand hover:text-brand-hover font-medium transition-colors"
+            >
+              <FileText className="h-4 w-4" />
+              Open Quick Apply Card
+            </a>
+          )}
 
           {/* Status change */}
           <div>

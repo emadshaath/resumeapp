@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { sanitizeJobDescription } from "@/lib/jobs/sanitize-description";
 
 // POST /api/jobs/parse-url — AI extracts job details from a URL
 export async function POST(req: NextRequest) {
@@ -36,8 +37,11 @@ export async function POST(req: NextRequest) {
     }
 
     const html = await response.text();
-    // Limit content size for AI processing
+    // Limit content size for processing
     const truncated = html.slice(0, 50000);
+
+    // Sanitize HTML — preserves formatting (headings, lists, bold) for display
+    const descriptionHtml = sanitizeJobDescription(truncated);
 
     // Strip HTML tags for cleaner AI input
     const textContent = truncated
@@ -108,7 +112,7 @@ ${textContent}`,
 
     const parsed = JSON.parse(jsonMatch[0]);
 
-    return NextResponse.json({ parsed });
+    return NextResponse.json({ parsed, description_html: descriptionHtml });
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
       return NextResponse.json({ error: "Request timed out fetching the URL" }, { status: 408 });

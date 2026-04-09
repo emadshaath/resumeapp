@@ -49,12 +49,22 @@ export async function POST(req: NextRequest) {
   }
 
   // Build parsed job data from the job application
+  // Strip HTML tags from job_description_html to get plain text for the AI
+  let jobDescriptionText: string | null = null;
+  if (job.job_description_html) {
+    jobDescriptionText = (job.job_description_html as string)
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
   const parsedJob = {
     job_title: job.job_title,
     company_name: job.company_name,
     location: job.location,
     remote_type: job.remote_type,
     ...(job.parsed_data || {}),
+    job_description: jobDescriptionText,
   };
 
   try {

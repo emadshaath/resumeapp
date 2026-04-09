@@ -16,6 +16,7 @@ const createLinkSchema = z.object({
   }),
   expires_in: z.enum(["24h", "7d", "30d"]),
   password: z.string().max(100).optional(),
+  variant_id: z.string().uuid().optional(),
 });
 
 const EXPIRY_MS: Record<string, number> = {
@@ -76,7 +77,22 @@ export async function POST(request: Request) {
       );
     }
 
-    const { pseudonymize_options, expires_in, password } = parsed.data;
+    const { pseudonymize_options, expires_in, password, variant_id } = parsed.data;
+
+    // Validate variant ownership if provided
+    if (variant_id) {
+      const { data: variant } = await admin
+        .from("profile_variants")
+        .select("id, name, match_score")
+        .eq("id", variant_id)
+        .eq("profile_id", user.id)
+        .single();
+
+      if (!variant) {
+        return NextResponse.json({ error: "Variant not found" }, { status: 404 });
+      }
+    }
+
     const token = crypto.randomUUID();
     const expires_at = new Date(Date.now() + EXPIRY_MS[expires_in]).toISOString();
     const password_hash = password ? hashPassword(token, password) : null;
@@ -89,6 +105,7 @@ export async function POST(request: Request) {
         pseudonymize_options,
         expires_at,
         password_hash,
+        variant_id: variant_id || null,
       })
       .select()
       .single();

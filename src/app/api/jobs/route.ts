@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { company_name, job_title, job_url, status, location, remote_type, salary_min, salary_max, notes, parsed_data, match_score, source } = body;
+  const { company_name, job_title, job_url, status, location, remote_type, salary_min, salary_max, notes, parsed_data, match_score, source, job_description_html } = body;
 
   if (!company_name || !job_title) {
     return NextResponse.json({ error: "Company name and job title are required" }, { status: 400 });
@@ -96,6 +96,7 @@ export async function POST(req: NextRequest) {
       salary_max: salary_max || null,
       notes: notes || null,
       parsed_data: parsed_data || {},
+      job_description_html: job_description_html || null,
       match_score: match_score || null,
       source: source || "manual",
     })
