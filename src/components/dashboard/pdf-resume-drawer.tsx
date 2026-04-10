@@ -21,6 +21,7 @@ export function PdfResumeDrawer({ open, onClose }: PdfResumeDrawerProps) {
   const [layout, setLayout] = useState<PdfLayout>("classic");
   const [colorTheme, setColorTheme] = useState<PdfColorTheme>("navy");
   const [showOnProfile, setShowOnProfile] = useState(false);
+  const [singlePage, setSinglePage] = useState(false);
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -35,6 +36,7 @@ export function PdfResumeDrawer({ open, onClose }: PdfResumeDrawerProps) {
         setLayout(settings.layout);
         setColorTheme(settings.color_theme);
         setShowOnProfile(settings.show_on_profile);
+        setSinglePage(settings.single_page ?? false);
       }
       setLoaded(true);
     }
@@ -47,7 +49,7 @@ export function PdfResumeDrawer({ open, onClose }: PdfResumeDrawerProps) {
     await fetch("/api/pdf/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ layout, color_theme: colorTheme, show_on_profile: showOnProfile }),
+      body: JSON.stringify({ layout, color_theme: colorTheme, show_on_profile: showOnProfile, single_page: singlePage }),
     });
     setSaving(false);
     setSaved(true);
@@ -56,7 +58,7 @@ export function PdfResumeDrawer({ open, onClose }: PdfResumeDrawerProps) {
 
   async function handleDownload() {
     setDownloading(true);
-    const res = await fetch(`/api/autofill/resume.pdf?layout=${layout}&theme=${colorTheme}`);
+    const res = await fetch(`/api/autofill/resume.pdf?layout=${layout}&theme=${colorTheme}&singlePage=${singlePage}`);
     if (res.ok) {
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -129,6 +131,17 @@ export function PdfResumeDrawer({ open, onClose }: PdfResumeDrawerProps) {
                     {colorTheme === key && <Check className="h-3.5 w-3.5 text-brand" />}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Single Page Mode */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium">Single Page</h3>
+              <div className="flex items-center gap-3">
+                <Switch checked={singlePage} onCheckedChange={setSinglePage} />
+                <Label className="text-sm">
+                  {singlePage ? "Enabled — compact layout to fit one page" : "Disabled — standard spacing"}
+                </Label>
               </div>
             </div>
 
