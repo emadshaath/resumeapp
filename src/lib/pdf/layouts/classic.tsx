@@ -3,32 +3,34 @@ import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { PdfColorPalette, ResumeData } from "../types";
 import { formatDateRange, groupSkillsByCategory } from "../utils";
 
-function createStyles(c: PdfColorPalette) {
+function createStyles(c: PdfColorPalette, compact: boolean) {
+  const f = compact ? 0.78 : 1;   // font scale
+  const sp = compact ? 0.6 : 1;   // spacing scale
   return StyleSheet.create({
-    page: { padding: 40, fontFamily: "Helvetica", fontSize: 10, color: c.text, backgroundColor: c.background },
-    header: { marginBottom: 20, borderBottomWidth: 2, borderBottomColor: c.primary, paddingBottom: 12 },
-    name: { fontSize: 24, fontWeight: "bold", color: c.heading, marginBottom: 4 },
-    headline: { fontSize: 12, color: c.textLight, marginBottom: 6 },
-    contactRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-    contactItem: { fontSize: 9, color: c.textLight },
-    section: { marginBottom: 14 },
-    sectionTitle: { fontSize: 12, fontWeight: "bold", color: c.heading, textTransform: "uppercase", letterSpacing: 1, borderBottomWidth: 1, borderBottomColor: c.border, paddingBottom: 4, marginBottom: 8 },
-    entryHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 2 },
-    entryTitle: { fontSize: 11, fontWeight: "bold", color: c.heading },
-    entrySubtitle: { fontSize: 10, color: c.textLight },
-    entryDate: { fontSize: 9, color: c.textLight },
-    entryDescription: { fontSize: 9.5, color: c.text, marginTop: 3, lineHeight: 1.5 },
-    highlight: { fontSize: 9.5, color: c.text, marginLeft: 10, marginTop: 2, lineHeight: 1.4 },
-    skillCategory: { fontSize: 9, fontWeight: "bold", color: c.heading, marginBottom: 2, marginTop: 4 },
-    skillList: { fontSize: 9.5, color: c.text, lineHeight: 1.5 },
-    projectGrid: { marginBottom: 8 },
-    techList: { fontSize: 8.5, color: c.accent, marginTop: 2 },
-    entrySpacing: { marginBottom: 10 },
+    page: { padding: 40 * (compact ? 0.7 : 1), fontFamily: "Helvetica", fontSize: 10 * f, color: c.text, backgroundColor: c.background },
+    header: { marginBottom: 20 * sp, borderBottomWidth: 2, borderBottomColor: c.primary, paddingBottom: 12 * sp },
+    name: { fontSize: 24 * f, fontWeight: "bold", color: c.heading, marginBottom: 4 * sp },
+    headline: { fontSize: 12 * f, color: c.textLight, marginBottom: 6 * sp },
+    contactRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 * sp },
+    contactItem: { fontSize: 9 * f, color: c.textLight },
+    section: { marginBottom: 14 * sp },
+    sectionTitle: { fontSize: 12 * f, fontWeight: "bold", color: c.heading, textTransform: "uppercase", letterSpacing: 1, borderBottomWidth: 1, borderBottomColor: c.border, paddingBottom: 4 * sp, marginBottom: 8 * sp },
+    entryHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 2 * sp },
+    entryTitle: { fontSize: 11 * f, fontWeight: "bold", color: c.heading },
+    entrySubtitle: { fontSize: 10 * f, color: c.textLight },
+    entryDate: { fontSize: 9 * f, color: c.textLight },
+    entryDescription: { fontSize: 9.5 * f, color: c.text, marginTop: 3 * sp, lineHeight: compact ? 1.3 : 1.5 },
+    highlight: { fontSize: 9.5 * f, color: c.text, marginLeft: 10 * sp, marginTop: 2 * sp, lineHeight: compact ? 1.2 : 1.4 },
+    skillCategory: { fontSize: 9 * f, fontWeight: "bold", color: c.heading, marginBottom: 2 * sp, marginTop: 4 * sp },
+    skillList: { fontSize: 9.5 * f, color: c.text, lineHeight: compact ? 1.3 : 1.5 },
+    projectGrid: { marginBottom: 8 * sp },
+    techList: { fontSize: 8.5 * f, color: c.accent, marginTop: 2 * sp },
+    entrySpacing: { marginBottom: 10 * sp },
   });
 }
 
-export function ClassicLayout({ data, palette }: { data: ResumeData; palette: PdfColorPalette }) {
-  const s = createStyles(palette);
+export function ClassicLayout({ data, palette, singlePage = false }: { data: ResumeData; palette: PdfColorPalette; singlePage?: boolean }) {
+  const s = createStyles(palette, singlePage);
   const { profile, sections, experiences, educations, skills, certifications, projects, customSections } = data;
 
   return (
@@ -56,8 +58,8 @@ export function ClassicLayout({ data, palette }: { data: ResumeData; palette: Pd
           const sectionCustom = customSections.filter((c) => c.section_id === section.id);
 
           return (
-            <View key={section.id} style={s.section} wrap={false}>
-              <Text style={s.sectionTitle}>{section.title}</Text>
+            <View key={section.id} style={s.section}>
+              <Text style={s.sectionTitle} minPresenceAhead={40}>{section.title}</Text>
 
               {(section.section_type === "summary" || section.section_type === "custom") &&
                 sectionCustom.map((item) => (
@@ -66,7 +68,7 @@ export function ClassicLayout({ data, palette }: { data: ResumeData; palette: Pd
 
               {section.section_type === "experience" &&
                 sectionExp.map((exp) => (
-                  <View key={exp.id} style={s.entrySpacing}>
+                  <View key={exp.id} style={s.entrySpacing} wrap={false}>
                     <View style={s.entryHeader}>
                       <View>
                         <Text style={s.entryTitle}>{exp.position}</Text>
@@ -85,7 +87,7 @@ export function ClassicLayout({ data, palette }: { data: ResumeData; palette: Pd
 
               {section.section_type === "education" &&
                 sectionEdu.map((edu) => (
-                  <View key={edu.id} style={s.entrySpacing}>
+                  <View key={edu.id} style={s.entrySpacing} wrap={false}>
                     <View style={s.entryHeader}>
                       <View>
                         <Text style={s.entryTitle}>{edu.institution}</Text>
@@ -103,7 +105,7 @@ export function ClassicLayout({ data, palette }: { data: ResumeData; palette: Pd
               {section.section_type === "skills" && (() => {
                 const grouped = groupSkillsByCategory(sectionSkills);
                 return Array.from(grouped.entries()).map(([cat, catSkills]) => (
-                  <View key={cat}>
+                  <View key={cat} wrap={false}>
                     {grouped.size > 1 && <Text style={s.skillCategory}>{cat}</Text>}
                     <Text style={s.skillList}>{catSkills.map((sk) => sk.name).join("  ·  ")}</Text>
                   </View>
@@ -112,7 +114,7 @@ export function ClassicLayout({ data, palette }: { data: ResumeData; palette: Pd
 
               {section.section_type === "certifications" &&
                 sectionCerts.map((cert) => (
-                  <View key={cert.id} style={s.entrySpacing}>
+                  <View key={cert.id} style={s.entrySpacing} wrap={false}>
                     <View style={s.entryHeader}>
                       <Text style={s.entryTitle}>{cert.name}</Text>
                       {cert.issue_date && <Text style={s.entryDate}>{formatDateRange(cert.issue_date, cert.expiry_date, false)}</Text>}
@@ -123,7 +125,7 @@ export function ClassicLayout({ data, palette }: { data: ResumeData; palette: Pd
 
               {section.section_type === "projects" &&
                 sectionProjects.map((proj) => (
-                  <View key={proj.id} style={s.projectGrid}>
+                  <View key={proj.id} style={s.projectGrid} wrap={false}>
                     <Text style={s.entryTitle}>{proj.name}{proj.url ? ` — ${proj.url}` : ""}</Text>
                     {proj.description && <Text style={s.entryDescription}>{proj.description}</Text>}
                     {proj.technologies?.length > 0 && (

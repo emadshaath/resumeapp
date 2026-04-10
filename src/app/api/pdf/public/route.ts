@@ -38,8 +38,9 @@ export async function GET(req: NextRequest) {
 
   const layout = settings.layout as PdfLayout;
   const colorTheme = settings.color_theme as PdfColorTheme;
+  const singlePage = settings.single_page ?? false;
 
-  const pdfBuffer = await renderResumePdf(data, layout, colorTheme);
+  const pdfBuffer = await renderResumePdf(data, layout, colorTheme, singlePage);
   const fileName = `${profile.first_name}_${profile.last_name}_Resume.pdf`;
 
   return new NextResponse(pdfBuffer as unknown as BodyInit, {

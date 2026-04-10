@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const layout = (searchParams.get("layout") || "classic") as PdfLayout;
   const colorTheme = (searchParams.get("theme") || "navy") as PdfColorTheme;
+  const singlePage = searchParams.get("singlePage") === "true";
   const variantId = searchParams.get("variant");
 
   if (!VALID_LAYOUTS.includes(layout)) {
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const pdfBuffer = await renderResumePdf(data, layout, colorTheme);
+  const pdfBuffer = await renderResumePdf(data, layout, colorTheme, singlePage);
   const fileName = `${data.profile.first_name}_${data.profile.last_name}_Resume.pdf`;
 
   return new NextResponse(pdfBuffer as unknown as BodyInit, {

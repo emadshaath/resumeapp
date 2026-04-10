@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { layout, color_theme, show_on_profile } = body;
+  const { layout, color_theme, show_on_profile, single_page } = body;
 
   if (layout && !VALID_LAYOUTS.includes(layout)) {
     return NextResponse.json({ error: "Invalid layout" }, { status: 400 });
@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
         layout: layout || "classic",
         color_theme: color_theme || "navy",
         show_on_profile: show_on_profile ?? false,
+        single_page: single_page ?? false,
         updated_at: new Date().toISOString(),
       })
       .eq("profile_id", user.id)
@@ -67,6 +68,7 @@ export async function POST(req: NextRequest) {
       layout: layout || "classic",
       color_theme: color_theme || "navy",
       show_on_profile: show_on_profile ?? false,
+      single_page: single_page ?? false,
     })
     .select()
     .single();

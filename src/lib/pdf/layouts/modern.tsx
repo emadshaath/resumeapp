@@ -3,34 +3,39 @@ import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { PdfColorPalette, ResumeData } from "../types";
 import { formatDateRange, groupSkillsByCategory } from "../utils";
 
-function createStyles(c: PdfColorPalette) {
+function createStyles(c: PdfColorPalette, compact: boolean) {
+  const f = compact ? 0.78 : 1;   // font scale
+  const sp = compact ? 0.6 : 1;   // spacing scale
+  const pagePad = compact ? 22 : 32;
+  const pageTop = compact ? 25 : 36;
+  const sidebarW = compact ? 150 : 180;
   return StyleSheet.create({
-    page: { flexDirection: "row", fontFamily: "Helvetica", fontSize: 10, backgroundColor: c.background },
-    sidebar: { width: 180, backgroundColor: c.sidebarBg, padding: 24, paddingTop: 36, color: c.sidebarText },
-    main: { flex: 1, padding: 32, paddingTop: 36, color: c.text },
-    sidebarName: { fontSize: 16, fontWeight: "bold", color: c.sidebarHeading, marginBottom: 4 },
-    sidebarHeadline: { fontSize: 9, color: c.sidebarText, marginBottom: 16, lineHeight: 1.4 },
-    sidebarSection: { marginBottom: 14 },
-    sidebarSectionTitle: { fontSize: 9, fontWeight: "bold", color: c.sidebarHeading, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, borderBottomWidth: 1, borderBottomColor: c.primaryLight, paddingBottom: 3 },
-    sidebarItem: { fontSize: 8.5, color: c.sidebarText, marginBottom: 3, lineHeight: 1.4 },
-    sidebarSkillName: { fontSize: 8.5, color: c.sidebarHeading, marginBottom: 2 },
-    sidebarSkillCategory: { fontSize: 8, fontWeight: "bold", color: c.sidebarHeading, marginTop: 4, marginBottom: 2 },
-    sectionTitle: { fontSize: 12, fontWeight: "bold", color: c.heading, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, borderBottomWidth: 1.5, borderBottomColor: c.primary, paddingBottom: 4 },
-    section: { marginBottom: 14 },
-    entryHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 2 },
-    entryTitle: { fontSize: 11, fontWeight: "bold", color: c.heading },
-    entrySubtitle: { fontSize: 9.5, color: c.textLight },
-    entryDate: { fontSize: 8.5, color: c.textLight },
-    entryDescription: { fontSize: 9.5, color: c.text, marginTop: 3, lineHeight: 1.5 },
-    highlight: { fontSize: 9.5, color: c.text, marginLeft: 10, marginTop: 2, lineHeight: 1.4 },
-    entrySpacing: { marginBottom: 10 },
-    projectGrid: { marginBottom: 8 },
-    techList: { fontSize: 8.5, color: c.accent, marginTop: 2 },
+    page: { flexDirection: "row", fontFamily: "Helvetica", fontSize: 10 * f, backgroundColor: c.background, paddingTop: pageTop, paddingBottom: pagePad, paddingLeft: pagePad, paddingRight: pagePad },
+    sidebar: { width: sidebarW, backgroundColor: c.sidebarBg, padding: 24 * (compact ? 0.7 : 1), paddingTop: pageTop, marginLeft: -pagePad, marginTop: -pageTop, marginBottom: -pagePad, color: c.sidebarText },
+    main: { flex: 1, paddingLeft: pagePad, color: c.text },
+    sidebarName: { fontSize: 16 * f, fontWeight: "bold", color: c.sidebarHeading, marginBottom: 4 * sp },
+    sidebarHeadline: { fontSize: 9 * f, color: c.sidebarText, marginBottom: 16 * sp, lineHeight: compact ? 1.2 : 1.4 },
+    sidebarSection: { marginBottom: 14 * sp },
+    sidebarSectionTitle: { fontSize: 9 * f, fontWeight: "bold", color: c.sidebarHeading, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6 * sp, borderBottomWidth: 1, borderBottomColor: c.primaryLight, paddingBottom: 3 * sp },
+    sidebarItem: { fontSize: 8.5 * f, color: c.sidebarText, marginBottom: 3 * sp, lineHeight: compact ? 1.2 : 1.4 },
+    sidebarSkillName: { fontSize: 8.5 * f, color: c.sidebarHeading, marginBottom: 2 * sp },
+    sidebarSkillCategory: { fontSize: 8 * f, fontWeight: "bold", color: c.sidebarHeading, marginTop: 4 * sp, marginBottom: 2 * sp },
+    sectionTitle: { fontSize: 12 * f, fontWeight: "bold", color: c.heading, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 * sp, borderBottomWidth: 1.5, borderBottomColor: c.primary, paddingBottom: 4 * sp },
+    section: { marginBottom: 14 * sp },
+    entryHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 2 * sp },
+    entryTitle: { fontSize: 11 * f, fontWeight: "bold", color: c.heading },
+    entrySubtitle: { fontSize: 9.5 * f, color: c.textLight },
+    entryDate: { fontSize: 8.5 * f, color: c.textLight },
+    entryDescription: { fontSize: 9.5 * f, color: c.text, marginTop: 3 * sp, lineHeight: compact ? 1.3 : 1.5 },
+    highlight: { fontSize: 9.5 * f, color: c.text, marginLeft: 10 * sp, marginTop: 2 * sp, lineHeight: compact ? 1.2 : 1.4 },
+    entrySpacing: { marginBottom: 10 * sp },
+    projectGrid: { marginBottom: 8 * sp },
+    techList: { fontSize: 8.5 * f, color: c.accent, marginTop: 2 * sp },
   });
 }
 
-export function ModernLayout({ data, palette }: { data: ResumeData; palette: PdfColorPalette }) {
-  const s = createStyles(palette);
+export function ModernLayout({ data, palette, singlePage = false }: { data: ResumeData; palette: PdfColorPalette; singlePage?: boolean }) {
+  const s = createStyles(palette, singlePage);
   const { profile, sections, experiences, educations, skills, certifications, projects, customSections } = data;
 
   // Determine sidebar content: contact info, skills, certifications
@@ -106,8 +111,8 @@ export function ModernLayout({ data, palette }: { data: ResumeData; palette: Pdf
             const sectionCustom = customSections.filter((c) => c.section_id === section.id);
 
             return (
-              <View key={section.id} style={s.section} wrap={false}>
-                <Text style={s.sectionTitle}>{section.title}</Text>
+              <View key={section.id} style={s.section}>
+                <Text style={s.sectionTitle} minPresenceAhead={40}>{section.title}</Text>
 
                 {(section.section_type === "summary" || section.section_type === "custom") &&
                   sectionCustom.map((item) => (
@@ -116,7 +121,7 @@ export function ModernLayout({ data, palette }: { data: ResumeData; palette: Pdf
 
                 {section.section_type === "experience" &&
                   sectionExp.map((exp) => (
-                    <View key={exp.id} style={s.entrySpacing}>
+                    <View key={exp.id} style={s.entrySpacing} wrap={false}>
                       <View style={s.entryHeader}>
                         <View>
                           <Text style={s.entryTitle}>{exp.position}</Text>
@@ -135,7 +140,7 @@ export function ModernLayout({ data, palette }: { data: ResumeData; palette: Pdf
 
                 {section.section_type === "education" &&
                   sectionEdu.map((edu) => (
-                    <View key={edu.id} style={s.entrySpacing}>
+                    <View key={edu.id} style={s.entrySpacing} wrap={false}>
                       <View style={s.entryHeader}>
                         <View>
                           <Text style={s.entryTitle}>{edu.institution}</Text>
@@ -152,7 +157,7 @@ export function ModernLayout({ data, palette }: { data: ResumeData; palette: Pdf
 
                 {section.section_type === "projects" &&
                   sectionProjects.map((proj) => (
-                    <View key={proj.id} style={s.projectGrid}>
+                    <View key={proj.id} style={s.projectGrid} wrap={false}>
                       <Text style={s.entryTitle}>{proj.name}</Text>
                       {proj.description && <Text style={s.entryDescription}>{proj.description}</Text>}
                       {proj.technologies?.length > 0 && (
