@@ -649,12 +649,20 @@ function PhoneTab({ profile }: { profile: { tier: string } | null }) {
 
 /* ───────── Domain types & tab ───────── */
 
+interface VercelVerificationRecord {
+  type: "TXT" | "CNAME" | "A";
+  domain: string;
+  value: string;
+  reason: string;
+}
+
 interface CustomDomainData {
   id: string;
   domain: string;
   status: "pending" | "verified" | "failed";
   verification_token: string;
   verified_at: string | null;
+  vercel_verification: VercelVerificationRecord[] | null;
 }
 
 function DomainTab({ profile }: { profile: { tier: string; slug: string } | null }) {
@@ -715,11 +723,16 @@ function DomainTab({ profile }: { profile: { tier: string; slug: string } | null
     const res = await fetch("/api/domains/verify", { method: "POST" });
     const data = await res.json();
 
+    // Refetch the domain record to pick up any updated verification challenges
+    const fresh = await fetch("/api/domains");
+    const freshData = await fresh.json();
+    if (freshData.domain) {
+      setDomainData(freshData.domain as CustomDomainData);
+    }
+
     if (data.status === "verified") {
-      setDomainData((prev) => prev ? { ...prev, status: "verified", verified_at: new Date().toISOString() } : prev);
       setSuccess("Domain verified successfully! Your profile is now accessible at your custom domain.");
     } else {
-      setDomainData((prev) => prev ? { ...prev, status: "failed" } : prev);
       setError(data.message || "Verification failed. Please check your DNS records.");
     }
     setVerifying(false);
@@ -866,72 +879,113 @@ function DomainTab({ profile }: { profile: { tier: string; slug: string } | null
                       </p>
                     </div>
 
-                    {/* CNAME record */}
-                    <div className="rounded-lg border p-4 space-y-3">
-                      <p className="font-medium text-sm">Option 1: CNAME Record (recommended)</p>
-                      <div className="grid grid-cols-3 gap-2 text-sm">
-                        <div>
-                          <p className="text-zinc-500 text-xs mb-1">Type</p>
-                          <p className="font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1">CNAME</p>
-                        </div>
-                        <div>
-                          <p className="text-zinc-500 text-xs mb-1">Name</p>
-                          <p className="font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1 truncate">
-                            {domainData.domain.split(".")[0]}
+                    {/* DNS records — prefer Vercel-provided challenges when available */}
+                    {domainData.vercel_verification && domainData.vercel_verification.length > 0 ? (
+                      domainData.vercel_verification.map((record, idx) => (
+                        <div key={idx} className="rounded-lg border p-4 space-y-3">
+                          <p className="font-medium text-sm">
+                            {record.type} Record {idx === 0 ? "(required)" : ""}
                           </p>
+                          <div className="grid grid-cols-3 gap-2 text-sm">
+                            <div>
+                              <p className="text-zinc-500 text-xs mb-1">Type</p>
+                              <p className="font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1">{record.type}</p>
+                            </div>
+                            <div>
+                              <p className="text-zinc-500 text-xs mb-1">Name</p>
+                              <p className="font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1 truncate">
+                                {record.domain}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-zinc-500 text-xs mb-1">Value</p>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(record.value, `v${idx}`)}
+                                className="w-full font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1 text-left flex items-center justify-between gap-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors text-xs"
+                              >
+                                <span className="truncate">{record.value}</span>
+                                {copied === `v${idx}` ? (
+                                  <Check className="h-3 w-3 text-green-500 shrink-0" />
+                                ) : (
+                                  <Copy className="h-3 w-3 shrink-0 text-zinc-400" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-zinc-500 text-xs mb-1">Target</p>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(cnameTarget, "cname")}
-                            className="w-full font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1 text-left flex items-center justify-between gap-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-                          >
-                            <span className="truncate">{cnameTarget}</span>
-                            {copied === "cname" ? (
-                              <Check className="h-3 w-3 text-green-500 shrink-0" />
-                            ) : (
-                              <Copy className="h-3 w-3 shrink-0 text-zinc-400" />
-                            )}
-                          </button>
+                      ))
+                    ) : (
+                      <>
+                        {/* CNAME record fallback */}
+                        <div className="rounded-lg border p-4 space-y-3">
+                          <p className="font-medium text-sm">Option 1: CNAME Record (recommended)</p>
+                          <div className="grid grid-cols-3 gap-2 text-sm">
+                            <div>
+                              <p className="text-zinc-500 text-xs mb-1">Type</p>
+                              <p className="font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1">CNAME</p>
+                            </div>
+                            <div>
+                              <p className="text-zinc-500 text-xs mb-1">Name</p>
+                              <p className="font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1 truncate">
+                                {domainData.domain.split(".")[0]}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-zinc-500 text-xs mb-1">Target</p>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(cnameTarget, "cname")}
+                                className="w-full font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1 text-left flex items-center justify-between gap-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                              >
+                                <span className="truncate">{cnameTarget}</span>
+                                {copied === "cname" ? (
+                                  <Check className="h-3 w-3 text-green-500 shrink-0" />
+                                ) : (
+                                  <Copy className="h-3 w-3 shrink-0 text-zinc-400" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
 
-                    {/* TXT record */}
-                    <div className="rounded-lg border p-4 space-y-3">
-                      <p className="font-medium text-sm">Option 2: TXT Record (alternative verification)</p>
-                      <div className="grid grid-cols-3 gap-2 text-sm">
-                        <div>
-                          <p className="text-zinc-500 text-xs mb-1">Type</p>
-                          <p className="font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1">TXT</p>
+                        {/* TXT record fallback */}
+                        <div className="rounded-lg border p-4 space-y-3">
+                          <p className="font-medium text-sm">Option 2: TXT Record (alternative verification)</p>
+                          <div className="grid grid-cols-3 gap-2 text-sm">
+                            <div>
+                              <p className="text-zinc-500 text-xs mb-1">Type</p>
+                              <p className="font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1">TXT</p>
+                            </div>
+                            <div>
+                              <p className="text-zinc-500 text-xs mb-1">Name</p>
+                              <p className="font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1 truncate">
+                                {domainData.domain.split(".")[0]}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-zinc-500 text-xs mb-1">Value</p>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(domainData.verification_token, "txt")}
+                                className="w-full font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1 text-left flex items-center justify-between gap-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors text-xs"
+                              >
+                                <span className="truncate">{domainData.verification_token}</span>
+                                {copied === "txt" ? (
+                                  <Check className="h-3 w-3 text-green-500 shrink-0" />
+                                ) : (
+                                  <Copy className="h-3 w-3 shrink-0 text-zinc-400" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-zinc-500 text-xs mb-1">Name</p>
-                          <p className="font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1 truncate">
-                            {domainData.domain.split(".")[0]}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-zinc-500 text-xs mb-1">Value</p>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(domainData.verification_token, "txt")}
-                            className="w-full font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1 text-left flex items-center justify-between gap-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors text-xs"
-                          >
-                            <span className="truncate">{domainData.verification_token}</span>
-                            {copied === "txt" ? (
-                              <Check className="h-3 w-3 text-green-500 shrink-0" />
-                            ) : (
-                              <Copy className="h-3 w-3 shrink-0 text-zinc-400" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                      </>
+                    )}
 
                     <p className="text-xs text-zinc-500">
                       DNS changes can take up to 48 hours to propagate, but usually complete within a few minutes.
+                      SSL certificates are provisioned automatically after verification.
                     </p>
                   </div>
                 </>

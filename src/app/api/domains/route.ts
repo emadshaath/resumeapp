@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getEffectiveTier, hasFeature } from "@/lib/stripe/feature-gate";
+import {
+  addDomainToVercel,
+  removeDomainFromVercel,
+  isVercelConfigured,
+} from "@/lib/vercel/client";
 import type { Tier } from "@/types/database";
 import { randomBytes } from "crypto";
 
@@ -98,21 +103,58 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate verification token
+    // Generate local verification token (fallback / TXT method)
     const verificationToken = `rezm-verify-${randomBytes(16).toString("hex")}`;
+
+    // Register the domain with Vercel so SSL gets provisioned and
+    // requests actually reach our project when DNS is configured.
+    let vercelVerification: unknown = null;
+    let vercelAlreadyVerified = false;
+    if (isVercelConfigured()) {
+      try {
+        const vercelDomain = await addDomainToVercel(rawDomain);
+        vercelVerification = vercelDomain.verification ?? null;
+        vercelAlreadyVerified = vercelDomain.verified;
+      } catch (vercelError) {
+        console.error("Vercel domain add error:", vercelError);
+        const message =
+          vercelError instanceof Error ? vercelError.message : "Unknown error";
+        // Common failure: domain is already attached to another Vercel project
+        if (message.includes("domain_already_in_use") || message.includes("409")) {
+          return NextResponse.json(
+            { error: "This domain is already connected to another project. Remove it there first." },
+            { status: 409 }
+          );
+        }
+        return NextResponse.json(
+          { error: "Failed to register domain with hosting provider. Please try again." },
+          { status: 502 }
+        );
+      }
+    }
 
     const { data: created, error: createError } = await admin
       .from("custom_domains")
       .insert({
         profile_id: user.id,
         domain: rawDomain,
-        status: "pending",
+        status: vercelAlreadyVerified ? "verified" : "pending",
         verification_token: verificationToken,
+        vercel_verification: vercelVerification,
+        verified_at: vercelAlreadyVerified ? new Date().toISOString() : null,
       })
       .select()
       .single();
 
     if (createError) {
+      // Roll back Vercel registration if DB insert fails
+      if (isVercelConfigured()) {
+        try {
+          await removeDomainFromVercel(rawDomain);
+        } catch (rollbackError) {
+          console.error("Vercel rollback error:", rollbackError);
+        }
+      }
       if (createError.code === "23505") {
         return NextResponse.json(
           { error: "This domain is already in use by another account" },
@@ -146,6 +188,23 @@ export async function DELETE() {
     }
 
     const admin = createAdminClient();
+
+    // Fetch the domain first so we can detach it from Vercel
+    const { data: existing } = await admin
+      .from("custom_domains")
+      .select("domain")
+      .eq("profile_id", user.id)
+      .single();
+
+    if (existing && isVercelConfigured()) {
+      try {
+        await removeDomainFromVercel(existing.domain);
+      } catch (vercelError) {
+        console.error("Vercel domain remove error:", vercelError);
+        // Continue with DB delete even if Vercel cleanup fails —
+        // the domain can be manually removed from Vercel dashboard.
+      }
+    }
 
     const { error: deleteError } = await admin
       .from("custom_domains")
