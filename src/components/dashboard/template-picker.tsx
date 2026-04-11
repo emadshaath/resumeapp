@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, Lock, AlertCircle, Palette } from "lucide-react";
+import { Check, Lock, AlertCircle } from "lucide-react";
 import { TEMPLATES, type TemplateId } from "@/lib/templates/registry";
 import { getEffectiveTier } from "@/lib/stripe/feature-gate";
 import type { Profile, Tier } from "@/types/database";
@@ -172,10 +172,7 @@ export function TemplatePicker({ profile, onUpdate }: TemplatePickerProps) {
       {selectedDef?.supportsCustomAccent && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Palette className="h-5 w-5" />
-              Accent Colors
-            </CardTitle>
+            <CardTitle className="text-lg">Accent Colors</CardTitle>
             <CardDescription>
               Customize the gradient colors that drive {selectedDef.name}&apos;s look. Change these and every button, chip, border, and shadow updates in lockstep.
             </CardDescription>

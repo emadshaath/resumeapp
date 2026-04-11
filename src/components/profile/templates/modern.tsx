@@ -1,4 +1,4 @@
-import { Mail, MapPin, Globe, Linkedin, ExternalLink } from "lucide-react";
+import { Mail, MapPin, Globe, ExternalLink } from "lucide-react";
 import { ensureAbsoluteUrl } from "@/lib/utils";
 import { MarkdownText } from "@/components/ui/markdown-text";
 import { PdfDownloadButton } from "@/components/profile/pdf-download-button";
@@ -106,7 +106,7 @@ export function ModernTemplate({
                   rel="noopener noreferrer"
                   className="flex items-start gap-2 hover:text-white transition-colors break-all"
                 >
-                  <Linkedin className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span className="font-bold text-xs mt-0.5 shrink-0 w-4 text-center">in</span>
                   <span>LinkedIn</span>
                 </a>
               )}

@@ -1,4 +1,4 @@
-import { Mail, MapPin, Globe, ExternalLink, Linkedin } from "lucide-react";
+import { Mail, MapPin, Globe, ExternalLink } from "lucide-react";
 import { ensureAbsoluteUrl } from "@/lib/utils";
 import { MarkdownText } from "@/components/ui/markdown-text";
 import { PdfDownloadButton } from "@/components/profile/pdf-download-button";
@@ -242,7 +242,7 @@ export function AuroraTemplate({
                     className="flex items-center gap-1.5"
                     style={{ color: accent }}
                   >
-                    <Linkedin className="h-3.5 w-3.5" />
+                    <span className="font-bold text-[0.7rem]">in</span>
                     LinkedIn
                   </a>
                 )}
