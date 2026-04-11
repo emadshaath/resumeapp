@@ -22,6 +22,10 @@ import {
   PhoneForwarded,
   Voicemail,
   Trash2,
+  Globe,
+  Copy,
+  RefreshCw,
+  ExternalLink,
 } from "lucide-react";
 import { getEffectiveTier } from "@/lib/stripe/feature-gate";
 import type { Tier } from "@/types/database";
@@ -643,6 +647,401 @@ function PhoneTab({ profile }: { profile: { tier: string } | null }) {
   );
 }
 
+/* ───────── Domain types & tab ───────── */
+
+interface VercelVerificationRecord {
+  type: "TXT" | "CNAME" | "A";
+  domain: string;
+  value: string;
+  reason: string;
+}
+
+interface CustomDomainData {
+  id: string;
+  domain: string;
+  status: "pending" | "verified" | "failed";
+  verification_token: string;
+  verified_at: string | null;
+  vercel_verification: VercelVerificationRecord[] | null;
+}
+
+function DomainTab({ profile }: { profile: { tier: string; slug: string } | null }) {
+  const [domainData, setDomainData] = useState<CustomDomainData | null>(null);
+  const [newDomain, setNewDomain] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const router = useRouter();
+
+  const appDomain = "rezm.ai";
+  const cnameTarget = `custom.${appDomain}`;
+
+  useEffect(() => {
+    async function load() {
+      const res = await fetch("/api/domains");
+      const data = await res.json();
+      if (data.domain) {
+        setDomainData(data.domain as CustomDomainData);
+      }
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  async function addDomain(e: React.FormEvent) {
+    e.preventDefault();
+    setAdding(true);
+    setError(null);
+    setSuccess(null);
+
+    const res = await fetch("/api/domains", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ domain: newDomain }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      setError(data.error);
+    } else {
+      setDomainData(data.domain as CustomDomainData);
+      setNewDomain("");
+      setSuccess("Domain added! Now configure your DNS records below.");
+    }
+    setAdding(false);
+  }
+
+  async function verifyDomain() {
+    setVerifying(true);
+    setError(null);
+    setSuccess(null);
+
+    const res = await fetch("/api/domains/verify", { method: "POST" });
+    const data = await res.json();
+
+    // Refetch the domain record to pick up any updated verification challenges
+    const fresh = await fetch("/api/domains");
+    const freshData = await fresh.json();
+    if (freshData.domain) {
+      setDomainData(freshData.domain as CustomDomainData);
+    }
+
+    if (data.status === "verified") {
+      setSuccess("Domain verified successfully! Your profile is now accessible at your custom domain.");
+    } else {
+      setError(data.message || "Verification failed. Please check your DNS records.");
+    }
+    setVerifying(false);
+  }
+
+  async function removeDomain() {
+    if (!confirm("Are you sure you want to remove your custom domain?")) return;
+
+    setRemoving(true);
+    setError(null);
+    setSuccess(null);
+
+    const res = await fetch("/api/domains", { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error);
+    } else {
+      setDomainData(null);
+      setSuccess("Custom domain removed.");
+    }
+    setRemoving(false);
+  }
+
+  function copyToClipboard(text: string, label: string) {
+    navigator.clipboard.writeText(text);
+    setCopied(label);
+    setTimeout(() => setCopied(null), 2000);
+  }
+
+  if (loading) {
+    return <div className="py-20 text-center text-zinc-500">Loading domain settings...</div>;
+  }
+
+  const isPremium = profile?.tier === "premium";
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300 flex items-center gap-2">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="rounded-md bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950 dark:text-green-300 flex items-center gap-2">
+          <Check className="h-4 w-4 flex-shrink-0" />
+          {success}
+        </div>
+      )}
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Globe className="h-5 w-5" />
+                Custom Domain
+              </CardTitle>
+              <CardDescription>
+                Connect your own domain to your rezm.ai profile.
+              </CardDescription>
+            </div>
+            {domainData?.status === "verified" && (
+              <Badge variant="success">Verified</Badge>
+            )}
+            {domainData?.status === "pending" && (
+              <Badge variant="secondary">Pending</Badge>
+            )}
+            {domainData?.status === "failed" && (
+              <Badge variant="destructive">Unverified</Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!isPremium ? (
+            <div className="text-center py-6">
+              <Lock className="h-10 w-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
+              <p className="text-sm text-zinc-500 mb-4">
+                Custom domains are available on the Premium plan.
+              </p>
+              <Button variant="outline" onClick={() => router.push("/dashboard/settings?tab=billing")}>
+                Upgrade to Premium
+              </Button>
+            </div>
+          ) : !domainData ? (
+            <form onSubmit={addDomain} className="space-y-4">
+              <div className="text-center py-2">
+                <Globe className="h-10 w-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
+                <p className="font-medium mb-1">Connect your domain</p>
+                <p className="text-sm text-zinc-500 mb-4">
+                  Your profile will be accessible at both your custom domain and{" "}
+                  <span className="font-mono">{profile?.slug}.{appDomain}</span>
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customDomain">Domain</Label>
+                <Input
+                  id="customDomain"
+                  type="text"
+                  value={newDomain}
+                  onChange={(e) => setNewDomain(e.target.value)}
+                  placeholder="resume.example.com"
+                  required
+                />
+                <p className="text-xs text-zinc-500">
+                  Enter a domain or subdomain you own (e.g. resume.johndoe.com).
+                </p>
+              </div>
+              <Button type="submit" disabled={adding}>
+                {adding ? "Adding..." : "Add Domain"}
+              </Button>
+            </form>
+          ) : (
+            <div className="space-y-6">
+              {/* Domain display */}
+              <div className="rounded-lg bg-zinc-50 dark:bg-zinc-900 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-zinc-500">Your custom domain</p>
+                    <p className="text-lg font-mono font-medium mt-0.5">{domainData.domain}</p>
+                  </div>
+                  {domainData.status === "verified" && (
+                    <a
+                      href={`https://${domainData.domain}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* DNS instructions (shown when not verified) */}
+              {domainData.status !== "verified" && (
+                <>
+                  <Separator />
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-base font-medium">DNS Configuration</Label>
+                      <p className="text-sm text-zinc-500 mt-1">
+                        Add the following DNS records at your domain provider. You can use either method:
+                      </p>
+                    </div>
+
+                    {/* DNS records — prefer Vercel-provided challenges when available */}
+                    {domainData.vercel_verification && domainData.vercel_verification.length > 0 ? (
+                      domainData.vercel_verification.map((record, idx) => (
+                        <div key={idx} className="rounded-lg border p-4 space-y-3">
+                          <p className="font-medium text-sm">
+                            {record.type} Record {idx === 0 ? "(required)" : ""}
+                          </p>
+                          <div className="grid grid-cols-3 gap-2 text-sm">
+                            <div>
+                              <p className="text-zinc-500 text-xs mb-1">Type</p>
+                              <p className="font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1">{record.type}</p>
+                            </div>
+                            <div>
+                              <p className="text-zinc-500 text-xs mb-1">Name</p>
+                              <p className="font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1 truncate">
+                                {record.domain}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-zinc-500 text-xs mb-1">Value</p>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(record.value, `v${idx}`)}
+                                className="w-full font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1 text-left flex items-center justify-between gap-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors text-xs"
+                              >
+                                <span className="truncate">{record.value}</span>
+                                {copied === `v${idx}` ? (
+                                  <Check className="h-3 w-3 text-green-500 shrink-0" />
+                                ) : (
+                                  <Copy className="h-3 w-3 shrink-0 text-zinc-400" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <>
+                        {/* CNAME record fallback */}
+                        <div className="rounded-lg border p-4 space-y-3">
+                          <p className="font-medium text-sm">Option 1: CNAME Record (recommended)</p>
+                          <div className="grid grid-cols-3 gap-2 text-sm">
+                            <div>
+                              <p className="text-zinc-500 text-xs mb-1">Type</p>
+                              <p className="font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1">CNAME</p>
+                            </div>
+                            <div>
+                              <p className="text-zinc-500 text-xs mb-1">Name</p>
+                              <p className="font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1 truncate">
+                                {domainData.domain.split(".")[0]}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-zinc-500 text-xs mb-1">Target</p>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(cnameTarget, "cname")}
+                                className="w-full font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1 text-left flex items-center justify-between gap-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                              >
+                                <span className="truncate">{cnameTarget}</span>
+                                {copied === "cname" ? (
+                                  <Check className="h-3 w-3 text-green-500 shrink-0" />
+                                ) : (
+                                  <Copy className="h-3 w-3 shrink-0 text-zinc-400" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* TXT record fallback */}
+                        <div className="rounded-lg border p-4 space-y-3">
+                          <p className="font-medium text-sm">Option 2: TXT Record (alternative verification)</p>
+                          <div className="grid grid-cols-3 gap-2 text-sm">
+                            <div>
+                              <p className="text-zinc-500 text-xs mb-1">Type</p>
+                              <p className="font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1">TXT</p>
+                            </div>
+                            <div>
+                              <p className="text-zinc-500 text-xs mb-1">Name</p>
+                              <p className="font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1 truncate">
+                                {domainData.domain.split(".")[0]}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-zinc-500 text-xs mb-1">Value</p>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(domainData.verification_token, "txt")}
+                                className="w-full font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1 text-left flex items-center justify-between gap-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors text-xs"
+                              >
+                                <span className="truncate">{domainData.verification_token}</span>
+                                {copied === "txt" ? (
+                                  <Check className="h-3 w-3 text-green-500 shrink-0" />
+                                ) : (
+                                  <Copy className="h-3 w-3 shrink-0 text-zinc-400" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    <p className="text-xs text-zinc-500">
+                      DNS changes can take up to 48 hours to propagate, but usually complete within a few minutes.
+                      SSL certificates are provisioned automatically after verification.
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {/* Actions */}
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                  onClick={removeDomain}
+                  disabled={removing}
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  {removing ? "Removing..." : "Remove Domain"}
+                </Button>
+                {domainData.status !== "verified" && (
+                  <Button onClick={verifyDomain} disabled={verifying}>
+                    <RefreshCw className={`h-4 w-4 mr-1 ${verifying ? "animate-spin" : ""}`} />
+                    {verifying ? "Verifying..." : "Verify DNS"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            How Custom Domains Work
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm text-zinc-600 dark:text-zinc-400">
+          <p>
+            When you connect a custom domain, your rezm.ai profile becomes accessible at
+            both your custom domain and your <span className="font-mono">{profile?.slug}.{appDomain}</span> subdomain.
+          </p>
+          <p>
+            You need to add a CNAME record at your DNS provider pointing to{" "}
+            <span className="font-mono">{cnameTarget}</span>. SSL certificates are provisioned
+            automatically.
+          </p>
+          <p>
+            If you remove your custom domain, your profile will still be available at your
+            rezm.ai subdomain.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 /* ───────── Main page ───────── */
 
 export default function CommunicationPage() {
@@ -652,7 +1051,8 @@ export default function CommunicationPage() {
   const searchParams = useSearchParams();
   const supabase = createClient();
 
-  const defaultTab = searchParams.get("tab") === "phone" ? "phone" : "email";
+  const tabParam = searchParams.get("tab");
+  const defaultTab = tabParam === "phone" ? "phone" : tabParam === "domain" ? "domain" : "email";
 
   useEffect(() => {
     async function load() {
@@ -691,6 +1091,7 @@ export default function CommunicationPage() {
         <TabsList>
           <TabsTrigger value="email">Email</TabsTrigger>
           <TabsTrigger value="phone">Phone</TabsTrigger>
+          <TabsTrigger value="domain">Domain</TabsTrigger>
         </TabsList>
 
         <TabsContent value="email">
@@ -699,6 +1100,10 @@ export default function CommunicationPage() {
 
         <TabsContent value="phone">
           <PhoneTab profile={profile} />
+        </TabsContent>
+
+        <TabsContent value="domain">
+          <DomainTab profile={profile} />
         </TabsContent>
       </Tabs>
     </div>
