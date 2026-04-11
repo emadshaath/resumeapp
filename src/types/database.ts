@@ -18,6 +18,9 @@ export interface Profile {
   email: string;
   avatar_url: string | null;
   profile_theme: string;
+  profile_template: string;
+  template_accent: string | null;
+  template_accent_alt: string | null;
   location: string | null;
   website_url: string | null;
   linkedin_url: string | null;

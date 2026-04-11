@@ -1,0 +1,347 @@
+import { Badge } from "@/components/ui/badge";
+import {
+  MapPin,
+  Globe,
+  Briefcase,
+  GraduationCap,
+  Wrench,
+  Award,
+  FolderOpen,
+  ExternalLink,
+} from "lucide-react";
+import { ensureAbsoluteUrl } from "@/lib/utils";
+import { MarkdownText } from "@/components/ui/markdown-text";
+import { PdfDownloadButton } from "@/components/profile/pdf-download-button";
+import {
+  type TemplateProps,
+  formatDate,
+  sortExperiences,
+  sortEducations,
+  groupSkillsByCategory,
+} from "./types";
+
+function getSectionIcon(type: string) {
+  const className = "h-5 w-5 text-zinc-400";
+  switch (type) {
+    case "experience":
+      return <Briefcase className={className} />;
+    case "education":
+      return <GraduationCap className={className} />;
+    case "skills":
+      return <Wrench className={className} />;
+    case "certifications":
+      return <Award className={className} />;
+    case "projects":
+      return <FolderOpen className={className} />;
+    default:
+      return null;
+  }
+}
+
+export function MinimalTemplate({
+  profile,
+  sections,
+  experiences,
+  educations,
+  skills,
+  certifications,
+  projects,
+  customSections,
+  pdfSettings,
+  themeColors,
+}: TemplateProps) {
+  const fullName = `${profile.first_name} ${profile.last_name}`;
+
+  return (
+    <div
+      className="min-h-screen bg-white dark:bg-zinc-950"
+      style={{
+        ["--hero-from" as string]: themeColors.heroFrom,
+        ["--hero-to" as string]: themeColors.heroTo,
+      } as React.CSSProperties}
+    >
+      {/* Header */}
+      <header
+        className="text-white print:bg-white print:text-black"
+        style={{ background: "linear-gradient(135deg, var(--hero-from), var(--hero-to))" }}
+      >
+        <div className="mx-auto max-w-3xl px-6 py-16 md:py-20">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+            {profile.avatar_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={profile.avatar_url}
+                alt={fullName}
+                className="h-28 w-28 rounded-full object-cover border-3 border-zinc-600 shadow-lg"
+              />
+            ) : (
+              <div
+                className="h-28 w-28 rounded-full flex items-center justify-center text-3xl font-bold text-white/90 shadow-lg"
+                style={{
+                  background: `linear-gradient(135deg, ${themeColors.heroFrom}, ${themeColors.heroTo})`,
+                  border: "2px solid rgba(255,255,255,0.2)",
+                }}
+              >
+                {profile.first_name[0]}
+                {profile.last_name[0]}
+              </div>
+            )}
+            <div className="flex-1 text-center sm:text-left">
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{fullName}</h1>
+              {profile.headline && (
+                <p className="mt-2 text-lg text-zinc-300 print:text-zinc-600">{profile.headline}</p>
+              )}
+              <div className="mt-4 flex flex-wrap justify-center sm:justify-start gap-4 text-sm text-zinc-400 print:text-zinc-600">
+                {profile.location && (
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="h-4 w-4" />
+                    {profile.location}
+                  </span>
+                )}
+                {profile.website_url && (
+                  <a
+                    href={ensureAbsoluteUrl(profile.website_url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 hover:text-white transition-colors print:text-zinc-600"
+                  >
+                    <Globe className="h-4 w-4" />
+                    {profile.website_url.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+                  </a>
+                )}
+              </div>
+              {pdfSettings?.show_on_profile && (
+                <div className="mt-4">
+                  <PdfDownloadButton slug={profile.slug} />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Content */}
+      <main className="mx-auto max-w-3xl px-6 py-10 md:py-14">
+        <div className="space-y-10">
+          {sections.map((section) => {
+            const sectionExperiences = sortExperiences(experiences, section.id);
+            const sectionEducations = sortEducations(educations, section.id);
+            const sectionSkills = skills.filter((s) => s.section_id === section.id);
+            const sectionCerts = certifications.filter((c) => c.section_id === section.id);
+            const sectionProjects = projects.filter((p) => p.section_id === section.id);
+            const sectionCustom = customSections.filter((c) => c.section_id === section.id);
+
+            return (
+              <section key={section.id} className="scroll-mt-8" id={section.section_type}>
+                <h2 className="text-lg font-bold tracking-tight uppercase text-zinc-900 dark:text-zinc-100 mb-5 flex items-center gap-2.5 border-b border-zinc-200 dark:border-zinc-800 pb-2">
+                  {getSectionIcon(section.section_type)}
+                  {section.title}
+                </h2>
+
+                {(section.section_type === "summary" || section.section_type === "custom") && (
+                  <div className="space-y-3">
+                    {sectionCustom.map((item) => (
+                      <p
+                        key={item.id}
+                        className="text-zinc-600 dark:text-zinc-400 leading-relaxed whitespace-pre-wrap"
+                      >
+                        {item.content}
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                {section.section_type === "experience" && (
+                  <div className="space-y-7">
+                    {sectionExperiences.map((exp) => (
+                      <div
+                        key={exp.id}
+                        className="relative pl-6 border-l-2 border-zinc-200 dark:border-zinc-700"
+                      >
+                        <div className="absolute -left-[7px] top-1.5 h-3 w-3 rounded-full bg-zinc-400 dark:bg-zinc-500" />
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1">
+                          <div>
+                            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
+                              {exp.position}
+                            </h3>
+                            <p className="text-zinc-600 dark:text-zinc-400">
+                              {exp.company_name}
+                              {exp.location && (
+                                <span className="text-zinc-400 dark:text-zinc-500">
+                                  {" "}
+                                  &middot; {exp.location}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          <span className="text-sm text-zinc-500 whitespace-nowrap">
+                            {formatDate(exp.start_date)} &ndash;{" "}
+                            {exp.is_current ? "Present" : formatDate(exp.end_date)}
+                          </span>
+                        </div>
+                        {exp.description && (
+                          <p className="mt-2.5 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed whitespace-pre-wrap">
+                            <MarkdownText>{exp.description}</MarkdownText>
+                          </p>
+                        )}
+                        {exp.highlights && exp.highlights.length > 0 && (
+                          <ul className="mt-2 space-y-1 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                            {exp.highlights.map((h: string, i: number) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-zinc-400 mt-0.5 select-none">•</span>
+                                <span>
+                                  <MarkdownText>{h}</MarkdownText>
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {section.section_type === "education" && (
+                  <div className="space-y-6">
+                    {sectionEducations.map((edu) => (
+                      <div
+                        key={edu.id}
+                        className="relative pl-6 border-l-2 border-zinc-200 dark:border-zinc-700"
+                      >
+                        <div className="absolute -left-[7px] top-1.5 h-3 w-3 rounded-full bg-zinc-400 dark:bg-zinc-500" />
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1">
+                          <div>
+                            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
+                              {edu.institution}
+                            </h3>
+                            <p className="text-zinc-600 dark:text-zinc-400">
+                              {[edu.degree, edu.field_of_study].filter(Boolean).join(" in ")}
+                              {edu.gpa && (
+                                <span className="text-zinc-400 dark:text-zinc-500">
+                                  {" "}
+                                  &middot; GPA: {edu.gpa}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          {(edu.start_date || edu.end_date) && (
+                            <span className="text-sm text-zinc-500 whitespace-nowrap">
+                              {formatDate(edu.start_date)} &ndash;{" "}
+                              {edu.is_current ? "Present" : formatDate(edu.end_date)}
+                            </span>
+                          )}
+                        </div>
+                        {edu.description && (
+                          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed whitespace-pre-wrap">
+                            {edu.description}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {section.section_type === "skills" && (
+                  <div className="space-y-4">
+                    {Array.from(groupSkillsByCategory(sectionSkills).entries()).map(
+                      ([category, categorySkills]) => (
+                        <div key={category}>
+                          {groupSkillsByCategory(sectionSkills).size > 1 && (
+                            <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">
+                              {category}
+                            </h4>
+                          )}
+                          <div className="flex flex-wrap gap-2">
+                            {categorySkills.map((skill) => (
+                              <Badge
+                                key={skill.id}
+                                variant="secondary"
+                                className="text-sm py-1 px-3"
+                              >
+                                {skill.name}
+                                {skill.proficiency && (
+                                  <span className="ml-1.5 text-zinc-400 font-normal text-xs">
+                                    {skill.proficiency}
+                                  </span>
+                                )}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+
+                {section.section_type === "certifications" && (
+                  <div className="space-y-4">
+                    {sectionCerts.map((cert) => (
+                      <div
+                        key={cert.id}
+                        className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1"
+                      >
+                        <div>
+                          <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                            {cert.name}
+                            {cert.credential_url && (
+                              <a
+                                href={ensureAbsoluteUrl(cert.credential_url)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            )}
+                          </h3>
+                          {cert.issuing_org && (
+                            <p className="text-sm text-zinc-500">{cert.issuing_org}</p>
+                          )}
+                        </div>
+                        {cert.issue_date && (
+                          <span className="text-sm text-zinc-500 whitespace-nowrap">
+                            {formatDate(cert.issue_date)}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {section.section_type === "projects" && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {sectionProjects.map((project) => (
+                      <div
+                        key={project.id}
+                        className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
+                      >
+                        <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                          {project.name}
+                          {project.url && (
+                            <a
+                              href={ensureAbsoluteUrl(project.url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                        </h3>
+                        {project.description && (
+                          <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                            {project.description}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      </main>
+    </div>
+  );
+}
