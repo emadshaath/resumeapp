@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -8,85 +9,124 @@ export async function GET(request: Request) {
   const type = searchParams.get("type");
   const redirectTo = searchParams.get("redirect_to");
 
-  const supabase = await createClient();
+  try {
+    const supabase = await createClient();
 
-  // Handle code-based exchange (OAuth, PKCE)
-  if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      if (type === "recovery") {
-        return NextResponse.redirect(`${origin}/dashboard/settings`);
-      }
-      return NextResponse.redirect(resolveRedirect(redirectTo, origin));
-    }
-  }
-
-  // Handle token_hash-based verification (email confirm, password reset, magic link, email change)
-  if (tokenHash && type) {
-    const otpType = mapOtpType(type);
-    const { error } = await supabase.auth.verifyOtp({
-      token_hash: tokenHash,
-      type: otpType,
-    });
-
-    if (!error) {
-      // Recovery -> settings page to set new password
-      if (type === "recovery") {
-        return NextResponse.redirect(`${origin}/dashboard/settings`);
-      }
-
-      // Email change -> settings page
-      if (type === "email_change") {
-        return NextResponse.redirect(`${origin}/dashboard/settings`);
-      }
-
-      // Signup/email confirmations -> create profile and send welcome email
-      if (type === "signup" || type === "email") {
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            const firstName =
-              user.user_metadata?.first_name ||
-              user.email?.split("@")[0] || "there";
-            const slug = user.user_metadata?.slug || firstName.toLowerCase();
-
-            // Ensure profile exists (fallback if trigger didn't fire)
-            const { data: existingProfile } = await supabase
-              .from("profiles")
-              .select("id")
-              .eq("id", user.id)
-              .single();
-
-            if (!existingProfile) {
-              await supabase.from("profiles").insert({
-                id: user.id,
-                slug,
-                first_name: user.user_metadata?.first_name || firstName,
-                last_name: user.user_metadata?.last_name || "",
-                email: user.email!,
-              });
-            }
-
-            const { sendWelcomeEmail } = await import("@/lib/resend/send");
-            await sendWelcomeEmail({
-              to: user.email!,
-              firstName,
-              slug,
-            });
-          }
-        } catch {
-          // Don't block the redirect if welcome email fails
+    // OAuth / PKCE flow
+    if (code) {
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (!error) {
+        if (type === "recovery") {
+          return NextResponse.redirect(`${origin}/dashboard/settings`);
         }
+        return NextResponse.redirect(resolveRedirect(redirectTo, origin));
+      }
+      return NextResponse.redirect(`${origin}/login?error=link_invalid`);
+    }
+
+    // Email link flow (signup confirm, password reset, magic link, email change)
+    if (tokenHash && type) {
+      const otpType = mapOtpType(type);
+      const { error } = await supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: otpType,
+      });
+
+      if (!error) {
+        const destination = destinationForType(type, redirectTo, origin);
+        // Run profile + welcome email after the redirect is sent so a slow
+        // Resend call never delays (or strands) the confirmation redirect.
+        if (type === "signup" || type === "email") {
+          after(finalizeSignup(supabase));
+        }
+        return NextResponse.redirect(destination);
       }
 
-      return NextResponse.redirect(resolveRedirect(redirectTo, origin));
-    }
-  }
+      // Token was rejected. Most often this is because an email scanner
+      // (Gmail, Outlook Safe Links, etc.) prefetched the link and consumed
+      // the one-time token before the user clicked. If we already have a
+      // valid session in the browser, treat this as success.
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        return NextResponse.redirect(destinationForType(type, redirectTo, origin));
+      }
 
-  return NextResponse.redirect(`${origin}/login?error=auth`);
+      const errorCode = /expired|used/i.test(error.message) ? "link_expired" : "link_invalid";
+      return NextResponse.redirect(`${origin}/login?error=${errorCode}`);
+    }
+
+    return NextResponse.redirect(`${origin}/login?error=auth`);
+  } catch {
+    // Any unexpected failure (Supabase outage, bad env, etc.) should still
+    // land the user on the login page with a message — never a blank page.
+    return NextResponse.redirect(`${origin}/login?error=auth`);
+  }
 }
 
-/** Map our custom type strings to Supabase OTP types */
+function destinationForType(
+  type: string,
+  redirectTo: string | null,
+  origin: string,
+): string {
+  if (type === "recovery" || type === "email_change") {
+    return `${origin}/dashboard/settings`;
+  }
+  return resolveRedirect(redirectTo, origin);
+}
+
+async function finalizeSignup(supabase: SupabaseClient): Promise<void> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const firstName =
+      (user.user_metadata?.first_name as string | undefined) ||
+      user.email?.split("@")[0] ||
+      "there";
+    const slug =
+      (user.user_metadata?.slug as string | undefined) ||
+      firstName.toLowerCase();
+
+    const { data: existingProfile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .single();
+
+    if (!existingProfile) {
+      await supabase.from("profiles").insert({
+        id: user.id,
+        slug,
+        first_name: (user.user_metadata?.first_name as string | undefined) || firstName,
+        last_name: (user.user_metadata?.last_name as string | undefined) || "",
+        email: user.email!,
+      });
+    }
+
+    await sendWelcomeEmailSafe(user, firstName, slug);
+  } catch {
+    // Post-response work is best-effort: the dashboard recreates the
+    // profile if it's missing, and the welcome email is non-critical.
+  }
+}
+
+async function sendWelcomeEmailSafe(
+  user: User,
+  firstName: string,
+  slug: string,
+): Promise<void> {
+  try {
+    const { sendWelcomeEmail } = await import("@/lib/resend/send");
+    await sendWelcomeEmail({
+      to: user.email!,
+      firstName,
+      slug,
+    });
+  } catch {
+    // Welcome email is best-effort.
+  }
+}
+
 function mapOtpType(type: string): "signup" | "recovery" | "magiclink" | "email" | "email_change" {
   switch (type) {
     case "signup":
@@ -104,13 +144,11 @@ function mapOtpType(type: string): "signup" | "recovery" | "magiclink" | "email"
   }
 }
 
-/** Safely resolve the redirect URL, falling back to /dashboard */
 function resolveRedirect(redirectTo: string | null, origin: string): string {
   if (!redirectTo) {
     return `${origin}/dashboard`;
   }
 
-  // Only allow redirects to our own origin for security
   try {
     const url = new URL(redirectTo);
     const originUrl = new URL(origin);
@@ -118,7 +156,6 @@ function resolveRedirect(redirectTo: string | null, origin: string): string {
       return redirectTo;
     }
   } catch {
-    // If redirectTo is a relative path, prefix with origin
     if (redirectTo.startsWith("/")) {
       return `${origin}${redirectTo}`;
     }

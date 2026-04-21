@@ -44,7 +44,7 @@ export async function updateSession(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith("/dashboard") && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    return NextResponse.redirect(url);
+    return redirectPreservingCookies(url, supabaseResponse);
   }
 
   // Redirect authenticated users away from auth pages
@@ -55,8 +55,19 @@ export async function updateSession(request: NextRequest) {
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    return redirectPreservingCookies(url, supabaseResponse);
   }
 
   return supabaseResponse;
+}
+
+// Propagate any Set-Cookie headers Supabase put on `supabaseResponse` (e.g.
+// from a silent token refresh) onto the new redirect response, so we don't
+// strand the user without their refreshed session.
+function redirectPreservingCookies(url: URL, supabaseResponse: NextResponse) {
+  const redirectResponse = NextResponse.redirect(url);
+  supabaseResponse.cookies.getAll().forEach((cookie) => {
+    redirectResponse.cookies.set(cookie);
+  });
+  return redirectResponse;
 }

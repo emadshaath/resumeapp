@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
+const LOGIN_ERROR_MESSAGES: Record<string, string> = {
+  link_expired:
+    "Your confirmation link has expired or was already used. If you've already confirmed your email, sign in below. Otherwise, sign up again to receive a new link.",
+  link_invalid:
+    "That confirmation link is invalid. If you've already confirmed your email, sign in below.",
+  auth:
+    "We couldn't confirm your email. If you've already confirmed it, sign in below — otherwise try signing up again.",
+};
+
 export default function LoginPage() {
+  const searchParams = useSearchParams();
+  const urlErrorCode = searchParams.get("error");
+  const initialError = urlErrorCode ? LOGIN_ERROR_MESSAGES[urlErrorCode] ?? null : null;
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
