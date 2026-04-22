@@ -114,7 +114,14 @@ export default function ProfileEditorPage() {
     setError(null);
     setSuccess(false);
 
-    if (!isValidSlug(profile.slug)) {
+    // Normalize slug at submit time — typing leaves it raw so selection/caret
+    // behave correctly; slugify only runs on blur and here.
+    const normalizedSlug = slugify(profile.slug);
+    if (normalizedSlug !== profile.slug) {
+      patchProfile({ slug: normalizedSlug });
+    }
+
+    if (!isValidSlug(normalizedSlug)) {
       setError("Invalid profile URL. Use 3-63 lowercase letters, numbers, and hyphens.");
       setSaving(false);
       return;
@@ -125,7 +132,7 @@ export default function ProfileEditorPage() {
       .update({
         first_name: profile.first_name,
         last_name: profile.last_name,
-        slug: profile.slug,
+        slug: normalizedSlug,
         headline: profile.headline,
         location: profile.location,
         website_url: profile.website_url,
@@ -368,7 +375,8 @@ export default function ProfileEditorPage() {
                 <div className="flex items-center gap-2">
                   <Input
                     value={profile.slug}
-                    onChange={(e) => patchProfile({ slug: slugify(e.target.value) })}
+                    onChange={(e) => patchProfile({ slug: e.target.value })}
+                    onBlur={(e) => patchProfile({ slug: slugify(e.target.value) })}
                     required
                     className="max-w-xs font-mono"
                   />
