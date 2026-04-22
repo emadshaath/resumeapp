@@ -33,7 +33,6 @@ import {
 import type { ResumeSection, SectionType, Tier } from "@/types/database";
 import { SectionContentEditor } from "@/components/dashboard/section-editor";
 import { ImportResumeDialog } from "@/components/dashboard/import-resume-dialog";
-import { PdfResumeDrawer } from "@/components/dashboard/pdf-resume-drawer";
 import { AIReviewDrawer } from "@/components/dashboard/ai-review-drawer";
 import { VersionHistoryDrawer } from "@/components/dashboard/version-history-drawer";
 import { LinkedInAnalyzerDrawer } from "@/components/dashboard/linkedin-analyzer-drawer";
@@ -60,7 +59,6 @@ export default function SectionsPage() {
 
   // Drawer/dialog state
   const [importOpen, setImportOpen] = useState(false);
-  const [pdfOpen, setPdfOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [linkedinOpen, setLinkedinOpen] = useState(false);
@@ -69,11 +67,11 @@ export default function SectionsPage() {
   useEffect(() => {
     const param = searchParams.get("open");
     if (param === "import") setImportOpen(true);
-    else if (param === "pdf") setPdfOpen(true);
+    else if (param === "pdf") router.replace("/dashboard/pdf");
     else if (param === "review") setReviewOpen(true);
     else if (param === "history") setHistoryOpen(true);
     else if (param === "linkedin") setLinkedinOpen(true);
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   const loadSections = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -192,9 +190,9 @@ export default function SectionsPage() {
           <span className="hidden sm:inline">AI Review</span>
           <span className="sm:hidden">Review</span>
         </Button>
-        <Button variant="outline" size="sm" onClick={() => setPdfOpen(true)}>
+        <Button variant="outline" size="sm" onClick={() => router.push("/dashboard/pdf")}>
           <Download className="h-4 w-4 mr-1" />
-          <span className="hidden sm:inline">Download PDF</span>
+          <span className="hidden sm:inline">PDF Studio</span>
           <span className="sm:hidden">PDF</span>
         </Button>
         <Button variant="outline" size="sm" onClick={() => setLinkedinOpen(true)}>
@@ -337,7 +335,6 @@ export default function SectionsPage() {
         onOpenChange={setImportOpen}
         onImportComplete={loadSections}
       />
-      <PdfResumeDrawer open={pdfOpen} onClose={() => setPdfOpen(false)} />
       <AIReviewDrawer open={reviewOpen} onClose={() => setReviewOpen(false)} onSectionUpdate={loadSections} userTier={userTier} />
       <LinkedInAnalyzerDrawer
         open={linkedinOpen}

@@ -1,36 +1,39 @@
 import React from "react";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
-import type { PdfColorPalette, ResumeData } from "../types";
+import type { PdfColorPalette, PdfFontConfig, ResumeData } from "../types";
 import { formatDateRange, groupSkillsByCategory } from "../utils";
 
-function createStyles(c: PdfColorPalette) {
+function createStyles(c: PdfColorPalette, f: PdfFontConfig) {
+  const s = f.fontScale;
+  const sp = f.spacingScale;
+  const lh = f.lineHeight;
   return StyleSheet.create({
-    page: { flexDirection: "row", fontFamily: "Helvetica", fontSize: 10, backgroundColor: c.background },
-    sidebar: { width: 180, backgroundColor: c.sidebarBg, padding: 24, paddingTop: 36, color: c.sidebarText },
-    main: { flex: 1, padding: 32, paddingTop: 36, color: c.text },
-    sidebarName: { fontSize: 16, fontWeight: "bold", color: c.sidebarHeading, marginBottom: 4 },
-    sidebarHeadline: { fontSize: 9, color: c.sidebarText, marginBottom: 16, lineHeight: 1.4 },
-    sidebarSection: { marginBottom: 14 },
-    sidebarSectionTitle: { fontSize: 9, fontWeight: "bold", color: c.sidebarHeading, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6, borderBottomWidth: 1, borderBottomColor: c.primaryLight, paddingBottom: 3 },
-    sidebarItem: { fontSize: 8.5, color: c.sidebarText, marginBottom: 3, lineHeight: 1.4 },
-    sidebarSkillName: { fontSize: 8.5, color: c.sidebarHeading, marginBottom: 2 },
-    sidebarSkillCategory: { fontSize: 8, fontWeight: "bold", color: c.sidebarHeading, marginTop: 4, marginBottom: 2 },
-    sectionTitle: { fontSize: 12, fontWeight: "bold", color: c.heading, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, borderBottomWidth: 1.5, borderBottomColor: c.primary, paddingBottom: 4 },
-    section: { marginBottom: 14 },
-    entryHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 2 },
-    entryTitle: { fontSize: 11, fontWeight: "bold", color: c.heading },
-    entrySubtitle: { fontSize: 9.5, color: c.textLight },
-    entryDate: { fontSize: 8.5, color: c.textLight },
-    entryDescription: { fontSize: 9.5, color: c.text, marginTop: 3, lineHeight: 1.5 },
-    highlight: { fontSize: 9.5, color: c.text, marginLeft: 10, marginTop: 2, lineHeight: 1.4 },
-    entrySpacing: { marginBottom: 10 },
-    projectGrid: { marginBottom: 8 },
-    techList: { fontSize: 8.5, color: c.accent, marginTop: 2 },
+    page: { flexDirection: "row", fontFamily: f.fontFamily, fontSize: 10 * s, backgroundColor: c.background, lineHeight: lh },
+    sidebar: { width: 180, backgroundColor: c.sidebarBg, padding: 24 * sp, paddingTop: 36 * sp, color: c.sidebarText },
+    main: { flex: 1, padding: 32 * sp, paddingTop: 36 * sp, color: c.text },
+    sidebarName: { fontSize: 16 * s, fontWeight: "bold", color: c.sidebarHeading, marginBottom: 4 * sp },
+    sidebarHeadline: { fontSize: 9 * s, color: c.sidebarText, marginBottom: 16 * sp, lineHeight: lh },
+    sidebarSection: { marginBottom: 14 * sp },
+    sidebarSectionTitle: { fontSize: 9 * s, fontWeight: "bold", color: c.sidebarHeading, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6 * sp, borderBottomWidth: 1, borderBottomColor: c.primaryLight, paddingBottom: 3 * sp },
+    sidebarItem: { fontSize: 8.5 * s, color: c.sidebarText, marginBottom: 3 * sp, lineHeight: lh },
+    sidebarSkillName: { fontSize: 8.5 * s, color: c.sidebarHeading, marginBottom: 2 * sp },
+    sidebarSkillCategory: { fontSize: 8 * s, fontWeight: "bold", color: c.sidebarHeading, marginTop: 4 * sp, marginBottom: 2 * sp },
+    sectionTitle: { fontSize: 12 * s, fontWeight: "bold", color: c.heading, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 * sp, borderBottomWidth: 1.5, borderBottomColor: c.primary, paddingBottom: 4 * sp },
+    section: { marginBottom: 14 * sp },
+    entryHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 2 * sp },
+    entryTitle: { fontSize: 11 * s, fontWeight: "bold", color: c.heading },
+    entrySubtitle: { fontSize: 9.5 * s, color: c.textLight },
+    entryDate: { fontSize: 8.5 * s, color: c.textLight },
+    entryDescription: { fontSize: 9.5 * s, color: c.text, marginTop: 3 * sp, lineHeight: lh },
+    highlight: { fontSize: 9.5 * s, color: c.text, marginLeft: 10 * sp, marginTop: 2 * sp, lineHeight: lh },
+    entrySpacing: { marginBottom: 10 * sp },
+    projectGrid: { marginBottom: 8 * sp },
+    techList: { fontSize: 8.5 * s, color: c.accent, marginTop: 2 * sp },
   });
 }
 
-export function ModernLayout({ data, palette }: { data: ResumeData; palette: PdfColorPalette }) {
-  const s = createStyles(palette);
+export function ModernLayout({ data, palette, font }: { data: ResumeData; palette: PdfColorPalette; font: PdfFontConfig }) {
+  const s = createStyles(palette, font);
   const { profile, sections, experiences, educations, skills, certifications, projects, customSections } = data;
 
   // Determine sidebar content: contact info, skills, certifications

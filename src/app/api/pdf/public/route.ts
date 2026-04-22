@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
 import { renderResumePdf } from "@/lib/pdf/render";
-import type { PdfLayout, PdfColorTheme, PdfSettings } from "@/lib/pdf/types";
+import type { PdfLayout, PdfColorTheme, PdfSettings, PdfFontConfig, PdfFontFamily } from "@/lib/pdf/types";
+import { DEFAULT_FONT_CONFIG } from "@/lib/pdf/types";
 
 // GET /api/pdf/public?slug=john-doe — Generates a PDF for a published profile
 export async function GET(req: NextRequest) {
@@ -38,8 +39,14 @@ export async function GET(req: NextRequest) {
 
   const layout = settings.layout as PdfLayout;
   const colorTheme = settings.color_theme as PdfColorTheme;
+  const fontConfig: PdfFontConfig = {
+    fontFamily: (settings.font_family as PdfFontFamily) || DEFAULT_FONT_CONFIG.fontFamily,
+    fontScale: settings.font_scale ?? DEFAULT_FONT_CONFIG.fontScale,
+    lineHeight: settings.line_height ?? DEFAULT_FONT_CONFIG.lineHeight,
+    spacingScale: settings.spacing_scale ?? DEFAULT_FONT_CONFIG.spacingScale,
+  };
 
-  const pdfBuffer = await renderResumePdf(data, layout, colorTheme);
+  const pdfBuffer = await renderResumePdf(data, layout, colorTheme, fontConfig);
   const fileName = `${profile.first_name}_${profile.last_name}_Resume.pdf`;
 
   return new NextResponse(pdfBuffer as unknown as BodyInit, {

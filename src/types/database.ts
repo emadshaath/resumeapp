@@ -266,6 +266,10 @@ export interface PdfSettings {
   layout: "classic" | "modern" | "minimal" | "executive";
   color_theme: "navy" | "teal" | "charcoal";
   show_on_profile: boolean;
+  font_family: "Helvetica" | "Times-Roman" | "Courier" | "Inter" | "Merriweather" | "Source Sans Pro";
+  font_scale: number;
+  line_height: number;
+  spacing_scale: number;
   created_at: string;
   updated_at: string;
 }

@@ -3,6 +3,90 @@ import type { Profile, Experience, Education, Skill, Certification, Project, Cus
 export type PdfLayout = "classic" | "modern" | "minimal" | "executive";
 export type PdfColorTheme = "navy" | "teal" | "charcoal";
 
+export type PdfFontFamily =
+  | "Helvetica"
+  | "Times-Roman"
+  | "Courier"
+  | "Inter"
+  | "Merriweather"
+  | "Source Sans Pro";
+
+export interface PdfFontConfig {
+  fontFamily: PdfFontFamily;
+  fontScale: number;    // 0.80 – 1.25  (multiplies every fontSize)
+  lineHeight: number;   // 1.15 – 1.85
+  spacingScale: number; // 0.80 – 1.30  (multiplies page padding + section margins)
+}
+
+export const DEFAULT_FONT_CONFIG: PdfFontConfig = {
+  fontFamily: "Helvetica",
+  fontScale: 1.0,
+  lineHeight: 1.45,
+  spacingScale: 1.0,
+};
+
+export const FONT_OPTIONS: Record<PdfFontFamily, {
+  label: string;
+  flavor: "sans" | "serif" | "mono";
+  description: string;
+  webFamily: string; // CSS font-family used for UI/preview labels
+}> = {
+  "Helvetica": {
+    label: "Helvetica",
+    flavor: "sans",
+    description: "Clean, versatile sans-serif",
+    webFamily: "Helvetica, Arial, ui-sans-serif, system-ui, sans-serif",
+  },
+  "Times-Roman": {
+    label: "Times Roman",
+    flavor: "serif",
+    description: "Classic editorial serif",
+    webFamily: "'Times New Roman', Times, ui-serif, Georgia, serif",
+  },
+  "Courier": {
+    label: "Courier",
+    flavor: "mono",
+    description: "Technical monospace",
+    webFamily: "'Courier New', Courier, ui-monospace, monospace",
+  },
+  "Inter": {
+    label: "Inter",
+    flavor: "sans",
+    description: "Modern geometric sans",
+    webFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+  },
+  "Merriweather": {
+    label: "Merriweather",
+    flavor: "serif",
+    description: "Elegant, readable serif",
+    webFamily: "Merriweather, Georgia, ui-serif, serif",
+  },
+  "Source Sans Pro": {
+    label: "Source Sans Pro",
+    flavor: "sans",
+    description: "Friendly humanist sans",
+    webFamily: "'Source Sans Pro', ui-sans-serif, system-ui, sans-serif",
+  },
+};
+
+export const FONT_PRESETS: Record<string, { label: string; description: string; config: Omit<PdfFontConfig, "fontFamily"> }> = {
+  compact: {
+    label: "Compact",
+    description: "Fits more on one page",
+    config: { fontScale: 0.90, lineHeight: 1.3, spacingScale: 0.85 },
+  },
+  comfortable: {
+    label: "Comfortable",
+    description: "Balanced default",
+    config: { fontScale: 1.0, lineHeight: 1.45, spacingScale: 1.0 },
+  },
+  spacious: {
+    label: "Spacious",
+    description: "Airy and easy to read",
+    config: { fontScale: 1.08, lineHeight: 1.65, spacingScale: 1.20 },
+  },
+};
+
 export interface PdfColorPalette {
   primary: string;
   primaryLight: string;
