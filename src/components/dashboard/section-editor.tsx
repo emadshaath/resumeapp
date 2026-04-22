@@ -23,7 +23,7 @@ function AISuggestButton({ section }: { section: ResumeSection }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
 
   async function getSuggestions() {
     setLoading(true);
@@ -178,7 +178,7 @@ export function SectionContentEditor({ section, onUpdate }: SectionContentEditor
 function SummaryEditor({ section, onUpdate }: SectionContentEditorProps) {
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
 
   useEffect(() => {
     supabase
@@ -231,7 +231,7 @@ function SummaryEditor({ section, onUpdate }: SectionContentEditorProps) {
 function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
   const [items, setItems] = useState<Experience[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -258,12 +258,12 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
       })
       .select()
       .single();
-    if (data) { setItems([...items, data as Experience]); }
+    if (data) { setItems((prev) => [...prev, data as Experience]); }
   }
 
-  async function updateItem(id: string, updates: Partial<Experience>) {
-    await supabase.from("experiences").update(updates).eq("id", id);
-    setItems(items.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+  function updateItem(id: string, updates: Partial<Experience>) {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+    supabase.from("experiences").update(updates).eq("id", id);
   }
 
   async function moveItem(id: string, direction: "up" | "down") {
@@ -425,7 +425,7 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
 function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
   const [items, setItems] = useState<Education[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -450,12 +450,12 @@ function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
       })
       .select()
       .single();
-    if (data) setItems([...items, data as Education]);
+    if (data) setItems((prev) => [...prev, data as Education]);
   }
 
-  async function updateItem(id: string, updates: Partial<Education>) {
-    await supabase.from("educations").update(updates).eq("id", id);
-    setItems(items.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+  function updateItem(id: string, updates: Partial<Education>) {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+    supabase.from("educations").update(updates).eq("id", id);
   }
 
   async function moveItem(id: string, direction: "up" | "down") {
@@ -565,7 +565,7 @@ function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
 function SkillsEditor({ section, onUpdate }: SectionContentEditorProps) {
   const [items, setItems] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -590,12 +590,12 @@ function SkillsEditor({ section, onUpdate }: SectionContentEditorProps) {
       })
       .select()
       .single();
-    if (data) setItems([...items, data as Skill]);
+    if (data) setItems((prev) => [...prev, data as Skill]);
   }
 
-  async function updateItem(id: string, updates: Partial<Skill>) {
-    await supabase.from("skills").update(updates).eq("id", id);
-    setItems(items.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+  function updateItem(id: string, updates: Partial<Skill>) {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+    supabase.from("skills").update(updates).eq("id", id);
   }
 
   async function moveItem(id: string, direction: "up" | "down") {
@@ -671,7 +671,7 @@ function SkillsEditor({ section, onUpdate }: SectionContentEditorProps) {
 function CertificationsEditor({ section, onUpdate }: SectionContentEditorProps) {
   const [items, setItems] = useState<Certification[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -696,12 +696,12 @@ function CertificationsEditor({ section, onUpdate }: SectionContentEditorProps) 
       })
       .select()
       .single();
-    if (data) setItems([...items, data as Certification]);
+    if (data) setItems((prev) => [...prev, data as Certification]);
   }
 
-  async function updateItem(id: string, updates: Partial<Certification>) {
-    await supabase.from("certifications").update(updates).eq("id", id);
-    setItems(items.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+  function updateItem(id: string, updates: Partial<Certification>) {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+    supabase.from("certifications").update(updates).eq("id", id);
   }
 
   async function moveItem(id: string, direction: "up" | "down") {
@@ -793,7 +793,7 @@ function CertificationsEditor({ section, onUpdate }: SectionContentEditorProps) 
 function ProjectsEditor({ section, onUpdate }: SectionContentEditorProps) {
   const [items, setItems] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -818,12 +818,12 @@ function ProjectsEditor({ section, onUpdate }: SectionContentEditorProps) {
       })
       .select()
       .single();
-    if (data) setItems([...items, data as Project]);
+    if (data) setItems((prev) => [...prev, data as Project]);
   }
 
-  async function updateItem(id: string, updates: Partial<Project>) {
-    await supabase.from("projects").update(updates).eq("id", id);
-    setItems(items.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+  function updateItem(id: string, updates: Partial<Project>) {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+    supabase.from("projects").update(updates).eq("id", id);
   }
 
   async function moveItem(id: string, direction: "up" | "down") {

@@ -277,12 +277,13 @@ function fillSelect(select, fields) {
 }
 
 function selectBestOption(select, targetValue) {
-  const target = targetValue.toLowerCase();
-  const options = Array.from(select.options);
+  const normalize = (s) => s.toLowerCase().replace(/[\s\u00a0]+/g, " ").trim();
+  const target = normalize(targetValue);
+  const options = Array.from(select.options).filter((o) => o.value !== "" && !o.disabled);
 
-  // Exact match
+  // Exact match (normalized)
   for (const opt of options) {
-    if (opt.value.toLowerCase() === target || opt.text.toLowerCase() === target) {
+    if (normalize(opt.value) === target || normalize(opt.text) === target) {
       select.value = opt.value;
       triggerEvents(select);
       highlightElement(select);
@@ -290,16 +291,35 @@ function selectBestOption(select, targetValue) {
     }
   }
 
-  // Partial match
+  // Partial/substring match
   for (const opt of options) {
-    if (
-      opt.value.toLowerCase().includes(target) ||
-      opt.text.toLowerCase().includes(target) ||
-      target.includes(opt.value.toLowerCase()) ||
-      target.includes(opt.text.toLowerCase())
-    ) {
-      if (opt.value === "" || opt.disabled) continue;
+    const optText = normalize(opt.text);
+    const optVal = normalize(opt.value);
+    if (optVal.includes(target) || optText.includes(target) ||
+        target.includes(optVal) || target.includes(optText)) {
       select.value = opt.value;
+      triggerEvents(select);
+      highlightElement(select);
+      return true;
+    }
+  }
+
+  // Word overlap fallback — pick option with highest word overlap
+  const targetWords = target.split(/\s+/).filter((w) => w.length > 2);
+  if (targetWords.length > 0) {
+    let bestOpt = null;
+    let bestScore = 0;
+    for (const opt of options) {
+      const optWords = normalize(opt.text).split(/\s+/);
+      const overlap = targetWords.filter((w) => optWords.some((ow) => ow.includes(w) || w.includes(ow))).length;
+      const score = overlap / targetWords.length;
+      if (score > bestScore && score >= 0.4) {
+        bestScore = score;
+        bestOpt = opt;
+      }
+    }
+    if (bestOpt) {
+      select.value = bestOpt.value;
       triggerEvents(select);
       highlightElement(select);
       return true;
