@@ -5,7 +5,7 @@ import { renderResumePdf } from "@/lib/pdf/render";
 import { applyVariantToResume } from "@/lib/tailor";
 import type { PdfLayout, PdfColorTheme, PdfFontFamily, PdfFontConfig } from "@/lib/pdf/types";
 import { DEFAULT_FONT_CONFIG, FONT_OPTIONS } from "@/lib/pdf/types";
-import type { VariantData } from "@/types/database";
+import type { VariantData, PdfSettingsSnapshot } from "@/types/database";
 
 const VALID_LAYOUTS: PdfLayout[] = ["classic", "modern", "minimal", "executive"];
 const VALID_THEMES: PdfColorTheme[] = ["navy", "teal", "charcoal"];
@@ -16,7 +16,12 @@ function clamp(n: number, min: number, max: number) {
 }
 
 // GET /api/autofill/resume.pdf?variant=<id> — Generates a PDF resume, optionally tailored.
-// Query params override saved settings for one-off previews.
+//
+// Styling resolution order (highest precedence first):
+//   1. Explicit query params (for live preview overrides from the PDF Studio)
+//   2. Variant's frozen pdf_settings_snapshot (when ?variant=<id> is supplied)
+//   3. User's current pdf_settings row
+//   4. Hard-coded defaults
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -31,52 +36,60 @@ export async function GET(req: NextRequest) {
   const spacingScaleParam = searchParams.get("spacingScale");
   const variantId = searchParams.get("variant");
 
-  // Load saved settings as defaults
+  // Load user's current saved settings (baseline for the base resume, or
+  // fallback for legacy variants created before pdf_settings_snapshot existed).
   const { data: saved } = await supabase
     .from("pdf_settings")
-    .select("*")
+    .select("layout, color_theme, font_family, font_scale, line_height, spacing_scale")
     .eq("profile_id", user.id)
     .single();
 
+  // If this is a variant download, load the variant (incl. its frozen snapshot).
+  type VariantRow = { variant_data: VariantData; pdf_settings_snapshot: PdfSettingsSnapshot | null };
+  let variantRow: VariantRow | null = null;
+  if (variantId) {
+    const { data } = await supabase
+      .from("profile_variants")
+      .select("variant_data, pdf_settings_snapshot")
+      .eq("id", variantId)
+      .eq("profile_id", user.id)
+      .single();
+    if (data) variantRow = data as unknown as VariantRow;
+  }
+
+  // Styling baseline: variant snapshot > user's saved settings > defaults.
+  const baseline = variantRow?.pdf_settings_snapshot ?? saved ?? null;
+
   const layout: PdfLayout = (layoutParam && VALID_LAYOUTS.includes(layoutParam))
     ? layoutParam
-    : ((saved?.layout as PdfLayout) || "classic");
+    : ((baseline?.layout as PdfLayout) || "classic");
 
   const colorTheme: PdfColorTheme = (themeParam && VALID_THEMES.includes(themeParam))
     ? themeParam
-    : ((saved?.color_theme as PdfColorTheme) || "navy");
+    : ((baseline?.color_theme as PdfColorTheme) || "navy");
 
   const fontFamily: PdfFontFamily = (fontParam && VALID_FONTS.includes(fontParam))
     ? fontParam
-    : ((saved?.font_family as PdfFontFamily) || DEFAULT_FONT_CONFIG.fontFamily);
+    : ((baseline?.font_family as PdfFontFamily) || DEFAULT_FONT_CONFIG.fontFamily);
 
   const fontConfig: PdfFontConfig = {
     fontFamily,
     fontScale: fontScaleParam != null
       ? clamp(parseFloat(fontScaleParam), 0.8, 1.25)
-      : (saved?.font_scale ?? DEFAULT_FONT_CONFIG.fontScale),
+      : (baseline?.font_scale ?? DEFAULT_FONT_CONFIG.fontScale),
     lineHeight: lineHeightParam != null
       ? clamp(parseFloat(lineHeightParam), 1.15, 1.85)
-      : (saved?.line_height ?? DEFAULT_FONT_CONFIG.lineHeight),
+      : (baseline?.line_height ?? DEFAULT_FONT_CONFIG.lineHeight),
     spacingScale: spacingScaleParam != null
       ? clamp(parseFloat(spacingScaleParam), 0.8, 1.3)
-      : (saved?.spacing_scale ?? DEFAULT_FONT_CONFIG.spacingScale),
+      : (baseline?.spacing_scale ?? DEFAULT_FONT_CONFIG.spacingScale),
   };
 
   let data = await fetchResumeData(supabase, user.id);
   if (!data) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
-  if (variantId) {
-    const { data: variant } = await supabase
-      .from("profile_variants")
-      .select("variant_data")
-      .eq("id", variantId)
-      .eq("profile_id", user.id)
-      .single();
-
-    if (variant?.variant_data) {
-      data = applyVariantToResume(data, variant.variant_data as VariantData);
-    }
+  if (variantRow?.variant_data) {
+    data = applyVariantToResume(data, variantRow.variant_data);
   }
 
   const pdfBuffer = await renderResumePdf(data, layout, colorTheme, fontConfig);

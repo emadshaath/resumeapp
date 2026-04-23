@@ -302,6 +302,15 @@ export interface VariantData {
   top_priorities: string[];
 }
 
+export interface PdfSettingsSnapshot {
+  layout: "classic" | "modern" | "minimal" | "executive";
+  color_theme: "navy" | "teal" | "charcoal";
+  font_family: "Helvetica" | "Times-Roman" | "Courier" | "Inter" | "Merriweather" | "Source Sans Pro";
+  font_scale: number;
+  line_height: number;
+  spacing_scale: number;
+}
+
 export interface ProfileVariant {
   id: string;
   profile_id: string;
@@ -312,6 +321,7 @@ export interface ProfileVariant {
   match_score: number | null;
   source: "ai" | "manual";
   is_default: boolean;
+  pdf_settings_snapshot: PdfSettingsSnapshot | null;
   created_at: string;
   updated_at: string;
 }

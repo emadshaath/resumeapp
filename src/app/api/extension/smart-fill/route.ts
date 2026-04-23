@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
+import { snapshotPdfSettings } from "@/lib/pdf/snapshot";
 import { generateTailoredVariant, applyVariantToResume } from "@/lib/tailor";
 import { hasFeature, getLimit, getRequiredTier, getEffectiveTier } from "@/lib/stripe/feature-gate";
 import { sanitizeJobDescription } from "@/lib/jobs/sanitize-description";
@@ -216,8 +217,9 @@ export async function POST(req: NextRequest) {
       parsedJob
     );
 
-    // Step 5: Save variant with frozen resolved_resume
+    // Step 5: Save variant with frozen resolved_resume + styling snapshot
     const resolvedResume = applyVariantToResume(resumeData, variant_data);
+    const pdfSettingsSnapshot = await snapshotPdfSettings(supabase, user.id);
     const variantName = `${company_name} — ${job_title}`;
     const { data: savedVariant, error: variantError } = await supabase
       .from("profile_variants")
@@ -229,6 +231,7 @@ export async function POST(req: NextRequest) {
         match_score,
         job_application_id: jobId,
         source: "ai",
+        pdf_settings_snapshot: pdfSettingsSnapshot,
       })
       .select("id")
       .single();
