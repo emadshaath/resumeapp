@@ -171,7 +171,7 @@ export function ResumeBuilder({
   }
 
   return (
-    <div className="-mx-4 sm:-mx-6 -my-6 sm:-my-8 flex min-h-[calc(100vh-0px)] flex-col bg-zinc-50 dark:bg-zinc-950">
+    <div className="flex h-screen flex-col bg-zinc-50 dark:bg-zinc-950">
       <BuilderHeader
         saving={saving}
         saved={saved}
