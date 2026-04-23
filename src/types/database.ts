@@ -270,6 +270,54 @@ export interface PdfSettings {
   font_scale: number;
   line_height: number;
   spacing_scale: number;
+  page_template: "single-column" | "sidebar-left";
+  sidebar_width: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type BlockType =
+  | "header"
+  | "summary"
+  | "experience"
+  | "education"
+  | "skills"
+  | "certifications"
+  | "projects"
+  | "custom"
+  | "divider"
+  | "spacer";
+
+export type BlockZone = "header" | "main" | "sidebar";
+
+export type PageTemplate = "single-column" | "sidebar-left";
+
+/**
+ * Per-block visual overrides stored in resume_blocks.style (JSONB).
+ * All keys are optional; renderers fall back to their own defaults.
+ */
+export interface BlockStyle {
+  // Override the section title shown by this block (falls back to resume_sections.title).
+  title_override?: string;
+  // Display flavor for list-style blocks (experience, education, etc.).
+  compact?: boolean;
+  // Toggle date display on experience/education/certifications blocks.
+  show_dates?: boolean;
+  // Accent emphasis: none | primary | muted.
+  accent?: "none" | "primary" | "muted";
+  // Visual-only block content (divider, spacer, inline custom-text).
+  text?: string;
+  height?: number;
+}
+
+export interface ResumeBlock {
+  id: string;
+  profile_id: string;
+  type: BlockType;
+  zone: BlockZone;
+  display_order: number;
+  source_section_id: string | null;
+  style: BlockStyle;
   created_at: string;
   updated_at: string;
 }
