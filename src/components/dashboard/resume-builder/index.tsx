@@ -28,6 +28,8 @@ import { LinkedInAnalyzerDrawer } from "@/components/dashboard/linkedin-analyzer
 import { BuilderHeader, type BuilderView } from "./builder-header";
 import { SectionList } from "./section-list";
 import { StylePanel } from "./style-panel";
+import { BlockCanvas } from "./block-canvas";
+import { BlockProperties } from "./block-properties";
 import {
   styleStateFromSettings,
   styleFingerprint,
@@ -82,10 +84,17 @@ export function ResumeBuilder({
   // Content
   const [sections, setSections] = useState<ResumeSection[]>(initialSections);
   const [data, setData] = useState<ResumeData>(initialData);
-  const [blocks] = useState<ResumeBlock[]>(initialBlocks);
+  const [blocks, setBlocks] = useState<ResumeBlock[]>(initialBlocks);
 
   // Style
   const [style, setStyle] = useState<StyleState>(() => styleStateFromSettings(initialSettings));
+
+  // Center-pane mode + selection. "design" shows the interactive canvas (the
+  // default); "preview" swaps to the actual PDF iframe so the user can verify
+  // before downloading.
+  const [centerMode, setCenterMode] = useState<"design" | "preview">("design");
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const selectedBlock = blocks.find((b) => b.id === selectedBlockId) ?? null;
 
   // Drawer state (kept on the shell so the header bar can trigger them)
   const [importOpen, setImportOpen] = useState(false);
@@ -127,6 +136,23 @@ export function ResumeBuilder({
     /* eslint-enable react-hooks/set-state-in-effect */
     // ?open=pdf is now a no-op — PDF settings are the right rail of this page.
   }, [searchParams]);
+
+  // Patch a single block's fields locally + persist via API. Optimistic so
+  // the canvas reflects the change before the server confirms.
+  const patchBlock = useCallback(async (id: string, patch: Partial<ResumeBlock>) => {
+    setBlocks((cur) => cur.map((b) => (b.id === id ? { ...b, ...patch } as ResumeBlock : b)));
+    await fetch(`/api/resume/blocks/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+  }, []);
+
+  const deleteBlock = useCallback(async (id: string) => {
+    setBlocks((cur) => cur.filter((b) => b.id !== id));
+    if (selectedBlockId === id) setSelectedBlockId(null);
+    await fetch(`/api/resume/blocks/${id}`, { method: "DELETE" });
+  }, [selectedBlockId]);
 
   // Re-fetch the full ResumeData after a content mutation so the live preview
   // reflects the change. Sections also refetched for left-rail ordering /
@@ -204,29 +230,76 @@ export function ResumeBuilder({
           />
         </aside>
 
-        {/* Center: live PDF preview */}
+        {/* Center: design canvas (default) or PDF preview iframe (toggle). */}
         <section
           className={`relative flex-1 bg-zinc-100 dark:bg-zinc-900 ${
             view === "preview" ? "block" : "hidden"
           } lg:block`}
         >
+          {/* Mode toggle floats over the canvas */}
+          <div className="absolute right-3 top-3 z-20 inline-flex rounded-md border border-zinc-300 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-950">
+            <button
+              type="button"
+              onClick={() => setCenterMode("design")}
+              className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                centerMode === "design"
+                  ? "bg-brand text-brand-foreground"
+                  : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              }`}
+            >
+              Design
+            </button>
+            <button
+              type="button"
+              onClick={() => setCenterMode("preview")}
+              className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                centerMode === "preview"
+                  ? "bg-brand text-brand-foreground"
+                  : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              }`}
+            >
+              Preview
+            </button>
+          </div>
+
           <div className="h-[calc(100vh-50px)] w-full">
-            <PdfLivePreview
-              data={data}
-              layout={style.layout}
-              colorTheme={style.colorTheme}
-              fontConfig={style.fontConfig}
-              blocks={blocks}
-              pageTemplate={style.pageTemplate}
-              sidebarWidth={style.sidebarWidth}
-            />
+            {centerMode === "design" ? (
+              <BlockCanvas
+                data={data}
+                blocks={blocks}
+                style={style}
+                selectedBlockId={selectedBlockId}
+                onSelectBlock={setSelectedBlockId}
+              />
+            ) : (
+              <PdfLivePreview
+                data={data}
+                layout={style.layout}
+                colorTheme={style.colorTheme}
+                fontConfig={style.fontConfig}
+                blocks={blocks}
+                pageTemplate={style.pageTemplate}
+                sidebarWidth={style.sidebarWidth}
+              />
+            )}
           </div>
         </section>
 
-        {/* Right: style controls. Desktop-only for now; mobile shows them under
-            the Preview view in a later commit when we have more vertical room. */}
+        {/* Right: contextual rail. When a block is selected the panel switches
+            into block-properties mode; otherwise styling controls. */}
         <aside className="hidden w-full shrink-0 border-zinc-200 bg-white lg:block lg:h-[calc(100vh-50px)] lg:w-[340px] lg:border-l dark:border-zinc-800 dark:bg-zinc-950">
-          <StylePanel value={style} onChange={(p) => setStyle((cur) => ({ ...cur, ...p }))} />
+          {selectedBlock ? (
+            <BlockProperties
+              key={selectedBlock.id}
+              block={selectedBlock}
+              pageTemplateHasSidebar={style.pageTemplate === "sidebar-left"}
+              onPatch={(patch) => patchBlock(selectedBlock.id, patch)}
+              onDelete={() => deleteBlock(selectedBlock.id)}
+              onClose={() => setSelectedBlockId(null)}
+            />
+          ) : (
+            <StylePanel value={style} onChange={(p) => setStyle((cur) => ({ ...cur, ...p }))} />
+          )}
         </aside>
       </div>
 
