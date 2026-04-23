@@ -1,6 +1,6 @@
 import type { Profile, Experience, Education, Skill, Certification, Project, CustomSection, ResumeSection } from "@/types/database";
 
-export type PdfLayout = "classic" | "modern" | "minimal" | "executive";
+export type PdfLayout = "classic" | "modern" | "minimal" | "executive" | "custom";
 export type PdfColorTheme = "navy" | "teal" | "charcoal";
 
 export type PdfFontFamily =
@@ -168,6 +168,10 @@ export const LAYOUT_OPTIONS: Record<PdfLayout, { label: string; description: str
   executive: {
     label: "Executive",
     description: "Bold header with structured sections and accent bars",
+  },
+  custom: {
+    label: "Custom",
+    description: "Block-based layout you arrange yourself in the builder",
   },
 };
 

@@ -4,6 +4,7 @@ import { useDeferredValue, useMemo } from "react";
 import { PDFViewer } from "@react-pdf/renderer";
 import { buildResumeDocument } from "@/lib/pdf/render";
 import type { PdfLayout, PdfColorTheme, PdfFontConfig, ResumeData } from "@/lib/pdf/types";
+import type { ResumeBlock, PageTemplate } from "@/types/database";
 import "@/lib/pdf/fonts";
 
 interface PdfLivePreviewProps {
@@ -11,6 +12,9 @@ interface PdfLivePreviewProps {
   layout: PdfLayout;
   colorTheme: PdfColorTheme;
   fontConfig: PdfFontConfig;
+  blocks: ResumeBlock[];
+  pageTemplate: PageTemplate;
+  sidebarWidth: number;
 }
 
 /**
@@ -18,14 +22,35 @@ interface PdfLivePreviewProps {
  * Uses useDeferredValue so sliders stay snappy — the preview catches up
  * in a low-priority update.
  */
-export default function PdfLivePreview({ data, layout, colorTheme, fontConfig }: PdfLivePreviewProps) {
+export default function PdfLivePreview({
+  data,
+  layout,
+  colorTheme,
+  fontConfig,
+  blocks,
+  pageTemplate,
+  sidebarWidth,
+}: PdfLivePreviewProps) {
   const deferredLayout = useDeferredValue(layout);
   const deferredTheme = useDeferredValue(colorTheme);
   const deferredFont = useDeferredValue(fontConfig);
+  const deferredBlocks = useDeferredValue(blocks);
+  const deferredPageTemplate = useDeferredValue(pageTemplate);
+  const deferredSidebarWidth = useDeferredValue(sidebarWidth);
 
   const doc = useMemo(
-    () => buildResumeDocument(data, deferredLayout, deferredTheme, deferredFont),
-    [data, deferredLayout, deferredTheme, deferredFont],
+    () => buildResumeDocument(
+      data,
+      deferredLayout,
+      deferredTheme,
+      deferredFont,
+      {
+        blocks: deferredBlocks,
+        pageTemplate: deferredPageTemplate,
+        sidebarWidth: deferredSidebarWidth,
+      },
+    ),
+    [data, deferredLayout, deferredTheme, deferredFont, deferredBlocks, deferredPageTemplate, deferredSidebarWidth],
   );
 
   return (

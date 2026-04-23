@@ -35,6 +35,7 @@ import type {
   ResumeData,
   PdfSettings,
 } from "@/lib/pdf/types";
+import type { ResumeBlock, PageTemplate } from "@/types/database";
 
 const PdfLivePreview = dynamic(() => import("./pdf-live-preview"), {
   ssr: false,
@@ -50,9 +51,10 @@ type TabKey = "style" | "layout";
 interface PdfStudioProps {
   data: ResumeData;
   initialSettings: PdfSettings | null;
+  initialBlocks: ResumeBlock[];
 }
 
-export function PdfStudio({ data, initialSettings }: PdfStudioProps) {
+export function PdfStudio({ data, initialSettings, initialBlocks }: PdfStudioProps) {
   const [tab, setTab] = useState<TabKey>("style");
 
   // Core state
@@ -71,6 +73,14 @@ export function PdfStudio({ data, initialSettings }: PdfStudioProps) {
     lineHeight: initialSettings?.line_height ?? DEFAULT_FONT_CONFIG.lineHeight,
     spacingScale: initialSettings?.spacing_scale ?? DEFAULT_FONT_CONFIG.spacingScale,
   });
+  const [pageTemplate, setPageTemplate] = useState<PageTemplate>(
+    (initialSettings?.page_template as PageTemplate) || "single-column",
+  );
+  const [sidebarWidth] = useState<number>(initialSettings?.sidebar_width ?? 180);
+
+  // Blocks are read-only from the Studio today — edited in the Resume Builder.
+  // Kept in state anyway so future commits can wire in live updates.
+  const [blocks] = useState<ResumeBlock[]>(initialBlocks);
 
   // Track "dirty" state vs last saved
   const [saved, setSaved] = useState(false);
@@ -81,6 +91,7 @@ export function PdfStudio({ data, initialSettings }: PdfStudioProps) {
     layout: (initialSettings?.layout as PdfLayout) || "classic",
     colorTheme: (initialSettings?.color_theme as PdfColorTheme) || "navy",
     showOnProfile: initialSettings?.show_on_profile ?? false,
+    pageTemplate: (initialSettings?.page_template as PageTemplate) || "single-column",
     fontConfig: {
       fontFamily: (initialSettings?.font_family as PdfFontFamily) || DEFAULT_FONT_CONFIG.fontFamily,
       fontScale: initialSettings?.font_scale ?? DEFAULT_FONT_CONFIG.fontScale,
@@ -90,7 +101,7 @@ export function PdfStudio({ data, initialSettings }: PdfStudioProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), []);
 
-  const currentFingerprint = fingerprint({ layout, colorTheme, showOnProfile, fontConfig });
+  const currentFingerprint = fingerprint({ layout, colorTheme, showOnProfile, pageTemplate, fontConfig });
   const dirty = currentFingerprint !== initialFingerprint;
 
   // Clear "Saved" flash after a delay
@@ -113,6 +124,8 @@ export function PdfStudio({ data, initialSettings }: PdfStudioProps) {
         font_scale: fontConfig.fontScale,
         line_height: fontConfig.lineHeight,
         spacing_scale: fontConfig.spacingScale,
+        page_template: pageTemplate,
+        sidebar_width: sidebarWidth,
       }),
     });
     setSaving(false);
@@ -128,6 +141,8 @@ export function PdfStudio({ data, initialSettings }: PdfStudioProps) {
       fontScale: String(fontConfig.fontScale),
       lineHeight: String(fontConfig.lineHeight),
       spacingScale: String(fontConfig.spacingScale),
+      pageTemplate,
+      sidebarWidth: String(sidebarWidth),
     });
     const res = await fetch(`/api/autofill/resume.pdf?${qs.toString()}`);
     if (res.ok) {
@@ -349,6 +364,32 @@ export function PdfStudio({ data, initialSettings }: PdfStudioProps) {
                   </div>
                 </Section>
 
+                {layout === "custom" && (
+                  <Section title="Page template" subtitle="Arrangement of block zones on the page">
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        { key: "single-column" as PageTemplate, label: "Single column", description: "All blocks flow top to bottom" },
+                        { key: "sidebar-left" as PageTemplate, label: "Sidebar left", description: "Colored sidebar for skills, certs, contact" },
+                      ]).map((opt) => (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          onClick={() => setPageTemplate(opt.key)}
+                          className={`rounded-lg border-2 p-3 text-left transition-all ${
+                            pageTemplate === opt.key
+                              ? "border-brand bg-brand/5"
+                              : "border-zinc-200 hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700"
+                          }`}
+                        >
+                          <PageTemplateThumb template={opt.key} />
+                          <div className="mt-2 text-sm font-semibold">{opt.label}</div>
+                          <div className="mt-0.5 text-[11px] text-zinc-500">{opt.description}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </Section>
+                )}
+
                 <Section title="Color theme">
                   <div className="flex flex-wrap gap-2">
                     {(Object.entries(COLOR_THEMES) as [PdfColorTheme, typeof COLOR_THEMES[PdfColorTheme]][]).map(([key, theme]) => (
@@ -394,6 +435,9 @@ export function PdfStudio({ data, initialSettings }: PdfStudioProps) {
               layout={layout}
               colorTheme={colorTheme}
               fontConfig={fontConfig}
+              blocks={blocks}
+              pageTemplate={pageTemplate}
+              sidebarWidth={sidebarWidth}
             />
           </div>
         </section>
@@ -531,15 +575,63 @@ function LayoutThumb({ layout }: { layout: PdfLayout }) {
       </div>
     );
   }
+  if (layout === "executive") {
+    return (
+      <div className={`${base} flex flex-col gap-1`}>
+        <div className="-mx-1.5 -mt-1.5 h-3 rounded-t bg-zinc-300 px-1.5 pt-1 dark:bg-zinc-600">
+          <div className="h-1 w-9 rounded-sm bg-zinc-100 dark:bg-zinc-800" />
+        </div>
+        <div className="mt-0.5 flex-1 space-y-0.5">
+          <div className="h-1 w-full rounded-sm bg-zinc-200 dark:bg-zinc-700" />
+          <div className="h-1 w-3/4 rounded-sm bg-zinc-200 dark:bg-zinc-700" />
+        </div>
+      </div>
+    );
+  }
+  // custom
   return (
     <div className={`${base} flex flex-col gap-1`}>
-      <div className="-mx-1.5 -mt-1.5 h-3 rounded-t bg-zinc-300 px-1.5 pt-1 dark:bg-zinc-600">
-        <div className="h-1 w-9 rounded-sm bg-zinc-100 dark:bg-zinc-800" />
+      <div className="h-1.5 w-10 rounded-sm bg-brand/40 dark:bg-brand/30" />
+      <div className="flex flex-1 gap-1">
+        <div className="flex w-1/3 flex-col gap-0.5 rounded-sm bg-brand/10 p-0.5">
+          <div className="h-0.5 w-full rounded-sm bg-brand/30" />
+          <div className="h-0.5 w-full rounded-sm bg-brand/30" />
+          <div className="h-0.5 w-3/4 rounded-sm bg-brand/30" />
+        </div>
+        <div className="flex flex-1 flex-col gap-0.5">
+          <div className="h-1 w-full rounded-sm bg-zinc-200 dark:bg-zinc-700" />
+          <div className="h-1 w-full rounded-sm bg-zinc-200 dark:bg-zinc-700" />
+          <div className="h-1 w-3/4 rounded-sm bg-zinc-200 dark:bg-zinc-700" />
+        </div>
       </div>
-      <div className="mt-0.5 flex-1 space-y-0.5">
-        <div className="h-1 w-full rounded-sm bg-zinc-200 dark:bg-zinc-700" />
-        <div className="h-1 w-3/4 rounded-sm bg-zinc-200 dark:bg-zinc-700" />
+    </div>
+  );
+}
+
+function PageTemplateThumb({ template }: { template: PageTemplate }) {
+  const base = "h-12 w-full rounded bg-zinc-100 p-1.5 dark:bg-zinc-800";
+  if (template === "sidebar-left") {
+    return (
+      <div className={`${base} flex gap-1`}>
+        <div className="flex w-1/3 flex-col gap-0.5 rounded-sm bg-brand/15 p-0.5">
+          <div className="h-0.5 w-full rounded-sm bg-brand/40" />
+          <div className="h-0.5 w-3/4 rounded-sm bg-brand/40" />
+          <div className="h-0.5 w-full rounded-sm bg-brand/40" />
+        </div>
+        <div className="flex flex-1 flex-col gap-0.5">
+          <div className="h-1 w-full rounded-sm bg-zinc-300 dark:bg-zinc-600" />
+          <div className="h-1 w-full rounded-sm bg-zinc-200 dark:bg-zinc-700" />
+          <div className="h-1 w-3/4 rounded-sm bg-zinc-200 dark:bg-zinc-700" />
+        </div>
       </div>
+    );
+  }
+  return (
+    <div className={`${base} flex flex-col gap-0.5`}>
+      <div className="h-1 w-10 rounded-sm bg-zinc-300 dark:bg-zinc-600" />
+      <div className="h-1 w-full rounded-sm bg-zinc-200 dark:bg-zinc-700" />
+      <div className="h-1 w-full rounded-sm bg-zinc-200 dark:bg-zinc-700" />
+      <div className="h-1 w-3/4 rounded-sm bg-zinc-200 dark:bg-zinc-700" />
     </div>
   );
 }
@@ -557,12 +649,14 @@ function fingerprint(s: {
   layout: PdfLayout;
   colorTheme: PdfColorTheme;
   showOnProfile: boolean;
+  pageTemplate: PageTemplate;
   fontConfig: PdfFontConfig;
 }) {
   return [
     s.layout,
     s.colorTheme,
     s.showOnProfile ? "1" : "0",
+    s.pageTemplate,
     s.fontConfig.fontFamily,
     s.fontConfig.fontScale.toFixed(2),
     s.fontConfig.lineHeight.toFixed(2),

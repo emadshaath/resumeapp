@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
+import { fetchResumeBlocks } from "@/lib/blocks/fetch";
 import { renderResumePdf } from "@/lib/pdf/render";
 import { applyVariantToResume } from "@/lib/tailor";
 import type { PdfLayout, PdfColorTheme, PdfFontFamily, PdfFontConfig } from "@/lib/pdf/types";
 import { DEFAULT_FONT_CONFIG, FONT_OPTIONS } from "@/lib/pdf/types";
-import type { VariantData, PdfSettingsSnapshot } from "@/types/database";
+import type { VariantData, PdfSettingsSnapshot, PageTemplate } from "@/types/database";
 
-const VALID_LAYOUTS: PdfLayout[] = ["classic", "modern", "minimal", "executive"];
+const VALID_LAYOUTS: PdfLayout[] = ["classic", "modern", "minimal", "executive", "custom"];
 const VALID_THEMES: PdfColorTheme[] = ["navy", "teal", "charcoal"];
 const VALID_FONTS = Object.keys(FONT_OPTIONS) as PdfFontFamily[];
+const VALID_PAGE_TEMPLATES: PageTemplate[] = ["single-column", "sidebar-left"];
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
@@ -22,6 +24,10 @@ function clamp(n: number, min: number, max: number) {
 //   2. Variant's frozen pdf_settings_snapshot (when ?variant=<id> is supplied)
 //   3. User's current pdf_settings row
 //   4. Hard-coded defaults
+//
+// When the effective layout is "custom", the user's current resume_blocks are
+// used to render the PDF. Block arrangement is not yet part of the variant
+// snapshot — see README note in lib/blocks for the v2 plan.
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -34,13 +40,15 @@ export async function GET(req: NextRequest) {
   const fontScaleParam = searchParams.get("fontScale");
   const lineHeightParam = searchParams.get("lineHeight");
   const spacingScaleParam = searchParams.get("spacingScale");
+  const pageTemplateParam = searchParams.get("pageTemplate") as PageTemplate | null;
+  const sidebarWidthParam = searchParams.get("sidebarWidth");
   const variantId = searchParams.get("variant");
 
   // Load user's current saved settings (baseline for the base resume, or
   // fallback for legacy variants created before pdf_settings_snapshot existed).
   const { data: saved } = await supabase
     .from("pdf_settings")
-    .select("layout, color_theme, font_family, font_scale, line_height, spacing_scale")
+    .select("layout, color_theme, font_family, font_scale, line_height, spacing_scale, page_template, sidebar_width")
     .eq("profile_id", user.id)
     .single();
 
@@ -85,6 +93,20 @@ export async function GET(req: NextRequest) {
       : (baseline?.spacing_scale ?? DEFAULT_FONT_CONFIG.spacingScale),
   };
 
+  // Custom-layout inputs are only used when layout === "custom"; cheap to
+  // compute, so build them unconditionally and let the renderer ignore them
+  // for other layouts.
+  const pageTemplate: PageTemplate = (pageTemplateParam && VALID_PAGE_TEMPLATES.includes(pageTemplateParam))
+    ? pageTemplateParam
+    : ((saved?.page_template as PageTemplate) || "single-column");
+  const sidebarWidth: number = sidebarWidthParam != null
+    ? Math.round(clamp(parseFloat(sidebarWidthParam), 120, 260))
+    : (saved?.sidebar_width ?? 180);
+
+  const blocks = layout === "custom"
+    ? await fetchResumeBlocks(supabase, user.id)
+    : [];
+
   let data = await fetchResumeData(supabase, user.id);
   if (!data) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
@@ -92,7 +114,13 @@ export async function GET(req: NextRequest) {
     data = applyVariantToResume(data, variantRow.variant_data);
   }
 
-  const pdfBuffer = await renderResumePdf(data, layout, colorTheme, fontConfig);
+  const pdfBuffer = await renderResumePdf(
+    data,
+    layout,
+    colorTheme,
+    fontConfig,
+    { blocks, pageTemplate, sidebarWidth },
+  );
   const fileName = `${data.profile.first_name}_${data.profile.last_name}_Resume.pdf`;
 
   return new NextResponse(pdfBuffer as unknown as BodyInit, {

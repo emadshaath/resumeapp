@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { PdfLayout, PdfColorTheme, PdfFontFamily } from "@/lib/pdf/types";
 import { FONT_OPTIONS } from "@/lib/pdf/types";
+import type { PageTemplate } from "@/types/database";
 
-const VALID_LAYOUTS: PdfLayout[] = ["classic", "modern", "minimal", "executive"];
+const VALID_LAYOUTS: PdfLayout[] = ["classic", "modern", "minimal", "executive", "custom"];
 const VALID_THEMES: PdfColorTheme[] = ["navy", "teal", "charcoal"];
 const VALID_FONTS: PdfFontFamily[] = Object.keys(FONT_OPTIONS) as PdfFontFamily[];
+const VALID_PAGE_TEMPLATES: PageTemplate[] = ["single-column", "sidebar-left"];
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
@@ -41,6 +43,8 @@ export async function POST(req: NextRequest) {
     font_scale,
     line_height,
     spacing_scale,
+    page_template,
+    sidebar_width,
   } = body;
 
   if (layout && !VALID_LAYOUTS.includes(layout)) {
@@ -52,10 +56,14 @@ export async function POST(req: NextRequest) {
   if (font_family && !VALID_FONTS.includes(font_family)) {
     return NextResponse.json({ error: "Invalid font family" }, { status: 400 });
   }
+  if (page_template && !VALID_PAGE_TEMPLATES.includes(page_template)) {
+    return NextResponse.json({ error: "Invalid page template" }, { status: 400 });
+  }
 
   const fontScale = typeof font_scale === "number" ? clamp(font_scale, 0.8, 1.25) : undefined;
   const lineHeight = typeof line_height === "number" ? clamp(line_height, 1.15, 1.85) : undefined;
   const spacingScale = typeof spacing_scale === "number" ? clamp(spacing_scale, 0.8, 1.3) : undefined;
+  const sidebarWidth = typeof sidebar_width === "number" ? Math.round(clamp(sidebar_width, 120, 260)) : undefined;
 
   // Upsert the settings
   const { data: existing } = await supabase
@@ -72,6 +80,8 @@ export async function POST(req: NextRequest) {
     font_scale: fontScale ?? 1.0,
     line_height: lineHeight ?? 1.45,
     spacing_scale: spacingScale ?? 1.0,
+    page_template: page_template || "single-column",
+    sidebar_width: sidebarWidth ?? 180,
   };
 
   if (existing) {

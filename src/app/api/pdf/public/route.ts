@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
+import { fetchResumeBlocks } from "@/lib/blocks/fetch";
 import { renderResumePdf } from "@/lib/pdf/render";
 import type { PdfLayout, PdfColorTheme, PdfSettings, PdfFontConfig, PdfFontFamily } from "@/lib/pdf/types";
 import { DEFAULT_FONT_CONFIG } from "@/lib/pdf/types";
+import type { PageTemplate } from "@/types/database";
 
 // GET /api/pdf/public?slug=john-doe — Generates a PDF for a published profile
 export async function GET(req: NextRequest) {
@@ -46,7 +48,19 @@ export async function GET(req: NextRequest) {
     spacingScale: settings.spacing_scale ?? DEFAULT_FONT_CONFIG.spacingScale,
   };
 
-  const pdfBuffer = await renderResumePdf(data, layout, colorTheme, fontConfig);
+  const blocks = layout === "custom"
+    ? await fetchResumeBlocks(supabase, profile.id)
+    : [];
+  const pageTemplate: PageTemplate = (settings.page_template as PageTemplate) || "single-column";
+  const sidebarWidth = settings.sidebar_width ?? 180;
+
+  const pdfBuffer = await renderResumePdf(
+    data,
+    layout,
+    colorTheme,
+    fontConfig,
+    { blocks, pageTemplate, sidebarWidth },
+  );
   const fileName = `${profile.first_name}_${profile.last_name}_Resume.pdf`;
 
   return new NextResponse(pdfBuffer as unknown as BodyInit, {
