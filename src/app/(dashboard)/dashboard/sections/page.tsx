@@ -170,7 +170,7 @@ export default function SectionsPage() {
     <div className="space-y-6">
       {/* Page header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Resume</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Resume Builder</h1>
         <p className="text-zinc-500 mt-1">Add and organize your resume content.</p>
       </div>
 

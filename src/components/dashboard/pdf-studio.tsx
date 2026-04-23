@@ -166,7 +166,7 @@ export function PdfStudio({ data, initialSettings }: PdfStudioProps) {
           className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
         >
           <ChevronLeft className="h-4 w-4" />
-          <span className="hidden sm:inline">Resume</span>
+          <span className="hidden sm:inline">Resume Builder</span>
         </Link>
         <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-800" />
         <div className="flex items-center gap-2">

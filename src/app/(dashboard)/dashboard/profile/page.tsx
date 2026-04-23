@@ -19,8 +19,11 @@ import type { Profile } from "@/types/database";
 export default function ProfileEditorPage() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
+  // "templates" kept as a legacy alias for old bookmarks; canonical value is "theme".
   const defaultTab =
-    tabParam === "apply" ? "apply" : tabParam === "templates" ? "templates" : "profile";
+    tabParam === "apply" ? "apply"
+    : tabParam === "theme" || tabParam === "templates" ? "theme"
+    : "profile";
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -157,7 +160,7 @@ export default function ProfileEditorPage() {
       <Tabs defaultValue={defaultTab}>
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="templates">Templates</TabsTrigger>
+          <TabsTrigger value="theme">Profile Theme</TabsTrigger>
           <TabsTrigger value="apply">Application Preferences</TabsTrigger>
         </TabsList>
 
@@ -398,7 +401,7 @@ export default function ProfileEditorPage() {
           </form>
         </TabsContent>
 
-        <TabsContent value="templates">
+        <TabsContent value="theme">
           <TemplatePicker
             profile={profile}
             onUpdate={(updates) => setProfile({ ...profile, ...updates })}

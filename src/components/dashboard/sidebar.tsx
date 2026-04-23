@@ -48,7 +48,7 @@ const navigation: NavEntry[] = [
     icon: Layers,
     items: [
       { name: "Profile", href: "/dashboard/profile", icon: User },
-      { name: "Resume", href: "/dashboard/sections", icon: Layers },
+      { name: "Resume Builder", href: "/dashboard/sections", icon: Layers },
       { name: "LinkedIn Sync", href: "/dashboard/sections?open=linkedin", icon: Link2 },
     ],
   },
