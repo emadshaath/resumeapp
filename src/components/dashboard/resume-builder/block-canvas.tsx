@@ -19,6 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { COLOR_THEMES } from "@/lib/pdf/types";
 import type { ResumeData } from "@/lib/pdf/types";
 import type { ResumeBlock } from "@/types/database";
@@ -339,11 +340,17 @@ function SortableBlockShell({
       }}
       data-block-id={block.id}
       data-block-type={block.type}
-      className={`group relative cursor-pointer rounded-sm transition-shadow ${
+      className={cn(
+        "group relative cursor-pointer rounded-sm transition-shadow",
+        // Extend the group's hover area ~28px to the left on desktop so the
+        // handle sitting at lg:-left-6 stays reachable. The pseudo-element
+        // is invisible but participates in pointer-events, keeping
+        // group-hover true while the mouse crosses the gap to the handle.
+        "before:absolute before:inset-y-0 before:-left-8 before:hidden before:w-8 before:content-[''] lg:before:block",
         selected
           ? "outline outline-2 outline-brand outline-offset-2"
-          : "hover:outline hover:outline-1 hover:outline-zinc-300 hover:outline-offset-2"
-      }`}
+          : "hover:outline hover:outline-1 hover:outline-zinc-300 hover:outline-offset-2",
+      )}
     >
       {selected && (
         <div className="absolute -top-5 left-0 z-10 rounded-sm bg-brand px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-brand-foreground">

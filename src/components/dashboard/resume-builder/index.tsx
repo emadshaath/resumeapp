@@ -216,6 +216,52 @@ export function ResumeBuilder({
     );
   }, [blocks, selectedBlockId]);
 
+  // Mirror section-list reorders onto the main-zone canvas blocks. Blocks
+  // without a matching section stay where they are (dividers, spacers,
+  // sidebar blocks), only the section-backed ones in main rearrange to
+  // match the new section order. Users expect the canvas to follow the
+  // list when they use the ↑/↓ arrows.
+  const mirrorSectionOrder = useCallback(async (orderedSectionIds: string[]) => {
+    const rank = new Map(orderedSectionIds.map((id, i) => [id, i]));
+    const mainBlocks = blocks.filter((b) => b.zone === "main");
+    const sectionBacked = mainBlocks.filter(
+      (b) => b.source_section_id && rank.has(b.source_section_id),
+    );
+    const freeBlocks = mainBlocks.filter(
+      (b) => !b.source_section_id || !rank.has(b.source_section_id),
+    );
+
+    // Sort section-backed blocks by the new section rank.
+    sectionBacked.sort(
+      (a, b) => (rank.get(a.source_section_id!) ?? 0) - (rank.get(b.source_section_id!) ?? 0),
+    );
+
+    // Rebuild main zone: section-backed (in new order) then free blocks last.
+    const newMain = [...sectionBacked, ...freeBlocks].map((b, i) => ({
+      ...b,
+      display_order: i,
+    }));
+
+    const other = blocks.filter((b) => b.zone !== "main");
+    const next = [...other, ...newMain];
+
+    setBlocks(next);
+    await fetch("/api/resume/blocks", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        blocks: next.map((b) => ({
+          id: b.id,
+          type: b.type,
+          zone: b.zone,
+          display_order: b.display_order,
+          source_section_id: b.source_section_id,
+          style: b.style,
+        })),
+      }),
+    });
+  }, [blocks]);
+
   // Persist a new block ordering after a canvas drag. Optimistic: update the
   // local blocks list immediately, then PUT the whole list. If the write
   // fails the next page load corrects things — drag feedback is what matters.
@@ -326,6 +372,7 @@ export function ResumeBuilder({
             onOpenImport={() => setImportOpen(true)}
             onSectionAdded={handleSectionAdded}
             onSectionDeleting={handleSectionDeleting}
+            onSectionsReordered={mirrorSectionOrder}
             blocks={blocks}
             onAddToCanvas={addBlockForSection}
           />
@@ -457,6 +504,7 @@ export function ResumeBuilder({
           }}
           onSectionAdded={handleSectionAdded}
           onSectionDeleting={handleSectionDeleting}
+          onSectionsReordered={mirrorSectionOrder}
           blocks={blocks}
           onAddToCanvas={async (section) => {
             await addBlockForSection(section);
@@ -480,7 +528,7 @@ function patchResumeData(
   table: string,
   id: string,
   field: string,
-  value: string,
+  value: string | string[],
 ): ResumeData {
   const patchRow = <T extends { id: string }>(rows: T[]): T[] =>
     rows.map((r) => (r.id === id ? { ...r, [field]: value } as T : r));

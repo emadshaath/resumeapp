@@ -61,6 +61,10 @@ interface SectionListProps {
    *  is expected to POST /api/resume/blocks. Acts as a visible backup for
    *  the automatic sync and makes the mechanism discoverable. */
   onAddToCanvas?: (section: ResumeSection) => Promise<void> | void;
+  /** Called after the section list reorders (via ↑/↓ arrows) so the parent
+   *  can mirror the new order on the canvas main-zone blocks. Receives
+   *  the new section ids in top-to-bottom order. */
+  onSectionsReordered?: (orderedSectionIds: string[]) => Promise<void> | void;
 }
 
 /**
@@ -79,6 +83,7 @@ export function SectionList({
   onSectionDeleting,
   blocks = [],
   onAddToCanvas,
+  onSectionsReordered,
 }: SectionListProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -143,6 +148,9 @@ export function SectionList({
       supabase.from("resume_sections").update({ display_order: updated[index].display_order }).eq("id", updated[index].id),
       supabase.from("resume_sections").update({ display_order: updated[swap].display_order }).eq("id", updated[swap].id),
     ]);
+    // Fire after the DB writes settle so the parent's canvas-reorder sees
+    // the canonical section order.
+    await onSectionsReordered?.(updated.map((s) => s.id));
   }
 
   return (

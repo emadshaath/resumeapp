@@ -31,13 +31,14 @@ export type EditableTable =
 /**
  * Called by the canvas when an inline field loses focus or settles after
  * debounce. The parent (ResumeBuilder) maps this to a supabase.update() and
- * triggers a refresh of ResumeData.
+ * triggers a refresh of ResumeData. `value` is usually a string but can be
+ * a string[] for array columns like experiences.highlights.
  */
 export type SaveFieldFn = (spec: {
   table: EditableTable;
   id: string;
   field: string;
-  value: string;
+  value: string | string[];
 }) => void | Promise<void>;
 
 export interface BlockRenderContext {
@@ -117,6 +118,63 @@ function Editable({
       className={className}
       style={style}
     />
+  );
+}
+
+/**
+ * Render a list of string bullets as one editable row each. Edits produce a
+ * new array with the changed index replaced and the whole array is written
+ * back via onSave — which maps to a single .update on the containing row's
+ * highlights column (TEXT[] / JSONB, both handled by supabase-js).
+ *
+ * Blank bullets (after edit) are filtered out on save so an empty edit box
+ * doesn't leave a zombie bullet behind.
+ */
+function BulletList({
+  ctx,
+  items,
+  onSave,
+}: {
+  ctx: BlockRenderContext;
+  items: string[];
+  onSave: (next: string[]) => void;
+}) {
+  if (items.length === 0 && !ctx.editable) return null;
+  const rows = items.length === 0 && ctx.editable ? [""] : items;
+  return (
+    <>
+      {rows.map((h, i) => (
+        <div
+          key={i}
+          style={{
+            ...fontStyle(ctx, 9.5),
+            color: ctx.palette.text,
+            marginLeft: spacing(ctx, 10),
+            marginTop: spacing(ctx, 1),
+            lineHeight: ctx.style.fontConfig.lineHeight,
+            display: "flex",
+            alignItems: "baseline",
+            gap: "0.4em",
+          }}
+        >
+          <span aria-hidden style={{ userSelect: "none" }}>•</span>
+          <Editable
+            ctx={ctx}
+            value={h}
+            onSave={(v) => {
+              const next = [...rows];
+              next[i] = v;
+              // Strip fully-empty bullets on save so a cleared line doesn't
+              // linger as a bare "•" after blur.
+              const cleaned = next.map((s) => s.trim()).filter((s) => s.length > 0);
+              onSave(cleaned);
+            }}
+            placeholder="Describe an accomplishment…"
+            style={{ flex: 1, minWidth: 0 }}
+          />
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -312,20 +370,11 @@ function ExperienceBlock({ ctx, block }: { ctx: BlockRenderContext; block: Resum
               }}
             />
           )}
-          {exp.highlights?.map((h, i) => (
-            <div
-              key={i}
-              style={{
-                ...fontStyle(ctx, 9.5),
-                color: ctx.palette.text,
-                marginLeft: spacing(ctx, 10),
-                marginTop: spacing(ctx, 1),
-                lineHeight: ctx.style.fontConfig.lineHeight,
-              }}
-            >
-              • {h}
-            </div>
-          ))}
+          <BulletList
+            ctx={ctx}
+            items={exp.highlights ?? []}
+            onSave={(next) => ctx.saveField({ table: "experiences", id: exp.id, field: "highlights", value: next })}
+          />
         </div>
       ))}
     </div>
@@ -530,11 +579,11 @@ function ProjectsBlock({ ctx, block }: { ctx: BlockRenderContext; block: ResumeB
               {proj.technologies.join("  ·  ")}
             </div>
           )}
-          {proj.highlights?.map((h, i) => (
-            <div key={i} style={{ ...fontStyle(ctx, 9.5), color: ctx.palette.text, marginLeft: spacing(ctx, 10), marginTop: spacing(ctx, 1), lineHeight: ctx.style.fontConfig.lineHeight }}>
-              • {h}
-            </div>
-          ))}
+          <BulletList
+            ctx={ctx}
+            items={proj.highlights ?? []}
+            onSave={(next) => ctx.saveField({ table: "projects", id: proj.id, field: "highlights", value: next })}
+          />
         </div>
       ))}
     </div>
