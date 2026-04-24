@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { hasFeature, getLimit, getRequiredTier, getEffectiveTier } from "@/lib/stripe/feature-gate";
 import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
+import { snapshotPdfSettings } from "@/lib/pdf/snapshot";
 import { applyVariantToResume } from "@/lib/tailor";
 import { captureSnapshot } from "@/lib/snapshots/service";
 import type { Tier, VariantData } from "@/types/database";
@@ -84,12 +85,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Name and variant_data are required" }, { status: 400 });
   }
 
-  // Compute frozen resolved_resume
-  let resolvedResume = null;
-  const resumeData = await fetchResumeData(supabase, user.id);
-  if (resumeData) {
-    resolvedResume = applyVariantToResume(resumeData, variant_data as VariantData);
-  }
+  // Compute frozen resolved_resume + snapshot the user's current PDF styling.
+  // Both freeze together so the variant is a fully self-contained artifact.
+  const [resumeData, pdfSettingsSnapshot] = await Promise.all([
+    fetchResumeData(supabase, user.id),
+    snapshotPdfSettings(supabase, user.id),
+  ]);
+  const resolvedResume = resumeData
+    ? applyVariantToResume(resumeData, variant_data as VariantData)
+    : null;
 
   const { data: variant, error } = await supabase
     .from("profile_variants")
@@ -101,6 +105,7 @@ export async function POST(req: NextRequest) {
       match_score: match_score || null,
       job_application_id: job_application_id || null,
       source: source || "manual",
+      pdf_settings_snapshot: pdfSettingsSnapshot,
     })
     .select()
     .single();

@@ -23,7 +23,6 @@ import {
   Briefcase,
   Wand2,
   ClipboardCheck,
-  Link2,
   Globe,
   Menu,
   X,
@@ -48,8 +47,7 @@ const navigation: NavEntry[] = [
     icon: Layers,
     items: [
       { name: "Profile", href: "/dashboard/profile", icon: User },
-      { name: "Resume", href: "/dashboard/sections", icon: Layers },
-      { name: "LinkedIn Sync", href: "/dashboard/sections?open=linkedin", icon: Link2 },
+      { name: "Resume Builder", href: "/dashboard/sections", icon: Layers },
     ],
   },
   {

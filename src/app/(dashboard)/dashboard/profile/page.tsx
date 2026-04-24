@@ -19,8 +19,11 @@ import type { Profile } from "@/types/database";
 export default function ProfileEditorPage() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
+  // "templates" kept as a legacy alias for old bookmarks; canonical value is "theme".
   const defaultTab =
-    tabParam === "apply" ? "apply" : tabParam === "templates" ? "templates" : "profile";
+    tabParam === "apply" ? "apply"
+    : tabParam === "theme" || tabParam === "templates" ? "theme"
+    : "profile";
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -134,6 +137,12 @@ export default function ProfileEditorPage() {
         last_name: profile.last_name,
         slug: normalizedSlug,
         headline: profile.headline,
+        email: profile.email,
+        phone_personal: profile.phone_personal,
+        show_email: profile.show_email,
+        show_phone: profile.show_phone,
+        show_location: profile.show_location,
+        show_website: profile.show_website,
         location: profile.location,
         website_url: profile.website_url,
         linkedin_url: profile.linkedin_url,
@@ -143,11 +152,14 @@ export default function ProfileEditorPage() {
       .eq("id", profile.id);
 
     if (updateError) {
-      setError(
+      console.error("[profile save]", updateError);
+      const friendly =
         updateError.code === "23505"
           ? "This profile URL is already taken."
-          : updateError.message
-      );
+          : updateError.code === "PGRST204" || updateError.code === "42703"
+            ? `Database is out of date — column "${updateError.message.match(/'([^']+)'/)?.[1] ?? "unknown"}" doesn't exist. Run migrations 00024 and 00025.`
+            : updateError.message;
+      setError(friendly);
     } else {
       setSuccess(true);
       router.refresh();
@@ -175,7 +187,7 @@ export default function ProfileEditorPage() {
       <Tabs defaultValue={defaultTab}>
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="templates">Templates</TabsTrigger>
+          <TabsTrigger value="theme">Profile Theme</TabsTrigger>
           <TabsTrigger value="apply">Application Preferences</TabsTrigger>
         </TabsList>
 
@@ -294,6 +306,52 @@ export default function ProfileEditorPage() {
                   />
                 </div>
 
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="name@example.com"
+                      value={profile.email || ""}
+                      onChange={(e) => patchProfile({ email: e.target.value })}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="show_email"
+                        checked={profile.show_email}
+                        onCheckedChange={(v) => patchProfile({ show_email: v })}
+                      />
+                      <Label htmlFor="show_email" className="text-xs text-zinc-500">
+                        Show on resume
+                      </Label>
+                    </div>
+                    <p className="text-xs text-zinc-500">
+                      This is the email displayed on your resume — independent of the one you sign in with.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="+1 555 123 4567"
+                      value={profile.phone_personal || ""}
+                      onChange={(e) => patchProfile({ phone_personal: e.target.value })}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="show_phone"
+                        checked={profile.show_phone}
+                        onCheckedChange={(v) => patchProfile({ show_phone: v })}
+                      />
+                      <Label htmlFor="show_phone" className="text-xs text-zinc-500">
+                        Show on resume
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="location">Location</Label>
                   <Input
@@ -302,6 +360,16 @@ export default function ProfileEditorPage() {
                     value={profile.location || ""}
                     onChange={(e) => patchProfile({ location: e.target.value })}
                   />
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="show_location"
+                      checked={profile.show_location}
+                      onCheckedChange={(v) => patchProfile({ show_location: v })}
+                    />
+                    <Label htmlFor="show_location" className="text-xs text-zinc-500">
+                      Show on resume
+                    </Label>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -313,6 +381,16 @@ export default function ProfileEditorPage() {
                     value={profile.website_url || ""}
                     onChange={(e) => patchProfile({ website_url: e.target.value })}
                   />
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="show_website"
+                      checked={profile.show_website}
+                      onCheckedChange={(v) => patchProfile({ show_website: v })}
+                    />
+                    <Label htmlFor="show_website" className="text-xs text-zinc-500">
+                      Show on resume
+                    </Label>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -415,7 +493,7 @@ export default function ProfileEditorPage() {
           </form>
         </TabsContent>
 
-        <TabsContent value="templates">
+        <TabsContent value="theme">
           <TemplatePicker profile={profile} onUpdate={patchProfile} />
         </TabsContent>
 
