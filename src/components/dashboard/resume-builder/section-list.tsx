@@ -22,8 +22,10 @@ import {
   ChevronUp,
   Layers,
   FileUp,
+  Check,
+  LayoutPanelLeft,
 } from "lucide-react";
-import type { ResumeSection, SectionType } from "@/types/database";
+import type { ResumeSection, ResumeBlock, SectionType } from "@/types/database";
 import { SectionContentEditor } from "@/components/dashboard/section-editor";
 
 const SECTION_TYPES: { value: SectionType; label: string; icon: React.ElementType }[] = [
@@ -52,6 +54,13 @@ interface SectionListProps {
   /** Called before a section is deleted so the parent can remove the
    *  corresponding canvas block(s). Optional — no-op if not provided. */
   onSectionDeleting?: (sectionId: string) => Promise<void> | void;
+  /** Canvas blocks, used to show whether a section is already on the canvas
+   *  and to disable the Add-to-canvas button for sections that are. */
+  blocks?: ResumeBlock[];
+  /** Explicit "add this section's block to the canvas" action — the parent
+   *  is expected to POST /api/resume/blocks. Acts as a visible backup for
+   *  the automatic sync and makes the mechanism discoverable. */
+  onAddToCanvas?: (section: ResumeSection) => Promise<void> | void;
 }
 
 /**
@@ -68,6 +77,8 @@ export function SectionList({
   onOpenImport,
   onSectionAdded,
   onSectionDeleting,
+  blocks = [],
+  onAddToCanvas,
 }: SectionListProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -186,6 +197,7 @@ export function SectionList({
               const typeConfig = SECTION_TYPES.find((t) => t.value === section.section_type);
               const Icon = typeConfig?.icon || FileText;
               const isExpanded = expandedId === section.id;
+              const onCanvas = blocks.some((b) => b.source_section_id === section.id);
 
               return (
                 <Card key={section.id} className={!section.is_visible ? "opacity-60" : ""}>
@@ -198,6 +210,27 @@ export function SectionList({
                       {section.title}
                     </span>
                     <div className="flex items-center gap-0.5 shrink-0">
+                      {onCanvas ? (
+                        <span
+                          className="inline-flex h-7 w-7 items-center justify-center text-emerald-600 dark:text-emerald-400"
+                          title="On canvas"
+                          aria-label="On canvas"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </span>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-brand hover:bg-brand/10"
+                          onClick={(e) => { e.stopPropagation(); onAddToCanvas?.(section); }}
+                          disabled={!onAddToCanvas}
+                          aria-label="Add to canvas"
+                          title="Add to canvas"
+                        >
+                          <LayoutPanelLeft className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"

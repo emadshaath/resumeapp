@@ -200,7 +200,7 @@ export function BlockCanvas({
                   ))}
                 </SortableContext>
                 {mainBlocks.length === 0 && sidebarBlocks.length === 0 && (
-                  <EmptyZoneHint label="Empty page — add a block from the section list" />
+                  <EmptyZoneHint label="No blocks yet — add a section or tap the layout icon next to one in the section list to drop it here." />
                 )}
               </div>
             )}

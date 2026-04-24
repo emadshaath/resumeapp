@@ -173,11 +173,12 @@ export function ResumeBuilder({
     [supabase],
   );
 
-  // When a new section is created in the SectionList, auto-append a matching
-  // block to the main zone so the new content shows up on the canvas without
-  // any manual step. Visual-only section types (there are none today) would
-  // return null from sectionTypeToBlockType and we'd skip the insert.
-  const handleSectionAdded = useCallback(async (section: ResumeSection) => {
+  // Shared: create a canvas block for a given section if one doesn't already
+  // exist. Used both by the auto-add-on-create flow and by the explicit
+  // "add to canvas" button on each section list row.
+  const addBlockForSection = useCallback(async (section: ResumeSection) => {
+    const already = blocks.some((b) => b.source_section_id === section.id);
+    if (already) return;
     const blockType = sectionTypeToBlockType(section.section_type);
     if (!blockType) return;
     const nextOrder = blocks.filter((b) => b.zone === "main").length;
@@ -197,6 +198,8 @@ export function ResumeBuilder({
     const { block } = await res.json();
     setBlocks((cur) => (cur.some((b) => b.id === block.id) ? cur : [...cur, block]));
   }, [blocks]);
+
+  const handleSectionAdded = addBlockForSection;
 
   // When a section is about to be deleted, remove its corresponding canvas
   // blocks first. The DB would cascade source_section_id to NULL anyway, but
@@ -323,6 +326,8 @@ export function ResumeBuilder({
             onOpenImport={() => setImportOpen(true)}
             onSectionAdded={handleSectionAdded}
             onSectionDeleting={handleSectionDeleting}
+            blocks={blocks}
+            onAddToCanvas={addBlockForSection}
           />
         </aside>
 
@@ -452,6 +457,12 @@ export function ResumeBuilder({
           }}
           onSectionAdded={handleSectionAdded}
           onSectionDeleting={handleSectionDeleting}
+          blocks={blocks}
+          onAddToCanvas={async (section) => {
+            await addBlockForSection(section);
+            // Drop the sheet so the user immediately sees the new block.
+            setSectionsOpen(false);
+          }}
         />
       </SectionsBottomSheet>
     </div>
