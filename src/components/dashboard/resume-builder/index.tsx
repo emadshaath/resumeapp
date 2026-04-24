@@ -32,7 +32,7 @@ import { SectionsBottomSheet } from "./sections-bottom-sheet";
 import { StylePanel } from "./style-panel";
 import { BlockCanvas } from "./block-canvas";
 import { BlockProperties } from "./block-properties";
-import type { SaveFieldFn, DeleteRowFn } from "./block-renderers";
+import type { SaveFieldFn, DeleteRowFn, AddRowFn } from "./block-renderers";
 import {
   styleStateFromSettings,
   styleFingerprint,
@@ -190,6 +190,19 @@ export function ResumeBuilder({
       setData((cur) => removeRowFromResumeData(cur, table, id));
       await supabase.from(table).delete().eq("id", id);
       setSectionFormVersion((n) => n + 1);
+    },
+    [supabase],
+  );
+
+  // Whole-row insertions from the canvas (e.g. "+ Add skill"). Server-side
+  // first (so we have the generated id) then mirror into ResumeData.
+  const addRow: AddRowFn = useCallback(
+    async ({ table, data: row }) => {
+      const { data: inserted, error } = await supabase.from(table).insert(row).select().single();
+      if (error || !inserted) return null;
+      setData((cur) => addRowToResumeData(cur, table, inserted as Record<string, unknown>));
+      setSectionFormVersion((n) => n + 1);
+      return (inserted as { id: string }).id;
     },
     [supabase],
   );
@@ -445,6 +458,7 @@ export function ResumeBuilder({
                 onSelectBlock={selectBlock}
                 saveField={saveField}
                 deleteRow={deleteRow}
+                addRow={addRow}
                 onReorder={reorderBlocks}
               />
             ) : (
@@ -566,6 +580,19 @@ function removeRowFromResumeData(data: ResumeData, table: string, id: string): R
     case "certifications":  return { ...data, certifications: removeRow(data.certifications) };
     case "projects":        return { ...data, projects:       removeRow(data.projects) };
     case "custom_sections": return { ...data, customSections: removeRow(data.customSections) };
+    default:                return data;
+  }
+}
+
+/** Append a freshly-inserted row into the matching ResumeData bucket. */
+function addRowToResumeData(data: ResumeData, table: string, row: Record<string, unknown>): ResumeData {
+  switch (table) {
+    case "experiences":     return { ...data, experiences:    [...data.experiences,    row as unknown as Experience] };
+    case "educations":      return { ...data, educations:     [...data.educations,     row as unknown as Education] };
+    case "skills":          return { ...data, skills:         [...data.skills,         row as unknown as Skill] };
+    case "certifications":  return { ...data, certifications: [...data.certifications, row as unknown as Certification] };
+    case "projects":        return { ...data, projects:       [...data.projects,       row as unknown as Project] };
+    case "custom_sections": return { ...data, customSections: [...data.customSections, row as unknown as CustomSection] };
     default:                return data;
   }
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import type {
   ResumeBlock,
   ResumeSection,
@@ -12,7 +13,7 @@ import type {
   Project,
   CustomSection,
 } from "@/types/database";
-import { X } from "lucide-react";
+import { X, Plus } from "lucide-react";
 import type { ResumeData, PdfColorPalette } from "@/lib/pdf/types";
 import { formatDateRange, groupSkillsByCategory } from "@/lib/pdf/utils";
 import { cn } from "@/lib/utils";
@@ -53,6 +54,16 @@ export type DeleteRowFn = (spec: {
   id: string;
 }) => void | Promise<void>;
 
+/**
+ * Insert a new row into a content table from the canvas — the "+ Add skill"
+ * and "+ Add bullet" affordances need this. Returns the new row's id on
+ * success so the caller can auto-focus the freshly inserted editable.
+ */
+export type AddRowFn = (spec: {
+  table: EditableTable;
+  data: Record<string, unknown>;
+}) => Promise<string | null>;
+
 export interface BlockRenderContext {
   data: ResumeData;
   style: StyleState;
@@ -60,6 +71,7 @@ export interface BlockRenderContext {
   inSidebar: boolean;
   saveField: SaveFieldFn;
   deleteRow: DeleteRowFn;
+  addRow: AddRowFn;
   /** Whether inline editing is enabled (false when e.g. previewing or for unauth'd views). */
   editable: boolean;
 }
@@ -102,6 +114,7 @@ function Editable({
   className,
   style,
   onKeyDown,
+  autoFocus,
 }: {
   ctx: BlockRenderContext;
   value: string;
@@ -112,6 +125,7 @@ function Editable({
   className?: string;
   style?: React.CSSProperties;
   onKeyDown?: (e: React.KeyboardEvent) => void;
+  autoFocus?: boolean;
 }) {
   if (!ctx.editable) {
     switch (as) {
@@ -133,6 +147,7 @@ function Editable({
       className={className}
       style={style}
       onKeyDown={onKeyDown}
+      autoFocus={autoFocus}
     />
   );
 }
@@ -157,6 +172,10 @@ function BulletList({
   items: string[];
   onSave: (next: string[]) => void;
 }) {
+  // Tracks which row (by index) should autofocus on the next render. Used
+  // by the "+ Add bullet" button so a newly-inserted empty row grabs focus.
+  const [autofocusIndex, setAutofocusIndex] = React.useState<number | null>(null);
+
   if (items.length === 0 && !ctx.editable) return null;
   // Show a single placeholder row when there are no items yet so the user
   // has somewhere to start typing. The delete control is suppressed on
@@ -173,6 +192,15 @@ function BulletList({
     }
     // Always clean up empties on persist so the stored array is tidy.
     onSave(next.map((s) => s.trim()).filter((s) => s.length > 0));
+  };
+
+  const appendBullet = () => {
+    const newIndex = items.length;
+    // Persist as-is (with trailing empty) so the re-render includes the new
+    // row. If the user leaves without typing, the blur handler fires with
+    // "" and saveWithIndexChange's filter cleans it back out.
+    onSave([...items, ""]);
+    setAutofocusIndex(newIndex);
   };
 
   return (
@@ -206,9 +234,16 @@ function BulletList({
                 e.preventDefault();
                 saveWithIndexChange(i, null);
               }
+              // Enter at the end of a bullet starts a new one, matching the
+              // same editors' keyboard muscle memory.
+              if (!placeholder && e.key === "Enter") {
+                e.preventDefault();
+                appendBullet();
+              }
             }}
             placeholder="Describe an accomplishment…"
             style={{ flex: 1, minWidth: 0 }}
+            autoFocus={autofocusIndex === i}
           />
           {!placeholder && (
             <BulletActions
@@ -217,6 +252,13 @@ function BulletList({
           )}
         </div>
       ))}
+      {ctx.editable && !placeholder && (
+        <AddRowButton
+          ctx={ctx}
+          label="Add bullet"
+          onClick={appendBullet}
+        />
+      )}
     </>
   );
 }
@@ -256,6 +298,41 @@ function BulletActions({ onDelete }: { onDelete: () => void }) {
  * when the button lives at the top-right of a multi-field row (experience,
  * education, certification, project).
  */
+/**
+ * Small "+ Add …" call-to-action rendered at the end of an editable list.
+ * Deliberately understated — not a primary button — so it stays out of the
+ * way of the actual resume content.
+ */
+function AddRowButton({
+  ctx,
+  label,
+  onClick,
+  style,
+}: {
+  ctx: BlockRenderContext;
+  label: string;
+  onClick: () => void;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <button
+      type="button"
+      contentEditable={false}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="mt-1 inline-flex items-center gap-1 rounded border border-dashed border-zinc-300 px-2 py-0.5 text-[10px] font-medium text-zinc-500 transition-colors hover:border-brand hover:text-brand dark:border-zinc-700 dark:text-zinc-400"
+      style={{
+        marginLeft: spacing(ctx, 10),
+        ...style,
+      }}
+    >
+      <Plus className="h-2.5 w-2.5" /> {label}
+    </button>
+  );
+}
+
 function InlineDeleteButton({
   onDelete,
   group = "skill",
@@ -631,6 +708,8 @@ function SkillsBlock({ ctx, block }: { ctx: BlockRenderContext; block: ResumeBlo
   const section = findSection(ctx, block.source_section_id);
   const skills = section ? ctx.data.skills.filter((sk) => sk.section_id === section.id) : [];
   const grouped = groupSkillsByCategory(skills);
+  // Id of a just-inserted skill that should autofocus on next render.
+  const [autofocusSkillId, setAutofocusSkillId] = React.useState<string | null>(null);
 
   // Each skill is a row in the skills table, not an item in an array — so
   // clearing the name on blur or pressing Backspace-on-empty triggers a
@@ -650,10 +729,39 @@ function SkillsBlock({ ctx, block }: { ctx: BlockRenderContext; block: ResumeBlo
     }
   };
 
+  const addSkill = async (category: string | null) => {
+    if (!section) return;
+    const newId = await ctx.addRow({
+      table: "skills",
+      data: {
+        profile_id: ctx.data.profile.id,
+        section_id: section.id,
+        name: "",
+        category,
+        display_order: skills.length,
+      },
+    });
+    if (newId) setAutofocusSkillId(newId);
+  };
+
+  // A skills block that points at a real section but has zero skills still
+  // deserves an add affordance — otherwise it's an empty heading the user
+  // can't act on from the canvas.
+  const hasAnySkills = skills.length > 0;
+  const categoriesToRender = hasAnySkills
+    ? Array.from(grouped.entries())
+    : ctx.editable && section
+      ? ([["General", [] as Skill[]]] as [string, Skill[]][])
+      : [];
+
   return (
     <div style={{ marginBottom: spacing(ctx, 12) }}>
       <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Skills")} />
-      {Array.from(grouped.entries()).map(([cat, catSkills]) => {
+      {categoriesToRender.map(([cat, catSkills]) => {
+        // Track whether we store category='General' as the actual DB value or
+        // as null. groupSkillsByCategory maps null -> "General" for display,
+        // so when the user adds a skill inside this bucket we pass null back.
+        const catKey = catSkills[0]?.category ?? null;
         if (ctx.inSidebar) {
           return (
             <div key={cat}>
@@ -683,10 +791,19 @@ function SkillsBlock({ ctx, block }: { ctx: BlockRenderContext; block: ResumeBlo
                     onKeyDown={handleSkillKeyDown(sk)}
                     placeholder="Skill"
                     style={{ flex: 1, minWidth: 0 }}
+                    autoFocus={autofocusSkillId === sk.id}
                   />
                   {ctx.editable && <InlineDeleteButton onDelete={() => ctx.deleteRow({ table: "skills", id: sk.id })} />}
                 </div>
               ))}
+              {ctx.editable && section && (
+                <AddRowButton
+                  ctx={ctx}
+                  label="Add skill"
+                  onClick={() => addSkill(catKey)}
+                  style={{ marginLeft: 0 }}
+                />
+              )}
             </div>
           );
         }
@@ -707,10 +824,22 @@ function SkillsBlock({ ctx, block }: { ctx: BlockRenderContext; block: ResumeBlo
                     onSave={handleSkillSave(sk)}
                     onKeyDown={handleSkillKeyDown(sk)}
                     placeholder="Skill"
+                    autoFocus={autofocusSkillId === sk.id}
                   />
                   {ctx.editable && <InlineDeleteButton onDelete={() => ctx.deleteRow({ table: "skills", id: sk.id })} />}
                 </span>
               ))}
+              {ctx.editable && section && (
+                <>
+                  {catSkills.length > 0 && <span style={{ opacity: 0.7, margin: "0 0.4em" }}>·</span>}
+                  <AddRowButton
+                    ctx={ctx}
+                    label="Add skill"
+                    onClick={() => addSkill(catKey)}
+                    style={{ marginLeft: 0, marginTop: 0, verticalAlign: "baseline" }}
+                  />
+                </>
+              )}
             </div>
           </div>
         );

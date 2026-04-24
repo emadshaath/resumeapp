@@ -27,6 +27,10 @@ interface EditableTextProps {
    *  the default behaviour. Useful for Backspace-on-empty-to-delete and
    *  similar per-field keyboard shortcuts. */
   onKeyDown?: (e: React.KeyboardEvent) => void;
+  /** Focus this element and move the caret to the end on mount. Used by
+   *  parent "+ Add" affordances so a newly-inserted row is instantly
+   *  typeable without the user clicking into it. */
+  autoFocus?: boolean;
 }
 
 /**
@@ -50,6 +54,7 @@ export function EditableText({
   readOnly = false,
   ariaLabel,
   onKeyDown: externalKeyDown,
+  autoFocus = false,
 }: EditableTextProps) {
   const ref = useRef<HTMLElement | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -59,6 +64,16 @@ export function EditableText({
   useEffect(() => {
     if (ref.current && ref.current.textContent !== value) {
       ref.current.textContent = value;
+    }
+    if (autoFocus && ref.current) {
+      ref.current.focus();
+      // Place the caret at the end so the user types after any existing text.
+      const range = document.createRange();
+      range.selectNodeContents(ref.current);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
