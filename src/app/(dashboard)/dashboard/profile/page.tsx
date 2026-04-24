@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -30,9 +30,15 @@ export default function ProfileEditorPage() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const supabase = createClient();
+  // Lazy init: without this, a fresh client on every render re-fires the load
+  // effect and an in-flight refetch overwrites keystrokes the user just typed.
+  const [supabase] = useState(() => createClient());
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+
     async function loadProfile() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push("/login"); return; }
@@ -49,6 +55,11 @@ export default function ProfileEditorPage() {
     loadProfile();
   }, [supabase, router]);
 
+  const patchProfile = useCallback(
+    (patch: Partial<Profile>) => setProfile((prev) => (prev ? { ...prev, ...patch } : prev)),
+    []
+  );
+
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !profile) return;
@@ -64,7 +75,7 @@ export default function ProfileEditorPage() {
       const data = await res.json();
 
       if (res.ok) {
-        setProfile({ ...profile, avatar_url: data.avatar_url });
+        patchProfile({ avatar_url: data.avatar_url });
       } else {
         setError(data.error || "Failed to upload avatar");
       }
@@ -84,7 +95,7 @@ export default function ProfileEditorPage() {
     try {
       const res = await fetch("/api/avatar", { method: "DELETE" });
       if (res.ok) {
-        setProfile({ ...profile, avatar_url: null });
+        patchProfile({ avatar_url: null });
       } else {
         setError("Failed to remove avatar");
       }
@@ -103,7 +114,14 @@ export default function ProfileEditorPage() {
     setError(null);
     setSuccess(false);
 
-    if (!isValidSlug(profile.slug)) {
+    // Normalize slug at submit time — typing leaves it raw so selection/caret
+    // behave correctly; slugify only runs on blur and here.
+    const normalizedSlug = slugify(profile.slug);
+    if (normalizedSlug !== profile.slug) {
+      patchProfile({ slug: normalizedSlug });
+    }
+
+    if (!isValidSlug(normalizedSlug)) {
       setError("Invalid profile URL. Use 3-63 lowercase letters, numbers, and hyphens.");
       setSaving(false);
       return;
@@ -114,7 +132,7 @@ export default function ProfileEditorPage() {
       .update({
         first_name: profile.first_name,
         last_name: profile.last_name,
-        slug: profile.slug,
+        slug: normalizedSlug,
         headline: profile.headline,
         location: profile.location,
         website_url: profile.website_url,
@@ -251,7 +269,7 @@ export default function ProfileEditorPage() {
                     <Input
                       id="firstName"
                       value={profile.first_name}
-                      onChange={(e) => setProfile({ ...profile, first_name: e.target.value })}
+                      onChange={(e) => patchProfile({ first_name: e.target.value })}
                       required
                     />
                   </div>
@@ -260,7 +278,7 @@ export default function ProfileEditorPage() {
                     <Input
                       id="lastName"
                       value={profile.last_name}
-                      onChange={(e) => setProfile({ ...profile, last_name: e.target.value })}
+                      onChange={(e) => patchProfile({ last_name: e.target.value })}
                       required
                     />
                   </div>
@@ -272,7 +290,7 @@ export default function ProfileEditorPage() {
                     id="headline"
                     placeholder="e.g. Senior Software Engineer at Acme Corp"
                     value={profile.headline || ""}
-                    onChange={(e) => setProfile({ ...profile, headline: e.target.value })}
+                    onChange={(e) => patchProfile({ headline: e.target.value })}
                   />
                 </div>
 
@@ -282,7 +300,7 @@ export default function ProfileEditorPage() {
                     id="location"
                     placeholder="e.g. San Francisco, CA"
                     value={profile.location || ""}
-                    onChange={(e) => setProfile({ ...profile, location: e.target.value })}
+                    onChange={(e) => patchProfile({ location: e.target.value })}
                   />
                 </div>
 
@@ -293,7 +311,7 @@ export default function ProfileEditorPage() {
                     type="url"
                     placeholder="https://yourwebsite.com"
                     value={profile.website_url || ""}
-                    onChange={(e) => setProfile({ ...profile, website_url: e.target.value })}
+                    onChange={(e) => patchProfile({ website_url: e.target.value })}
                   />
                 </div>
 
@@ -304,7 +322,7 @@ export default function ProfileEditorPage() {
                     type="url"
                     placeholder="https://linkedin.com/in/yourprofile"
                     value={profile.linkedin_url || ""}
-                    onChange={(e) => setProfile({ ...profile, linkedin_url: e.target.value })}
+                    onChange={(e) => patchProfile({ linkedin_url: e.target.value })}
                   />
                 </div>
               </CardContent>
@@ -326,7 +344,7 @@ export default function ProfileEditorPage() {
                       <button
                         key={theme.id}
                         type="button"
-                        onClick={() => setProfile({ ...profile, profile_theme: theme.id })}
+                        onClick={() => patchProfile({ profile_theme: theme.id })}
                         className={`rounded-lg border-2 p-3 text-left transition-all ${
                           isSelected
                             ? "border-zinc-900 dark:border-white ring-2 ring-zinc-900/20 dark:ring-white/20"
@@ -357,7 +375,8 @@ export default function ProfileEditorPage() {
                 <div className="flex items-center gap-2">
                   <Input
                     value={profile.slug}
-                    onChange={(e) => setProfile({ ...profile, slug: slugify(e.target.value) })}
+                    onChange={(e) => patchProfile({ slug: e.target.value })}
+                    onBlur={(e) => patchProfile({ slug: slugify(e.target.value) })}
                     required
                     className="max-w-xs font-mono"
                   />
@@ -381,9 +400,7 @@ export default function ProfileEditorPage() {
                     </Badge>
                     <Switch
                       checked={profile.is_published}
-                      onCheckedChange={(checked) =>
-                        setProfile({ ...profile, is_published: checked })
-                      }
+                      onCheckedChange={(checked) => patchProfile({ is_published: checked })}
                     />
                   </div>
                 </div>
@@ -399,14 +416,11 @@ export default function ProfileEditorPage() {
         </TabsContent>
 
         <TabsContent value="templates">
-          <TemplatePicker
-            profile={profile}
-            onUpdate={(updates) => setProfile({ ...profile, ...updates })}
-          />
+          <TemplatePicker profile={profile} onUpdate={patchProfile} />
         </TabsContent>
 
         <TabsContent value="apply">
-          <ApplicationPreferencesTab profile={profile} setProfile={setProfile} />
+          <ApplicationPreferencesTab profile={profile} patchProfile={patchProfile} />
         </TabsContent>
       </Tabs>
     </div>
@@ -419,10 +433,16 @@ const APP_PREF_FIELDS: (keyof Profile)[] = [
   "salary_expectation", "notice_period", "preferred_work_setting", "how_heard_default",
 ];
 
-function ApplicationPreferencesTab({ profile, setProfile }: { profile: Profile; setProfile: (p: Profile) => void }) {
+function ApplicationPreferencesTab({
+  profile,
+  patchProfile,
+}: {
+  profile: Profile;
+  patchProfile: (patch: Partial<Profile>) => void;
+}) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -448,7 +468,7 @@ function ApplicationPreferencesTab({ profile, setProfile }: { profile: Profile; 
   }
 
   function updatePref(key: keyof Profile, value: string) {
-    setProfile({ ...profile, [key]: value });
+    patchProfile({ [key]: value } as Partial<Profile>);
   }
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Sparkles, X, ChevronUp, ChevronDown } from "lucide-react";
+import { Check, Loader2, Plus, Trash2, Sparkles, X, ChevronUp, ChevronDown, AlertCircle } from "lucide-react";
 import type { ResumeSection, Experience, Education, Skill, Certification, Project } from "@/types/database";
 import type { SuggestionItem } from "@/lib/claude/schemas";
 import { parseHighlights } from "@/lib/utils";
@@ -18,13 +18,155 @@ interface SectionContentEditorProps {
   onUpdate: () => void;
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// Autosave primitives — shared across every section editor so typing shows
+// consistent "Saving…" / "Saved ✓" feedback and only hits the DB once the
+// user pauses, instead of firing an UPDATE per keystroke.
+// ───────────────────────────────────────────────────────────────────────────
+
+type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
+const AUTOSAVE_DELAY_MS = 700;
+const SAVED_LINGER_MS = 1800;
+
+// Coalesces per-row patches (keyed by row id) into a single debounced flush.
+// Used by list-style sections (experiences, educations, ...).
+function useBatchedAutosave<T>(
+  performSave: (batch: Map<string, Partial<T>>) => Promise<void>
+) {
+  const [status, setStatus] = useState<SaveStatus>("idle");
+  const pendingRef = useRef<Map<string, Partial<T>>>(new Map());
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveRef = useRef(performSave);
+  saveRef.current = performSave;
+
+  const flush = useCallback(async () => {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    if (pendingRef.current.size === 0) return;
+    const batch = pendingRef.current;
+    pendingRef.current = new Map();
+    setStatus("saving");
+    try {
+      await saveRef.current(batch);
+      setStatus("saved");
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setStatus("idle"), SAVED_LINGER_MS);
+    } catch {
+      setStatus("error");
+    }
+  }, []);
+
+  const schedule = useCallback((id: string, updates: Partial<T>) => {
+    const prev = pendingRef.current.get(id) || {};
+    pendingRef.current.set(id, { ...prev, ...updates });
+    setStatus("pending");
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(flush, AUTOSAVE_DELAY_MS);
+  }, [flush]);
+
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === "hidden") flush(); };
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      if (pendingRef.current.size > 0) {
+        const batch = pendingRef.current;
+        pendingRef.current = new Map();
+        // Best-effort flush on unmount; we can't await in cleanup.
+        saveRef.current(batch).catch(() => {});
+      }
+    };
+  }, [flush]);
+
+  return { schedule, flush, status };
+}
+
+// Simpler variant for a single dirty value (summary / custom content).
+function useDebouncedAutosave(performSave: () => Promise<void>) {
+  const [status, setStatus] = useState<SaveStatus>("idle");
+  const dirtyRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveRef = useRef(performSave);
+  saveRef.current = performSave;
+
+  const flush = useCallback(async () => {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    if (!dirtyRef.current) return;
+    dirtyRef.current = false;
+    setStatus("saving");
+    try {
+      await saveRef.current();
+      setStatus("saved");
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setStatus("idle"), SAVED_LINGER_MS);
+    } catch {
+      setStatus("error");
+    }
+  }, []);
+
+  const schedule = useCallback(() => {
+    dirtyRef.current = true;
+    setStatus("pending");
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(flush, AUTOSAVE_DELAY_MS);
+  }, [flush]);
+
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === "hidden") flush(); };
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      if (dirtyRef.current) {
+        dirtyRef.current = false;
+        saveRef.current().catch(() => {});
+      }
+    };
+  }, [flush]);
+
+  return { schedule, flush, status };
+}
+
+function SaveStatusIndicator({ status }: { status: SaveStatus }) {
+  if (status === "idle") {
+    return <span className="text-xs text-zinc-400">Autosaves as you type</span>;
+  }
+  if (status === "pending") {
+    return <span className="text-xs text-zinc-500">Unsaved changes…</span>;
+  }
+  if (status === "saving") {
+    return (
+      <span className="text-xs text-zinc-500 inline-flex items-center gap-1">
+        <Loader2 className="h-3 w-3 animate-spin" /> Saving…
+      </span>
+    );
+  }
+  if (status === "saved") {
+    return (
+      <span className="text-xs text-green-600 dark:text-green-400 inline-flex items-center gap-1">
+        <Check className="h-3 w-3" /> Saved
+      </span>
+    );
+  }
+  return (
+    <span className="text-xs text-red-600 dark:text-red-400 inline-flex items-center gap-1">
+      <AlertCircle className="h-3 w-3" /> Save failed — retry any edit
+    </span>
+  );
+}
+
+
 function AISuggestButton({ section }: { section: ResumeSection }) {
   const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [targetedCount, setTargetedCount] = useState<number | null>(null);
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
 
   async function getSuggestions() {
     setLoading(true);
@@ -186,22 +328,28 @@ export function SectionContentEditor({ section, onUpdate }: SectionContentEditor
 // === SUMMARY EDITOR ===
 function SummaryEditor({ section, onUpdate }: SectionContentEditorProps) {
   const [content, setContent] = useState("");
-  const [saving, setSaving] = useState(false);
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
+  const loadedRef = useRef(false);
+  const contentRef = useRef("");
+  contentRef.current = content;
 
   useEffect(() => {
+    let cancelled = false;
     supabase
       .from("custom_sections")
-      .select("*")
+      .select("content")
       .eq("section_id", section.id)
       .single()
       .then(({ data }) => {
+        if (cancelled) return;
         if (data) setContent(data.content || "");
+        loadedRef.current = true;
       });
+    return () => { cancelled = true; };
   }, [section.id, supabase]);
 
-  async function save() {
-    setSaving(true);
+  const { schedule, status } = useDebouncedAutosave(async () => {
+    const next = contentRef.current;
     const { data: existing } = await supabase
       .from("custom_sections")
       .select("id")
@@ -209,29 +357,31 @@ function SummaryEditor({ section, onUpdate }: SectionContentEditorProps) {
       .single();
 
     if (existing) {
-      await supabase.from("custom_sections").update({ content }).eq("id", existing.id);
+      await supabase.from("custom_sections").update({ content: next }).eq("id", existing.id);
     } else {
       await supabase.from("custom_sections").insert({
         section_id: section.id,
         profile_id: section.profile_id,
-        content,
+        content: next,
       });
     }
-    setSaving(false);
     onUpdate();
-  }
+  });
 
   return (
     <div className="space-y-3">
+      <div className="flex justify-end">
+        <SaveStatusIndicator status={status} />
+      </div>
       <Textarea
         placeholder="Write your professional summary..."
         value={content}
-        onChange={(e) => setContent(e.target.value)}
+        onChange={(e) => {
+          setContent(e.target.value);
+          if (loadedRef.current) schedule();
+        }}
         rows={5}
       />
-      <Button size="sm" onClick={save} disabled={saving}>
-        {saving ? "Saving..." : "Save"}
-      </Button>
     </div>
   );
 }
@@ -240,7 +390,7 @@ function SummaryEditor({ section, onUpdate }: SectionContentEditorProps) {
 function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
   const [items, setItems] = useState<Experience[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -254,7 +404,16 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
 
   useEffect(() => { load(); }, [load]);
 
+  const { schedule, flush, status } = useBatchedAutosave<Experience>(async (batch) => {
+    await Promise.all(
+      [...batch.entries()].map(([id, updates]) =>
+        supabase.from("experiences").update(updates).eq("id", id)
+      )
+    );
+  });
+
   async function addItem() {
+    await flush();
     const { data } = await supabase
       .from("experiences")
       .insert({
@@ -267,17 +426,18 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
       })
       .select()
       .single();
-    if (data) { setItems([...items, data as Experience]); }
+    if (data) { setItems((prev) => [...prev, data as Experience]); }
   }
 
-  async function updateItem(id: string, updates: Partial<Experience>) {
-    await supabase.from("experiences").update(updates).eq("id", id);
-    setItems(items.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+  function updateItem(id: string, updates: Partial<Experience>) {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+    schedule(id, updates);
   }
 
   async function moveItem(id: string, direction: "up" | "down") {
     const index = items.findIndex((i) => i.id === id);
     if ((direction === "up" && index === 0) || (direction === "down" && index === items.length - 1)) return;
+    await flush();
     const newItems = [...items];
     const swapIndex = direction === "up" ? index - 1 : index + 1;
     [newItems[index], newItems[swapIndex]] = [newItems[swapIndex], newItems[index]];
@@ -290,6 +450,7 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
   }
 
   async function deleteItem(id: string) {
+    await flush();
     await supabase.from("experiences").delete().eq("id", id);
     setItems(items.filter((i) => i.id !== id));
     onUpdate();
@@ -299,6 +460,9 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <SaveStatusIndicator status={status} />
+      </div>
       {items.map((item, index) => (
         <Card key={item.id} className="bg-zinc-50 dark:bg-zinc-900">
           <CardContent className="p-4 space-y-3">
@@ -434,7 +598,7 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
 function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
   const [items, setItems] = useState<Education[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -448,7 +612,16 @@ function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
 
   useEffect(() => { load(); }, [load]);
 
+  const { schedule, flush, status } = useBatchedAutosave<Education>(async (batch) => {
+    await Promise.all(
+      [...batch.entries()].map(([id, updates]) =>
+        supabase.from("educations").update(updates).eq("id", id)
+      )
+    );
+  });
+
   async function addItem() {
+    await flush();
     const { data } = await supabase
       .from("educations")
       .insert({
@@ -459,17 +632,18 @@ function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
       })
       .select()
       .single();
-    if (data) setItems([...items, data as Education]);
+    if (data) setItems((prev) => [...prev, data as Education]);
   }
 
-  async function updateItem(id: string, updates: Partial<Education>) {
-    await supabase.from("educations").update(updates).eq("id", id);
-    setItems(items.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+  function updateItem(id: string, updates: Partial<Education>) {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+    schedule(id, updates);
   }
 
   async function moveItem(id: string, direction: "up" | "down") {
     const index = items.findIndex((i) => i.id === id);
     if ((direction === "up" && index === 0) || (direction === "down" && index === items.length - 1)) return;
+    await flush();
     const newItems = [...items];
     const swapIndex = direction === "up" ? index - 1 : index + 1;
     [newItems[index], newItems[swapIndex]] = [newItems[swapIndex], newItems[index]];
@@ -482,6 +656,7 @@ function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
   }
 
   async function deleteItem(id: string) {
+    await flush();
     await supabase.from("educations").delete().eq("id", id);
     setItems(items.filter((i) => i.id !== id));
     onUpdate();
@@ -491,6 +666,9 @@ function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <SaveStatusIndicator status={status} />
+      </div>
       {items.map((item, index) => (
         <Card key={item.id} className="bg-zinc-50 dark:bg-zinc-900">
           <CardContent className="p-4 space-y-3">
@@ -571,10 +749,10 @@ function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
 }
 
 // === SKILLS EDITOR ===
-function SkillsEditor({ section, onUpdate }: SectionContentEditorProps) {
+function SkillsEditor({ section }: SectionContentEditorProps) {
   const [items, setItems] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -588,7 +766,16 @@ function SkillsEditor({ section, onUpdate }: SectionContentEditorProps) {
 
   useEffect(() => { load(); }, [load]);
 
+  const { schedule, flush, status } = useBatchedAutosave<Skill>(async (batch) => {
+    await Promise.all(
+      [...batch.entries()].map(([id, updates]) =>
+        supabase.from("skills").update(updates).eq("id", id)
+      )
+    );
+  });
+
   async function addItem() {
+    await flush();
     const { data } = await supabase
       .from("skills")
       .insert({
@@ -599,17 +786,18 @@ function SkillsEditor({ section, onUpdate }: SectionContentEditorProps) {
       })
       .select()
       .single();
-    if (data) setItems([...items, data as Skill]);
+    if (data) setItems((prev) => [...prev, data as Skill]);
   }
 
-  async function updateItem(id: string, updates: Partial<Skill>) {
-    await supabase.from("skills").update(updates).eq("id", id);
-    setItems(items.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+  function updateItem(id: string, updates: Partial<Skill>) {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+    schedule(id, updates);
   }
 
   async function moveItem(id: string, direction: "up" | "down") {
     const index = items.findIndex((i) => i.id === id);
     if ((direction === "up" && index === 0) || (direction === "down" && index === items.length - 1)) return;
+    await flush();
     const newItems = [...items];
     const swapIndex = direction === "up" ? index - 1 : index + 1;
     [newItems[index], newItems[swapIndex]] = [newItems[swapIndex], newItems[index]];
@@ -622,6 +810,7 @@ function SkillsEditor({ section, onUpdate }: SectionContentEditorProps) {
   }
 
   async function deleteItem(id: string) {
+    await flush();
     await supabase.from("skills").delete().eq("id", id);
     setItems(items.filter((i) => i.id !== id));
   }
@@ -630,6 +819,9 @@ function SkillsEditor({ section, onUpdate }: SectionContentEditorProps) {
 
   return (
     <div className="space-y-3">
+      <div className="flex justify-end">
+        <SaveStatusIndicator status={status} />
+      </div>
       {items.map((item, index) => (
         <div key={item.id} className="flex flex-col sm:flex-row gap-2">
           <Input
@@ -677,10 +869,10 @@ function SkillsEditor({ section, onUpdate }: SectionContentEditorProps) {
 }
 
 // === CERTIFICATIONS EDITOR ===
-function CertificationsEditor({ section, onUpdate }: SectionContentEditorProps) {
+function CertificationsEditor({ section }: SectionContentEditorProps) {
   const [items, setItems] = useState<Certification[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -694,7 +886,16 @@ function CertificationsEditor({ section, onUpdate }: SectionContentEditorProps) 
 
   useEffect(() => { load(); }, [load]);
 
+  const { schedule, flush, status } = useBatchedAutosave<Certification>(async (batch) => {
+    await Promise.all(
+      [...batch.entries()].map(([id, updates]) =>
+        supabase.from("certifications").update(updates).eq("id", id)
+      )
+    );
+  });
+
   async function addItem() {
+    await flush();
     const { data } = await supabase
       .from("certifications")
       .insert({
@@ -705,17 +906,18 @@ function CertificationsEditor({ section, onUpdate }: SectionContentEditorProps) 
       })
       .select()
       .single();
-    if (data) setItems([...items, data as Certification]);
+    if (data) setItems((prev) => [...prev, data as Certification]);
   }
 
-  async function updateItem(id: string, updates: Partial<Certification>) {
-    await supabase.from("certifications").update(updates).eq("id", id);
-    setItems(items.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+  function updateItem(id: string, updates: Partial<Certification>) {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+    schedule(id, updates);
   }
 
   async function moveItem(id: string, direction: "up" | "down") {
     const index = items.findIndex((i) => i.id === id);
     if ((direction === "up" && index === 0) || (direction === "down" && index === items.length - 1)) return;
+    await flush();
     const newItems = [...items];
     const swapIndex = direction === "up" ? index - 1 : index + 1;
     [newItems[index], newItems[swapIndex]] = [newItems[swapIndex], newItems[index]];
@@ -728,6 +930,7 @@ function CertificationsEditor({ section, onUpdate }: SectionContentEditorProps) 
   }
 
   async function deleteItem(id: string) {
+    await flush();
     await supabase.from("certifications").delete().eq("id", id);
     setItems(items.filter((i) => i.id !== id));
   }
@@ -736,6 +939,9 @@ function CertificationsEditor({ section, onUpdate }: SectionContentEditorProps) 
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <SaveStatusIndicator status={status} />
+      </div>
       {items.map((item, index) => (
         <Card key={item.id} className="bg-zinc-50 dark:bg-zinc-900">
           <CardContent className="p-4 space-y-3">
@@ -799,10 +1005,10 @@ function CertificationsEditor({ section, onUpdate }: SectionContentEditorProps) 
 }
 
 // === PROJECTS EDITOR ===
-function ProjectsEditor({ section, onUpdate }: SectionContentEditorProps) {
+function ProjectsEditor({ section }: SectionContentEditorProps) {
   const [items, setItems] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -816,7 +1022,16 @@ function ProjectsEditor({ section, onUpdate }: SectionContentEditorProps) {
 
   useEffect(() => { load(); }, [load]);
 
+  const { schedule, flush, status } = useBatchedAutosave<Project>(async (batch) => {
+    await Promise.all(
+      [...batch.entries()].map(([id, updates]) =>
+        supabase.from("projects").update(updates).eq("id", id)
+      )
+    );
+  });
+
   async function addItem() {
+    await flush();
     const { data } = await supabase
       .from("projects")
       .insert({
@@ -827,17 +1042,18 @@ function ProjectsEditor({ section, onUpdate }: SectionContentEditorProps) {
       })
       .select()
       .single();
-    if (data) setItems([...items, data as Project]);
+    if (data) setItems((prev) => [...prev, data as Project]);
   }
 
-  async function updateItem(id: string, updates: Partial<Project>) {
-    await supabase.from("projects").update(updates).eq("id", id);
-    setItems(items.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+  function updateItem(id: string, updates: Partial<Project>) {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+    schedule(id, updates);
   }
 
   async function moveItem(id: string, direction: "up" | "down") {
     const index = items.findIndex((i) => i.id === id);
     if ((direction === "up" && index === 0) || (direction === "down" && index === items.length - 1)) return;
+    await flush();
     const newItems = [...items];
     const swapIndex = direction === "up" ? index - 1 : index + 1;
     [newItems[index], newItems[swapIndex]] = [newItems[swapIndex], newItems[index]];
@@ -850,6 +1066,7 @@ function ProjectsEditor({ section, onUpdate }: SectionContentEditorProps) {
   }
 
   async function deleteItem(id: string) {
+    await flush();
     await supabase.from("projects").delete().eq("id", id);
     setItems(items.filter((i) => i.id !== id));
   }
@@ -858,6 +1075,9 @@ function ProjectsEditor({ section, onUpdate }: SectionContentEditorProps) {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <SaveStatusIndicator status={status} />
+      </div>
       {items.map((item, index) => (
         <Card key={item.id} className="bg-zinc-50 dark:bg-zinc-900">
           <CardContent className="p-4 space-y-3">
