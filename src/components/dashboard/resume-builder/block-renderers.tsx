@@ -273,6 +273,39 @@ function InlineDeleteButton({ onDelete }: { onDelete: () => void }) {
   );
 }
 
+/**
+ * Wrap an inline-editable contact field so we can show a strikethrough +
+ * dim when it's hidden from the actual PDF output. The field stays
+ * editable either way — the user shouldn't have to round-trip to the
+ * Profile page just to type into it. A small tooltip on hover explains
+ * where the toggle lives.
+ */
+function ContactField({
+  ctx,
+  hiddenOnOutput,
+  hiddenHint,
+  children,
+}: {
+  ctx: BlockRenderContext;
+  hiddenOnOutput: boolean;
+  hiddenHint: string;
+  children: React.ReactNode;
+}) {
+  if (!hiddenOnOutput || !ctx.editable) return <>{children}</>;
+  return (
+    <span
+      title={hiddenHint}
+      style={{
+        opacity: 0.45,
+        textDecoration: "line-through",
+        textDecorationThickness: "1px",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
 function SectionHeading({ ctx, text }: { ctx: BlockRenderContext; text: string }) {
   return (
     <div
@@ -344,20 +377,32 @@ function HeaderBlock({ ctx }: { ctx: BlockRenderContext }) {
         style={{ ...fontStyle(ctx, 12), color: ctx.palette.textLight, marginBottom: spacing(ctx, 6) }}
       />
       <div style={{ display: "flex", flexWrap: "wrap", gap: spacing(ctx, 12) }}>
-        <Editable
+        <ContactField
           ctx={ctx}
-          value={profile.email || ""}
-          onSave={save("email")}
-          placeholder="email@example.com"
-          style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}
-        />
-        <Editable
+          hiddenOnOutput={profile.show_email === false}
+          hiddenHint="Email hidden from the resume — toggle in Profile"
+        >
+          <Editable
+            ctx={ctx}
+            value={profile.email || ""}
+            onSave={save("email")}
+            placeholder="email@example.com"
+            style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}
+          />
+        </ContactField>
+        <ContactField
           ctx={ctx}
-          value={profile.phone_personal || ""}
-          onSave={save("phone_personal")}
-          placeholder="Phone"
-          style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}
-        />
+          hiddenOnOutput={profile.show_phone === false}
+          hiddenHint="Phone hidden from the resume — toggle in Profile"
+        >
+          <Editable
+            ctx={ctx}
+            value={profile.phone_personal || ""}
+            onSave={save("phone_personal")}
+            placeholder="Phone"
+            style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}
+          />
+        </ContactField>
         <Editable
           ctx={ctx}
           value={profile.location || ""}

@@ -45,8 +45,8 @@ export function MinimalLayout({ data, palette, font }: { data: ResumeData; palet
           {profile.headline && <Text style={s.headline}>{profile.headline}</Text>}
           <View style={s.divider} />
           <View style={s.contactRow}>
-            <Text style={s.contactItem}>{profile.email}</Text>
-            {profile.phone_personal && <Text style={s.contactItem}>{profile.phone_personal}</Text>}
+            {profile.show_email !== false && <Text style={s.contactItem}>{profile.email}</Text>}
+            {profile.phone_personal && profile.show_phone !== false && <Text style={s.contactItem}>{profile.phone_personal}</Text>}
             {profile.location && <Text style={s.contactItem}>{profile.location}</Text>}
             {profile.website_url && <Text style={s.contactItem}>{profile.website_url}</Text>}
           </View>

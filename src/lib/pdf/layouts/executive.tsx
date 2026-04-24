@@ -48,8 +48,8 @@ export function ExecutiveLayout({ data, palette, font }: { data: ResumeData; pal
           <Text style={s.name}>{profile.first_name} {profile.last_name}</Text>
           {profile.headline && <Text style={s.headline}>{profile.headline}</Text>}
           <View style={s.contactRow}>
-            <Text style={s.contactItem}>{profile.email}</Text>
-            {profile.phone_personal && <Text style={s.contactItem}>{profile.phone_personal}</Text>}
+            {profile.show_email !== false && <Text style={s.contactItem}>{profile.email}</Text>}
+            {profile.phone_personal && profile.show_phone !== false && <Text style={s.contactItem}>{profile.phone_personal}</Text>}
             {profile.location && <Text style={s.contactItem}>{profile.location}</Text>}
             {profile.website_url && <Text style={s.contactItem}>{profile.website_url}</Text>}
           </View>

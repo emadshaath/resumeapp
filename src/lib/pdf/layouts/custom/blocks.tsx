@@ -46,8 +46,8 @@ function HeaderBlock({ ctx }: { ctx: Ctx }) {
       </Text>
       {profile.headline && <Text style={ctx.s.headline}>{profile.headline}</Text>}
       <View style={ctx.s.contactRow}>
-        <Text style={ctx.s.contactItem}>{profile.email}</Text>
-        {profile.phone_personal && <Text style={ctx.s.contactItem}>{profile.phone_personal}</Text>}
+        {profile.show_email !== false && <Text style={ctx.s.contactItem}>{profile.email}</Text>}
+        {profile.phone_personal && profile.show_phone !== false && <Text style={ctx.s.contactItem}>{profile.phone_personal}</Text>}
         {profile.location && <Text style={ctx.s.contactItem}>{profile.location}</Text>}
         {profile.website_url && <Text style={ctx.s.contactItem}>{profile.website_url}</Text>}
       </View>

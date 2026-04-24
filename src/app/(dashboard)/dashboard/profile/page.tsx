@@ -137,6 +137,10 @@ export default function ProfileEditorPage() {
         last_name: profile.last_name,
         slug: normalizedSlug,
         headline: profile.headline,
+        email: profile.email,
+        phone_personal: profile.phone_personal,
+        show_email: profile.show_email,
+        show_phone: profile.show_phone,
         location: profile.location,
         website_url: profile.website_url,
         linkedin_url: profile.linkedin_url,
@@ -295,6 +299,52 @@ export default function ProfileEditorPage() {
                     value={profile.headline || ""}
                     onChange={(e) => patchProfile({ headline: e.target.value })}
                   />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="name@example.com"
+                      value={profile.email || ""}
+                      onChange={(e) => patchProfile({ email: e.target.value })}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="show_email"
+                        checked={profile.show_email}
+                        onCheckedChange={(v) => patchProfile({ show_email: v })}
+                      />
+                      <Label htmlFor="show_email" className="text-xs text-zinc-500">
+                        Show on resume
+                      </Label>
+                    </div>
+                    <p className="text-xs text-zinc-500">
+                      This is the email displayed on your resume — independent of the one you sign in with.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="+1 555 123 4567"
+                      value={profile.phone_personal || ""}
+                      onChange={(e) => patchProfile({ phone_personal: e.target.value })}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="show_phone"
+                        checked={profile.show_phone}
+                        onCheckedChange={(v) => patchProfile({ show_phone: v })}
+                      />
+                      <Label htmlFor="show_phone" className="text-xs text-zinc-500">
+                        Show on resume
+                      </Label>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-2">

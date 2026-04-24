@@ -56,8 +56,8 @@ export function ModernLayout({ data, palette, font }: { data: ResumeData; palett
           {/* Contact */}
           <View style={s.sidebarSection}>
             <Text style={s.sidebarSectionTitle}>Contact</Text>
-            <Text style={s.sidebarItem}>{profile.email}</Text>
-            {profile.phone_personal && <Text style={s.sidebarItem}>{profile.phone_personal}</Text>}
+            {profile.show_email !== false && <Text style={s.sidebarItem}>{profile.email}</Text>}
+            {profile.phone_personal && profile.show_phone !== false && <Text style={s.sidebarItem}>{profile.phone_personal}</Text>}
             {profile.location && <Text style={s.sidebarItem}>{profile.location}</Text>}
             {profile.website_url && <Text style={s.sidebarItem}>{profile.website_url}</Text>}
           </View>
