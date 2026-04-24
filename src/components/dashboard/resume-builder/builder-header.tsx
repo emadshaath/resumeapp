@@ -13,9 +13,10 @@ import {
   Wand2,
   Eye,
   PencilLine,
+  SlidersHorizontal,
 } from "lucide-react";
 
-export type BuilderView = "edit" | "preview";
+export type BuilderView = "edit" | "design" | "style";
 
 interface BuilderHeaderProps {
   // Style/save state
@@ -28,7 +29,7 @@ interface BuilderHeaderProps {
   downloading: boolean;
   onDownload: () => void;
 
-  // View toggle (used on tablet/mobile to swap between section list and preview)
+  // View toggle (used on tablet/mobile to swap between the three panels)
   view: BuilderView;
   onViewChange: (v: BuilderView) => void;
 
@@ -65,30 +66,13 @@ export function BuilderHeader({
         <h1 className="text-sm font-semibold tracking-tight sm:text-base">Resume Builder</h1>
       </div>
 
-      {/* Mobile/tablet view toggle — hidden on desktop where everything fits */}
+      {/* Mobile/tablet view toggle — hidden on desktop where everything fits.
+          Three buttons mirror the three desktop columns so every pane is
+          reachable on small screens. */}
       <div className="ml-2 inline-flex rounded-md border border-zinc-200 dark:border-zinc-800 lg:hidden">
-        <button
-          type="button"
-          onClick={() => onViewChange("edit")}
-          className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors ${
-            view === "edit"
-              ? "bg-brand text-brand-foreground"
-              : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          }`}
-        >
-          <PencilLine className="h-3 w-3" /> Edit
-        </button>
-        <button
-          type="button"
-          onClick={() => onViewChange("preview")}
-          className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors ${
-            view === "preview"
-              ? "bg-brand text-brand-foreground"
-              : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          }`}
-        >
-          <Eye className="h-3 w-3" /> Preview
-        </button>
+        <TogglePill active={view === "edit"} onClick={() => onViewChange("edit")} icon={PencilLine} label="Edit" />
+        <TogglePill active={view === "design"} onClick={() => onViewChange("design")} icon={Eye} label="Design" />
+        <TogglePill active={view === "style"} onClick={() => onViewChange("style")} icon={SlidersHorizontal} label="Style" />
       </div>
 
       <div className="flex-1" />
@@ -138,5 +122,31 @@ export function BuilderHeader({
         <span className="hidden sm:inline">Download PDF</span>
       </Button>
     </header>
+  );
+}
+
+function TogglePill({
+  active,
+  onClick,
+  icon: Icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ElementType;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors ${
+        active
+          ? "bg-brand text-brand-foreground"
+          : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+      }`}
+    >
+      <Icon className="h-3 w-3" /> {label}
+    </button>
   );
 }

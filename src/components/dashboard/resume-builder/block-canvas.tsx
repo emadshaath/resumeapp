@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   type DragEndEvent,
@@ -113,21 +113,9 @@ export function BlockCanvas({
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <div
-        className="flex h-full w-full justify-center overflow-y-auto bg-zinc-200 px-4 py-6 dark:bg-zinc-900"
-        onClick={() => onSelectBlock(null)}
-      >
-        {/* A4 sheet. 794px ≈ A4 width @ 96dpi; height grows naturally. */}
-        <div
-          className="relative w-full max-w-[794px] shrink-0 rounded-sm shadow-lg"
-          style={{
-            backgroundColor: palette.background,
-            minHeight: 1123, // ≈ A4 portrait height @ 96dpi
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div style={{ padding: pagePadding }}>
-            {/* Header zone — single sortable context, usually one block. */}
+      <ScalingViewport palette={palette} onDeselect={() => onSelectBlock(null)}>
+        <div style={{ padding: pagePadding }}>
+          {/* Header zone — single sortable context, usually one block. */}
             <SortableContext items={headerBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
               {headerBlocks.map((b) => (
                 <SortableBlockShell
@@ -216,10 +204,85 @@ export function BlockCanvas({
                 )}
               </div>
             )}
-          </div>
+        </div>
+      </ScalingViewport>
+    </DndContext>
+  );
+}
+
+/**
+ * Wraps the A4 sheet in a container that scales the sheet down when the
+ * available viewport is narrower than the sheet's natural 794px width.
+ * Keeps the DOM at full size and uses a CSS transform + compensating outer
+ * dimensions so nothing overflows horizontally on phones.
+ */
+function ScalingViewport({
+  palette,
+  onDeselect,
+  children,
+}: {
+  palette: { background: string };
+  onDeselect: () => void;
+  children: React.ReactNode;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [sheetHeight, setSheetHeight] = useState(1123);
+
+  // Compute scale from the available width of the scroll container.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const compute = () => {
+      const available = el.clientWidth - 32; // px-4 * 2
+      setScale(Math.min(1, available / 794));
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Track the sheet's natural rendered height so the outer reserves the
+  // correct scaled vertical space — otherwise the sheet's bottom clips
+  // once content grows past 1 page or shrinks below the default.
+  useEffect(() => {
+    const el = sheetRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setSheetHeight(el.scrollHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={scrollRef}
+      className="flex h-full w-full justify-center overflow-y-auto bg-zinc-200 px-4 py-6 dark:bg-zinc-900"
+      onClick={onDeselect}
+    >
+      <div
+        style={{
+          width: 794 * scale,
+          height: sheetHeight * scale,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          ref={sheetRef}
+          className="relative rounded-sm shadow-lg"
+          style={{
+            width: 794,
+            minHeight: 1123,
+            backgroundColor: palette.background,
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+          }}
+        >
+          {children}
         </div>
       </div>
-    </DndContext>
+    </div>
   );
 }
 
@@ -288,9 +351,11 @@ function SortableBlockShell({
         </div>
       )}
 
-      {/* Drag handle — small grip icon floated to the left, shown on hover or
-          when selected. Intentionally not absolute-positioned inside the
-          content so the layout doesn't jump on hover. */}
+      {/* Drag handle — small grip icon. On narrow viewports (where the
+          negative-left position would be clipped by the scaled A4 sheet) it
+          tucks inside the block; on desktop it floats to the left so the
+          content isn't crowded. Always visible when the block is selected,
+          shown on hover otherwise. */}
       <button
         type="button"
         ref={setActivatorNodeRef}
@@ -298,7 +363,7 @@ function SortableBlockShell({
         {...listeners}
         aria-label={`Drag ${block.type} block`}
         onClick={(e) => e.stopPropagation()}
-        className={`absolute -left-6 top-1 z-10 hidden h-6 w-5 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 group-hover:flex ${
+        className={`absolute left-1 top-1 z-10 hidden h-6 w-5 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 group-hover:flex lg:-left-6 ${
           selected ? "flex" : ""
         }`}
         style={{ touchAction: "none", cursor: "grab" }}

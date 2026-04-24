@@ -39,6 +39,13 @@ import {
   type StyleState,
 } from "./style-state";
 
+/** Match the `lg:` Tailwind breakpoint (1024px). Used to gate
+ *  mobile-only view-switching side-effects without a hook or SSR dance. */
+function isDesktop() {
+  if (typeof window === "undefined") return true;
+  return window.matchMedia("(min-width: 1024px)").matches;
+}
+
 const PdfLivePreview = dynamic(() => import("@/components/dashboard/pdf-live-preview"), {
   ssr: false,
   loading: () => (
@@ -103,7 +110,8 @@ export function ResumeBuilder({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [linkedinOpen, setLinkedinOpen] = useState(false);
 
-  // Mobile/tablet view toggle. Desktop ignores this and shows everything.
+  // Mobile/tablet view toggle. Desktop ignores this and shows all three
+  // columns at once — view only gates visibility below the `lg` breakpoint.
   const [view, setView] = useState<BuilderView>("edit");
 
   // Style save indicator
@@ -122,6 +130,14 @@ export function ResumeBuilder({
     const t = setTimeout(() => setSaved(false), 2000);
     return () => clearTimeout(t);
   }, [saved]);
+
+  // Wrapper over setSelectedBlockId that also flips the mobile view to
+  // "style" so the block's properties become visible without the user
+  // hunting for the toggle. Desktop already shows everything at once.
+  const selectBlock = useCallback((id: string | null) => {
+    setSelectedBlockId(id);
+    if (id && !isDesktop()) setView("style");
+  }, []);
 
   // Honor legacy ?open=... deep links pointing at this URL.
   // setState in an effect is intentional here — same pattern as the rest of
@@ -248,12 +264,12 @@ export function ResumeBuilder({
         onOpenHistory={() => setHistoryOpen(true)}
       />
 
-      <div className="flex flex-1 flex-col lg:flex-row">
+      <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
         {/* Left: section content forms */}
         <aside
           className={`w-full shrink-0 border-zinc-200 bg-white lg:h-[calc(100vh-50px)] lg:w-[340px] lg:border-r dark:border-zinc-800 dark:bg-zinc-950 ${
-            view === "edit" ? "block" : "hidden"
-          } lg:block`}
+            view === "edit" ? "flex flex-col" : "hidden"
+          } lg:flex lg:flex-col`}
         >
           <SectionList
             sections={sections}
@@ -268,10 +284,10 @@ export function ResumeBuilder({
         {/* Center: design canvas (default) or PDF preview iframe (toggle). */}
         <section
           className={`relative flex-1 bg-zinc-100 dark:bg-zinc-900 ${
-            view === "preview" ? "block" : "hidden"
+            view === "design" ? "block" : "hidden"
           } lg:block`}
         >
-          {/* Mode toggle floats over the canvas */}
+          {/* Design / Preview mode toggle floats over the canvas */}
           <div className="absolute right-3 top-3 z-20 inline-flex rounded-md border border-zinc-300 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-950">
             <button
               type="button"
@@ -297,14 +313,14 @@ export function ResumeBuilder({
             </button>
           </div>
 
-          <div className="h-[calc(100vh-50px)] w-full">
+          <div className="h-full w-full lg:h-[calc(100vh-50px)]">
             {centerMode === "design" ? (
               <BlockCanvas
                 data={data}
                 blocks={blocks}
                 style={style}
                 selectedBlockId={selectedBlockId}
-                onSelectBlock={setSelectedBlockId}
+                onSelectBlock={selectBlock}
                 saveField={saveField}
                 onReorder={reorderBlocks}
               />
@@ -323,8 +339,14 @@ export function ResumeBuilder({
         </section>
 
         {/* Right: contextual rail. When a block is selected the panel switches
-            into block-properties mode; otherwise styling controls. */}
-        <aside className="hidden w-full shrink-0 border-zinc-200 bg-white lg:block lg:h-[calc(100vh-50px)] lg:w-[340px] lg:border-l dark:border-zinc-800 dark:bg-zinc-950">
+            into block-properties mode; otherwise styling controls. Visible on
+            desktop always; on mobile it's the third member of the view toggle
+            (Edit / Design / Style). */}
+        <aside
+          className={`w-full shrink-0 border-zinc-200 bg-white lg:h-[calc(100vh-50px)] lg:w-[340px] lg:border-l dark:border-zinc-800 dark:bg-zinc-950 ${
+            view === "style" ? "flex flex-col" : "hidden"
+          } lg:flex lg:flex-col`}
+        >
           {selectedBlock ? (
             <BlockProperties
               key={selectedBlock.id}
@@ -332,7 +354,12 @@ export function ResumeBuilder({
               pageTemplateHasSidebar={style.pageTemplate === "sidebar-left"}
               onPatch={(patch) => patchBlock(selectedBlock.id, patch)}
               onDelete={() => deleteBlock(selectedBlock.id)}
-              onClose={() => setSelectedBlockId(null)}
+              onClose={() => {
+                setSelectedBlockId(null);
+                // On mobile, returning from block properties should land the
+                // user back on the canvas they were inspecting.
+                if (!isDesktop()) setView("design");
+              }}
             />
           ) : (
             <StylePanel value={style} onChange={(p) => setStyle((cur) => ({ ...cur, ...p }))} />
