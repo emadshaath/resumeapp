@@ -191,6 +191,9 @@ function formatDiffValue(value: unknown): string {
   return String(value);
 }
 
+// Jira Rovo / Gmail "Help me write" style: the proposed text is what you see
+// first. The original is tucked behind a small "Show original" disclosure so
+// the preview reads like a clean draft, not a diff.
 function DiffCard({
   current,
   proposed,
@@ -200,6 +203,7 @@ function DiffCard({
   proposed: Record<string, unknown>;
   label: string;
 }) {
+  const [showOriginal, setShowOriginal] = useState(false);
   const fieldKeys = Object.keys(proposed).filter(
     (k) => !DIFF_IGNORED_FIELDS.has(k)
   );
@@ -214,39 +218,58 @@ function DiffCard({
     (proposed.company_name as string) ||
     (proposed.name as string) ||
     (proposed.title as string) ||
-    label;
+    null;
+
+  const hasOriginal =
+    current !== null &&
+    fieldKeys.some(
+      (k) => formatDiffValue(current[k]) !== formatDiffValue(proposed[k])
+    );
 
   return (
-    <div className="rounded border border-zinc-200 dark:border-zinc-700 p-2">
-      <div className="mb-1.5 flex items-center gap-2">
-        <Badge variant="outline" className="text-[10px]">
+    <div className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-100 dark:border-zinc-800">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           {label}
-        </Badge>
-        <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">
-          {headerLabel}
         </span>
+        {headerLabel && (
+          <span className="text-xs text-zinc-700 dark:text-zinc-300 truncate">
+            · {headerLabel}
+          </span>
+        )}
       </div>
-      <div className="space-y-1.5">
+      <div className="px-3 py-2.5 space-y-2.5">
         {fieldKeys.map((key) => {
-          const before = current?.[key];
           const after = proposed[key];
           const displayKey = key.replace(/_/g, " ");
           return (
-            <div key={key} className="text-xs">
-              <div className="font-medium text-zinc-500 dark:text-zinc-400 mb-0.5">
+            <div key={key} className="text-sm">
+              <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500 mb-1">
                 {displayKey}
               </div>
-              {current !== null && (
-                <div className="rounded bg-red-50 dark:bg-red-950/30 text-red-900 dark:text-red-200 px-2 py-1 line-through decoration-red-400/50 whitespace-pre-wrap">
-                  {formatDiffValue(before)}
-                </div>
-              )}
-              <div className="mt-0.5 rounded bg-green-50 dark:bg-green-950/30 text-green-900 dark:text-green-200 px-2 py-1 whitespace-pre-wrap">
+              <div className="text-zinc-800 dark:text-zinc-100 whitespace-pre-wrap leading-relaxed">
                 {formatDiffValue(after)}
               </div>
+              {showOriginal && current !== null && (
+                <div className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400 border-l-2 border-zinc-200 dark:border-zinc-700 pl-2 whitespace-pre-wrap">
+                  <span className="text-[10px] uppercase tracking-wide text-zinc-400 mr-1">
+                    Original:
+                  </span>
+                  {formatDiffValue(current[key])}
+                </div>
+              )}
             </div>
           );
         })}
+        {hasOriginal && (
+          <button
+            type="button"
+            onClick={() => setShowOriginal((v) => !v)}
+            className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 underline-offset-2 hover:underline"
+          >
+            {showOriginal ? "Hide original" : "Show original"}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -487,85 +510,93 @@ function AISuggestButton({
                   </div>
                 </div>
                 {isPreviewingThis && (
-                  <div className="mt-2 ml-7 rounded-md border border-purple-300 dark:border-purple-700 bg-white dark:bg-zinc-900 p-3">
-                    {preview === null && previewError === null && (
-                      <p className="text-xs text-zinc-500 inline-flex items-center gap-1">
-                        <Loader2 className="h-3 w-3 animate-spin" /> Drafting changes…
-                      </p>
-                    )}
-                    {previewError && (
-                      <p className="text-sm text-red-600 dark:text-red-400">{previewError}</p>
-                    )}
-                    {preview && (
-                      <div className="space-y-3">
-                        {preview.explanation && (
-                          <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                            {preview.explanation}
-                          </p>
-                        )}
-                        {preview.updates.length === 0 && preview.inserts.length === 0 ? (
-                          <p className="text-xs text-zinc-500">
-                            No changes proposed for this suggestion.
-                          </p>
-                        ) : (
-                          <>
-                            {preview.updates.map((upd) => (
-                              <DiffCard
-                                key={upd.id}
-                                current={
-                                  preview.current_items.find(
-                                    (it) => (it as { id: string }).id === upd.id
-                                  ) || null
-                                }
-                                proposed={upd.fields}
-                                label="Updated"
-                              />
-                            ))}
-                            {preview.inserts.map((ins, j) => (
-                              <DiffCard
-                                key={`ins-${j}`}
-                                current={null}
-                                proposed={ins}
-                                label="New item"
-                              />
-                            ))}
-                          </>
-                        )}
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            className="h-7 text-xs"
-                            onClick={commitPreview}
-                            disabled={
-                              committing ||
-                              (preview.updates.length === 0 &&
-                                preview.inserts.length === 0)
-                            }
-                          >
-                            {committing ? (
-                              <>
-                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                Applying…
-                              </>
-                            ) : (
-                              <>
-                                <Check className="h-3 w-3 mr-1" />
-                                Apply changes
-                              </>
-                            )}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs"
-                            onClick={cancelPreview}
-                            disabled={committing}
-                          >
-                            Cancel
-                          </Button>
+                  <div className="mt-2 ml-7 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50/60 dark:bg-zinc-900/40 shadow-sm overflow-hidden">
+                    <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-200 dark:border-zinc-700">
+                      <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                      <span className="text-xs font-medium text-zinc-700 dark:text-zinc-200">
+                        Suggested rewrite
+                      </span>
+                    </div>
+                    <div className="p-3">
+                      {preview === null && previewError === null && (
+                        <p className="text-xs text-zinc-500 inline-flex items-center gap-1.5">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Drafting changes…
+                        </p>
+                      )}
+                      {previewError && (
+                        <p className="text-sm text-red-600 dark:text-red-400">{previewError}</p>
+                      )}
+                      {preview && (
+                        <div className="space-y-3">
+                          {preview.updates.length === 0 && preview.inserts.length === 0 ? (
+                            <p className="text-xs text-zinc-500">
+                              No changes proposed for this suggestion.
+                            </p>
+                          ) : (
+                            <>
+                              {preview.updates.map((upd) => (
+                                <DiffCard
+                                  key={upd.id}
+                                  current={
+                                    preview.current_items.find(
+                                      (it) => (it as { id: string }).id === upd.id
+                                    ) || null
+                                  }
+                                  proposed={upd.fields}
+                                  label="Update"
+                                />
+                              ))}
+                              {preview.inserts.map((ins, j) => (
+                                <DiffCard
+                                  key={`ins-${j}`}
+                                  current={null}
+                                  proposed={ins}
+                                  label="Add"
+                                />
+                              ))}
+                            </>
+                          )}
+                          {preview.explanation && (
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 italic">
+                              {preview.explanation}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 pt-1">
+                            <Button
+                              size="sm"
+                              className="h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white"
+                              onClick={commitPreview}
+                              disabled={
+                                committing ||
+                                (preview.updates.length === 0 &&
+                                  preview.inserts.length === 0)
+                              }
+                            >
+                              {committing ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  Inserting…
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="h-3 w-3 mr-1" />
+                                  Insert
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 text-xs text-zinc-600 dark:text-zinc-300"
+                              onClick={cancelPreview}
+                              disabled={committing}
+                            >
+                              Discard
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -578,29 +609,39 @@ function AISuggestButton({
 }
 
 export function SectionContentEditor({ section, onUpdate }: SectionContentEditorProps) {
+  // Bumped every time an AI suggestion is committed so the sub-editor below
+  // remounts and reloads its items from Supabase — the sub-editors cache item
+  // state in useState and wouldn't otherwise reflect the DB write.
+  const [reloadToken, setReloadToken] = useState(0);
+  const editorKey = `${section.id}-${reloadToken}`;
+  const handleAIApplied = useCallback(() => {
+    setReloadToken((t) => t + 1);
+    onUpdate();
+  }, [onUpdate]);
+
   return (
     <div className="space-y-4">
       {(() => {
         switch (section.section_type) {
           case "summary":
-            return <SummaryEditor section={section} onUpdate={onUpdate} />;
+            return <SummaryEditor key={editorKey} section={section} onUpdate={onUpdate} />;
           case "experience":
-            return <ExperienceEditor section={section} onUpdate={onUpdate} />;
+            return <ExperienceEditor key={editorKey} section={section} onUpdate={onUpdate} />;
           case "education":
-            return <EducationEditor section={section} onUpdate={onUpdate} />;
+            return <EducationEditor key={editorKey} section={section} onUpdate={onUpdate} />;
           case "skills":
-            return <SkillsEditor section={section} onUpdate={onUpdate} />;
+            return <SkillsEditor key={editorKey} section={section} onUpdate={onUpdate} />;
           case "certifications":
-            return <CertificationsEditor section={section} onUpdate={onUpdate} />;
+            return <CertificationsEditor key={editorKey} section={section} onUpdate={onUpdate} />;
           case "projects":
-            return <ProjectsEditor section={section} onUpdate={onUpdate} />;
+            return <ProjectsEditor key={editorKey} section={section} onUpdate={onUpdate} />;
           case "custom":
-            return <CustomEditor section={section} onUpdate={onUpdate} />;
+            return <CustomEditor key={editorKey} section={section} onUpdate={onUpdate} />;
           default:
             return null;
         }
       })()}
-      <AISuggestButton section={section} onUpdate={onUpdate} />
+      <AISuggestButton section={section} onUpdate={handleAIApplied} />
     </div>
   );
 }
