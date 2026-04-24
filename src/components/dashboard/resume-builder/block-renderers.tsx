@@ -15,6 +15,7 @@ import type {
 import { X } from "lucide-react";
 import type { ResumeData, PdfColorPalette } from "@/lib/pdf/types";
 import { formatDateRange, groupSkillsByCategory } from "@/lib/pdf/utils";
+import { cn } from "@/lib/utils";
 import type { StyleState } from "./style-state";
 import { EditableText, type EditableTag } from "./editable-text";
 
@@ -250,12 +251,22 @@ function BulletActions({ onDelete }: { onDelete: () => void }) {
 }
 
 /**
- * Generic inline delete button — shown on hover via the enclosing
- * `group/skill` container. Used by SkillsBlock today; any future per-row
- * delete action can reuse this. Kept separate from BulletActions so
- * bullet-specific decorations (Bold/Italic later) stay contained.
+ * Generic inline delete button — revealed on hover via whichever named
+ * Tailwind group its ancestor uses. `skill` is the default; pass `entry`
+ * when the button lives at the top-right of a multi-field row (experience,
+ * education, certification, project).
  */
-function InlineDeleteButton({ onDelete }: { onDelete: () => void }) {
+function InlineDeleteButton({
+  onDelete,
+  group = "skill",
+  className,
+}: {
+  onDelete: () => void;
+  group?: "skill" | "entry";
+  className?: string;
+}) {
+  const revealClass =
+    group === "entry" ? "group-hover/entry:opacity-100" : "group-hover/skill:opacity-100";
   return (
     <button
       type="button"
@@ -264,11 +275,15 @@ function InlineDeleteButton({ onDelete }: { onDelete: () => void }) {
         e.stopPropagation();
         onDelete();
       }}
-      className="ml-0.5 inline-flex shrink-0 rounded p-0.5 text-zinc-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-500 focus:opacity-100 group-hover/skill:opacity-100 dark:hover:bg-red-950"
+      className={cn(
+        "inline-flex shrink-0 rounded p-0.5 text-zinc-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-500 focus:opacity-100 dark:hover:bg-red-950",
+        revealClass,
+        className,
+      )}
       aria-label="Delete"
       title="Delete"
     >
-      <X className="h-2.5 w-2.5" />
+      <X className={group === "entry" ? "h-3.5 w-3.5" : "h-2.5 w-2.5"} />
     </button>
   );
 }
@@ -461,7 +476,19 @@ function ExperienceBlock({ ctx, block }: { ctx: BlockRenderContext; block: Resum
     <div style={{ marginBottom: spacing(ctx, 12) }}>
       <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Experience")} />
       {entries.map((exp) => (
-        <div key={exp.id} style={{ marginBottom: spacing(ctx, 8) }}>
+        <div
+          key={exp.id}
+          className="group/entry relative"
+          style={{ marginBottom: spacing(ctx, 8) }}
+        >
+          {ctx.editable && (
+            <div className="absolute right-0 top-0 z-10" contentEditable={false}>
+              <InlineDeleteButton
+                group="entry"
+                onDelete={() => ctx.deleteRow({ table: "experiences", id: exp.id })}
+              />
+            </div>
+          )}
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: spacing(ctx, 1) }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <Editable
@@ -532,7 +559,19 @@ function EducationBlock({ ctx, block }: { ctx: BlockRenderContext; block: Resume
     <div style={{ marginBottom: spacing(ctx, 12) }}>
       <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Education")} />
       {entries.map((edu) => (
-        <div key={edu.id} style={{ marginBottom: spacing(ctx, 8) }}>
+        <div
+          key={edu.id}
+          className="group/entry relative"
+          style={{ marginBottom: spacing(ctx, 8) }}
+        >
+          {ctx.editable && (
+            <div className="absolute right-0 top-0 z-10" contentEditable={false}>
+              <InlineDeleteButton
+                group="entry"
+                onDelete={() => ctx.deleteRow({ table: "educations", id: edu.id })}
+              />
+            </div>
+          )}
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <Editable
@@ -690,7 +729,19 @@ function CertificationsBlock({ ctx, block }: { ctx: BlockRenderContext; block: R
     <div style={{ marginBottom: spacing(ctx, 12) }}>
       <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Certifications")} />
       {certs.map((cert) => (
-        <div key={cert.id} style={{ marginBottom: spacing(ctx, 8) }}>
+        <div
+          key={cert.id}
+          className="group/entry relative"
+          style={{ marginBottom: spacing(ctx, 8) }}
+        >
+          {ctx.editable && (
+            <div className="absolute right-0 top-0 z-10" contentEditable={false}>
+              <InlineDeleteButton
+                group="entry"
+                onDelete={() => ctx.deleteRow({ table: "certifications", id: cert.id })}
+              />
+            </div>
+          )}
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <Editable
               ctx={ctx}
@@ -729,7 +780,19 @@ function ProjectsBlock({ ctx, block }: { ctx: BlockRenderContext; block: ResumeB
     <div style={{ marginBottom: spacing(ctx, 12) }}>
       <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Projects")} />
       {projects.map((proj) => (
-        <div key={proj.id} style={{ marginBottom: spacing(ctx, 8) }}>
+        <div
+          key={proj.id}
+          className="group/entry relative"
+          style={{ marginBottom: spacing(ctx, 8) }}
+        >
+          {ctx.editable && (
+            <div className="absolute right-0 top-0 z-10" contentEditable={false}>
+              <InlineDeleteButton
+                group="entry"
+                onDelete={() => ctx.deleteRow({ table: "projects", id: proj.id })}
+              />
+            </div>
+          )}
           <div style={{ ...fontStyle(ctx, 11), fontWeight: 700, color: ctx.palette.heading }}>
             <Editable
               ctx={ctx}
