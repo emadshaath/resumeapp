@@ -3,10 +3,13 @@
   "name": "rezm.ai — Smart Apply",
   "version": "1.0.0",
   "description": "Auto-fill job applications with your rezm.ai profile. AI-tailored resumes for every role.",
+  "minimum_chrome_version": "114",
+  "homepage_url": "https://rezm.ai",
   "permissions": ["activeTab", "storage"],
-  "host_permissions": ["https://*.rezm.ai/*", "http://localhost:*/*"],
+  "host_permissions": ["https://*.rezm.ai/*"],
   "action": {
     "default_popup": "popup.html",
+    "default_title": "rezm.ai — Smart Apply",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

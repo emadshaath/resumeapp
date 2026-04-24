@@ -932,15 +932,21 @@ function scrapeJobDetails() {
 }
 
 // ─── Auth token listener (from bridge page) ───
+// Only accept tokens posted from the rezm.ai auth bridge — never from arbitrary
+// third-party pages. Both source-window and origin are verified.
+const TRUSTED_AUTH_ORIGIN = "https://rezm.ai";
 window.addEventListener("message", (event) => {
-  if (event.data?.type === "REZMAI_AUTH_TOKEN") {
-    chrome.runtime.sendMessage({
-      type: "SAVE_TOKEN",
-      token: event.data.token,
-      user: event.data.user,
-      expires_at: event.data.expires_at,
-    });
-  }
+  if (event.source !== window) return;
+  if (event.origin !== TRUSTED_AUTH_ORIGIN) return;
+  if (event.data?.type !== "REZMAI_AUTH_TOKEN") return;
+  if (typeof event.data.token !== "string" || !event.data.token) return;
+
+  chrome.runtime.sendMessage({
+    type: "SAVE_TOKEN",
+    token: event.data.token,
+    user: event.data.user,
+    expires_at: event.data.expires_at,
+  });
 });
 
 // ─── Auto-apply: URL param handler ───
