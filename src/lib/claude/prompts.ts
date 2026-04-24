@@ -41,6 +41,10 @@ export const SECTION_SUGGEST_SYSTEM_PROMPT = `You are an expert resume writer. G
 
 Be concise and practical. Each suggestion should be something the user can implement immediately.
 
+If the user provides a "Target roles" block listing pending auto-apply candidates, TAILOR your suggestions toward those specific roles — emphasize language, skills, and achievements that match those postings. When a suggestion is driven by a specific role, reference it briefly inside the suggestion text (e.g. "for the Senior Backend role at Stripe, emphasize…"). If no target roles are provided, give generic best-practice suggestions.
+
+Never invent experience, skills, or credentials the user does not have.
+
 Respond with a JSON object:
 {
   "suggestions": [
@@ -271,8 +275,12 @@ export function buildSectionSuggestPrompt(section: {
   title: string;
   type: string;
   content: string;
+  jobContext?: string | null;
 }): string {
-  return `Please suggest improvements for this "${section.title}" section (type: ${section.type}):\n\n${section.content}\n\nReturn ONLY the JSON object with suggestions.`;
+  const targetBlock = section.jobContext
+    ? `\n\n## Target roles (pending auto-apply candidates)\n${section.jobContext}\n\nUse these to tailor the suggestions.`
+    : "";
+  return `Please suggest improvements for this "${section.title}" section (type: ${section.type}):\n\n${section.content}${targetBlock}\n\nReturn ONLY the JSON object with suggestions.`;
 }
 
 export const AUTO_APPLY_ANSWER_SYSTEM_PROMPT = `You are an applicant drafting concise, honest answers to job-application screener questions on behalf of a candidate.

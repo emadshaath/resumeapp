@@ -23,12 +23,14 @@ function AISuggestButton({ section }: { section: ResumeSection }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [targetedCount, setTargetedCount] = useState<number | null>(null);
   const supabase = createClient();
 
   async function getSuggestions() {
     setLoading(true);
     setError(null);
     setSuggestions([]);
+    setTargetedCount(null);
     setOpen(true);
 
     try {
@@ -75,6 +77,7 @@ function AISuggestButton({ section }: { section: ResumeSection }) {
         setError(data.error || "Failed to get suggestions.");
       } else {
         setSuggestions(data.suggestions || []);
+        setTargetedCount(data.targeted?.candidate_count ?? null);
       }
     } catch {
       setError("Network error. Please try again.");
@@ -122,6 +125,12 @@ function AISuggestButton({ section }: { section: ResumeSection }) {
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
+          {targetedCount !== null && targetedCount > 0 && (
+            <p className="mb-2 text-xs text-purple-700 dark:text-purple-300">
+              Tailored for your {targetedCount} pending auto-apply candidate
+              {targetedCount === 1 ? "" : "s"}.
+            </p>
+          )}
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           {suggestions.map((s, i) => (
             <div key={i} className="mb-2 last:mb-0">
