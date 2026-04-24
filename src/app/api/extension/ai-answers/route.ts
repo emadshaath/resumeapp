@@ -93,21 +93,25 @@ export async function POST(req: NextRequest) {
   const prompt = `You are an AI assistant helping a job applicant fill out an application form. You must generate personalized, honest answers based ONLY on the applicant's real profile data below.
 
 CRITICAL RULES:
-- ONLY use information from the applicant's profile. NEVER fabricate experience, skills, or qualifications.
-- For questions about experience/skills the applicant doesn't have, be honest: "I don't have direct experience with X, but I have related experience in Y."
-- For "why interested" questions, craft a genuine answer connecting the applicant's background to the role.
-- For yes/no questions, answer based on the profile data.
-- For select/radio questions, pick the most accurate option from the available choices.
-- For salary questions, respond with "Prefer not to disclose" or "Open to discussion" unless the profile has this info.
-- For demographic/diversity questions (gender, race, disability, veteran status, LGBTQ+), use the STORED PREFERENCES below if available. If not set, answer "I prefer not to say" or "Prefer not to answer" — never assume or guess.
-- For work authorization/sponsorship questions, use the STORED PREFERENCES if available.
-- For reference questions, answer affirmatively: "Yes, I can provide references."
-- For employment gap questions, if no gaps visible in experience, answer "N/A".
-- For start date/notice period questions, use the stored notice_period preference if available, otherwise say "2-3 weeks notice".
-- For "how did you hear" questions, use the stored how_heard_default if available, otherwise say "Online job board".
-- For salary questions, use the stored salary_expectation if available, otherwise say "Open to discussion".
-- Keep answers professional, concise, and specific. Avoid generic filler.
-- For longer questions, aim for 2-4 sentences. For short ones, keep it brief.
+1. ONLY use information from the applicant's profile. NEVER fabricate experience, skills, or qualifications.
+2. For questions about experience/skills the applicant doesn't have, be honest: "I don't have direct experience with X, but I have related experience in Y."
+3. For "why interested" questions, craft a genuine answer connecting the applicant's background to the role.
+4. For yes/no questions, answer based on the profile data.
+5. For demographic/diversity questions (gender, race, disability, veteran status, LGBTQ+), use the STORED PREFERENCES below if available. If not set, answer "I prefer not to say" or "Prefer not to answer" — never assume or guess.
+6. For work authorization/sponsorship questions, use the STORED PREFERENCES if available.
+7. For reference questions, answer affirmatively: "Yes, I can provide references."
+8. For employment gap questions, if no gaps visible in experience, answer "N/A".
+9. For start date/notice period questions, use the stored notice_period preference if available, otherwise say "2-3 weeks notice".
+10. For "how did you hear" questions, use the stored how_heard_default if available, otherwise say "Online job board".
+11. For salary questions, use the stored salary_expectation if available, otherwise say "Open to discussion".
+12. Keep answers professional, concise, and specific. Avoid generic filler.
+13. For longer questions, aim for 2-4 sentences. For short ones, keep it brief.
+14. NEVER echo back or repeat the question text as the answer. The answer must be a direct response, not a restatement of the question.
+
+FIELD TYPE RULES — FOLLOW STRICTLY:
+- **select/radio with Options listed**: Your "answer" MUST be EXACTLY one of the provided option strings. Do NOT paraphrase, abbreviate, or invent values. Pick the closest matching option. If no option fits well, pick the most neutral/generic one (e.g. "Other", "Prefer not to answer", "N/A").
+- **checkbox**: Answer ONLY "true" or "false".
+- **text/textarea**: Provide a direct written answer to the question. Never repeat the question as the answer.
 
 APPLICANT'S PROFILE:
 ${profileContext}
@@ -123,9 +127,7 @@ Respond with ONLY valid JSON — an array of objects, one per question:
   ...
 ]
 
-For select/radio questions with options, the "answer" must be one of the provided options (exact text match).
-For checkbox questions, answer "true" or "false".
-For text/textarea questions, provide the written answer.`;
+REMINDER: For select/radio questions, the "answer" MUST be copied verbatim from the Options list. Any answer not matching an option will fail to fill the form.`;
 
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY;
