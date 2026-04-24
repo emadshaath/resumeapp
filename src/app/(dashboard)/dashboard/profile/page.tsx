@@ -152,11 +152,14 @@ export default function ProfileEditorPage() {
       .eq("id", profile.id);
 
     if (updateError) {
-      setError(
+      console.error("[profile save]", updateError);
+      const friendly =
         updateError.code === "23505"
           ? "This profile URL is already taken."
-          : updateError.message
-      );
+          : updateError.code === "PGRST204" || updateError.code === "42703"
+            ? `Database is out of date — column "${updateError.message.match(/'([^']+)'/)?.[1] ?? "unknown"}" doesn't exist. Run migrations 00024 and 00025.`
+            : updateError.message;
+      setError(friendly);
     } else {
       setSuccess(true);
       router.refresh();
