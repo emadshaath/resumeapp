@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, Loader2, Plus, Trash2, Sparkles, X, ChevronUp, ChevronDown, AlertCircle } from "lucide-react";
+import { Check, Loader2, Plus, Trash2, Sparkles, X, ChevronUp, ChevronDown, AlertCircle, Wand2 } from "lucide-react";
 import type { ResumeSection, Experience, Education, Skill, Certification, Project } from "@/types/database";
 import type { SuggestionItem } from "@/lib/claude/schemas";
 import { parseHighlights } from "@/lib/utils";
@@ -160,12 +160,115 @@ function SaveStatusIndicator({ status }: { status: SaveStatus }) {
 }
 
 
-function AISuggestButton({ section }: { section: ResumeSection }) {
+interface ProposedUpdate {
+  id: string;
+  fields: Record<string, unknown>;
+}
+
+interface PreviewPayload {
+  section_id: string;
+  section_type: string;
+  section_name: string;
+  current_items: Record<string, unknown>[];
+  updates: ProposedUpdate[];
+  inserts: Record<string, unknown>[];
+  explanation: string;
+}
+
+const DIFF_IGNORED_FIELDS = new Set([
+  "id",
+  "section_id",
+  "profile_id",
+  "created_at",
+  "updated_at",
+  "display_order",
+]);
+
+function formatDiffValue(value: unknown): string {
+  if (value === null || value === undefined) return "(empty)";
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
+}
+
+function DiffCard({
+  current,
+  proposed,
+  label,
+}: {
+  current: Record<string, unknown> | null;
+  proposed: Record<string, unknown>;
+  label: string;
+}) {
+  const fieldKeys = Object.keys(proposed).filter(
+    (k) => !DIFF_IGNORED_FIELDS.has(k)
+  );
+  if (fieldKeys.length === 0) return null;
+
+  const headerLabel =
+    (current?.position as string) ||
+    (current?.company_name as string) ||
+    (current?.name as string) ||
+    (current?.title as string) ||
+    (proposed.position as string) ||
+    (proposed.company_name as string) ||
+    (proposed.name as string) ||
+    (proposed.title as string) ||
+    label;
+
+  return (
+    <div className="rounded border border-zinc-200 dark:border-zinc-700 p-2">
+      <div className="mb-1.5 flex items-center gap-2">
+        <Badge variant="outline" className="text-[10px]">
+          {label}
+        </Badge>
+        <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">
+          {headerLabel}
+        </span>
+      </div>
+      <div className="space-y-1.5">
+        {fieldKeys.map((key) => {
+          const before = current?.[key];
+          const after = proposed[key];
+          const displayKey = key.replace(/_/g, " ");
+          return (
+            <div key={key} className="text-xs">
+              <div className="font-medium text-zinc-500 dark:text-zinc-400 mb-0.5">
+                {displayKey}
+              </div>
+              {current !== null && (
+                <div className="rounded bg-red-50 dark:bg-red-950/30 text-red-900 dark:text-red-200 px-2 py-1 line-through decoration-red-400/50 whitespace-pre-wrap">
+                  {formatDiffValue(before)}
+                </div>
+              )}
+              <div className="mt-0.5 rounded bg-green-50 dark:bg-green-950/30 text-green-900 dark:text-green-200 px-2 py-1 whitespace-pre-wrap">
+                {formatDiffValue(after)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AISuggestButton({
+  section,
+  onUpdate,
+}: {
+  section: ResumeSection;
+  onUpdate: () => void;
+}) {
   const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [targetedCount, setTargetedCount] = useState<number | null>(null);
+  const [previewingIndex, setPreviewingIndex] = useState<number | null>(null);
+  const [preview, setPreview] = useState<PreviewPayload | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [committing, setCommitting] = useState(false);
+  const [appliedIndexes, setAppliedIndexes] = useState<Set<number>>(new Set());
   const [supabase] = useState(() => createClient());
 
   async function getSuggestions() {
@@ -228,6 +331,81 @@ function AISuggestButton({ section }: { section: ResumeSection }) {
     }
   }
 
+  async function requestPreview(index: number, suggestion: SuggestionItem) {
+    setPreviewingIndex(index);
+    setPreview(null);
+    setPreviewError(null);
+    const recText = suggestion.example
+      ? `${suggestion.text}\n\nExample of improved text: ${suggestion.example}`
+      : suggestion.text;
+    try {
+      const res = await fetch("/api/ai/apply-recommendation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recommendation: recText,
+          section_type: section.section_type,
+          section_name: section.title,
+          preview: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPreviewError(data.error || "Preview failed.");
+      } else {
+        setPreview({
+          section_id: data.section_id,
+          section_type: data.section_type,
+          section_name: data.section_name,
+          current_items: data.current_items || [],
+          updates: data.updates || [],
+          inserts: data.inserts || [],
+          explanation: data.explanation || "",
+        });
+      }
+    } catch {
+      setPreviewError("Network error. Please try again.");
+    }
+  }
+
+  async function commitPreview() {
+    if (!preview) return;
+    setCommitting(true);
+    try {
+      const res = await fetch("/api/ai/apply-recommendation/commit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          section_id: preview.section_id,
+          section_type: preview.section_type,
+          updates: preview.updates,
+          inserts: preview.inserts,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPreviewError(data.error || "Failed to apply.");
+      } else {
+        if (previewingIndex !== null) {
+          setAppliedIndexes((prev) => new Set(prev).add(previewingIndex));
+        }
+        setPreview(null);
+        setPreviewingIndex(null);
+        onUpdate();
+      }
+    } catch {
+      setPreviewError("Network error. Please try again.");
+    } finally {
+      setCommitting(false);
+    }
+  }
+
+  function cancelPreview() {
+    setPreview(null);
+    setPreviewingIndex(null);
+    setPreviewError(null);
+  }
+
   const typeColors: Record<string, string> = {
     improve: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
     add: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
@@ -274,23 +452,125 @@ function AISuggestButton({ section }: { section: ResumeSection }) {
             </p>
           )}
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-          {suggestions.map((s, i) => (
-            <div key={i} className="mb-2 last:mb-0">
-              <div className="flex items-start gap-2">
-                <Badge className={`text-xs shrink-0 mt-0.5 ${typeColors[s.type] || ""}`}>
-                  {s.type}
-                </Badge>
-                <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                  <p>{s.text}</p>
-                  {s.example && (
-                    <p className="mt-1 text-xs text-zinc-500 italic border-l-2 border-purple-300 pl-2">
-                      Example: {s.example}
-                    </p>
-                  )}
+          {suggestions.map((s, i) => {
+            const isPreviewingThis = previewingIndex === i;
+            const applied = appliedIndexes.has(i);
+            return (
+              <div key={i} className="mb-3 last:mb-0">
+                <div className="flex items-start gap-2">
+                  <Badge className={`text-xs shrink-0 mt-0.5 ${typeColors[s.type] || ""}`}>
+                    {s.type}
+                  </Badge>
+                  <div className="flex-1 text-sm text-zinc-700 dark:text-zinc-300">
+                    <p>{s.text}</p>
+                    {s.example && (
+                      <p className="mt-1 text-xs text-zinc-500 italic border-l-2 border-purple-300 pl-2">
+                        Example: {s.example}
+                      </p>
+                    )}
+                    {!applied && !isPreviewingThis && s.type !== "remove" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 h-7 text-xs"
+                        onClick={() => requestPreview(i, s)}
+                      >
+                        <Wand2 className="h-3 w-3 mr-1" />
+                        Apply & review
+                      </Button>
+                    )}
+                    {applied && (
+                      <p className="mt-2 text-xs text-green-700 dark:text-green-400 inline-flex items-center gap-1">
+                        <Check className="h-3 w-3" /> Applied
+                      </p>
+                    )}
+                  </div>
                 </div>
+                {isPreviewingThis && (
+                  <div className="mt-2 ml-7 rounded-md border border-purple-300 dark:border-purple-700 bg-white dark:bg-zinc-900 p-3">
+                    {preview === null && previewError === null && (
+                      <p className="text-xs text-zinc-500 inline-flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Drafting changes…
+                      </p>
+                    )}
+                    {previewError && (
+                      <p className="text-sm text-red-600 dark:text-red-400">{previewError}</p>
+                    )}
+                    {preview && (
+                      <div className="space-y-3">
+                        {preview.explanation && (
+                          <p className="text-xs text-zinc-600 dark:text-zinc-400">
+                            {preview.explanation}
+                          </p>
+                        )}
+                        {preview.updates.length === 0 && preview.inserts.length === 0 ? (
+                          <p className="text-xs text-zinc-500">
+                            No changes proposed for this suggestion.
+                          </p>
+                        ) : (
+                          <>
+                            {preview.updates.map((upd) => (
+                              <DiffCard
+                                key={upd.id}
+                                current={
+                                  preview.current_items.find(
+                                    (it) => (it as { id: string }).id === upd.id
+                                  ) || null
+                                }
+                                proposed={upd.fields}
+                                label="Updated"
+                              />
+                            ))}
+                            {preview.inserts.map((ins, j) => (
+                              <DiffCard
+                                key={`ins-${j}`}
+                                current={null}
+                                proposed={ins}
+                                label="New item"
+                              />
+                            ))}
+                          </>
+                        )}
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={commitPreview}
+                            disabled={
+                              committing ||
+                              (preview.updates.length === 0 &&
+                                preview.inserts.length === 0)
+                            }
+                          >
+                            {committing ? (
+                              <>
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                Applying…
+                              </>
+                            ) : (
+                              <>
+                                <Check className="h-3 w-3 mr-1" />
+                                Apply changes
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={cancelPreview}
+                            disabled={committing}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -320,7 +600,7 @@ export function SectionContentEditor({ section, onUpdate }: SectionContentEditor
             return null;
         }
       })()}
-      <AISuggestButton section={section} />
+      <AISuggestButton section={section} onUpdate={onUpdate} />
     </div>
   );
 }
