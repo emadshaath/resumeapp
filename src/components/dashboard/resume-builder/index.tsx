@@ -151,6 +151,27 @@ export function ResumeBuilder({
     [supabase],
   );
 
+  // Persist a new block ordering after a canvas drag. Optimistic: update the
+  // local blocks list immediately, then PUT the whole list. If the write
+  // fails the next page load corrects things — drag feedback is what matters.
+  const reorderBlocks = useCallback(async (next: ResumeBlock[]) => {
+    setBlocks(next);
+    await fetch("/api/resume/blocks", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        blocks: next.map((b) => ({
+          id: b.id,
+          type: b.type,
+          zone: b.zone,
+          display_order: b.display_order,
+          source_section_id: b.source_section_id,
+          style: b.style,
+        })),
+      }),
+    });
+  }, []);
+
   // Patch a single block's fields locally + persist via API. Optimistic so
   // the canvas reflects the change before the server confirms.
   const patchBlock = useCallback(async (id: string, patch: Partial<ResumeBlock>) => {
@@ -285,6 +306,7 @@ export function ResumeBuilder({
                 selectedBlockId={selectedBlockId}
                 onSelectBlock={setSelectedBlockId}
                 saveField={saveField}
+                onReorder={reorderBlocks}
               />
             ) : (
               <PdfLivePreview
