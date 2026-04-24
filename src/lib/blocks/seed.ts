@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { BlockType, ResumeSection, SectionType } from "@/types/database";
+import type { BlockType, ResumeBlock, ResumeSection, SectionType } from "@/types/database";
 
 /**
  * Map a resume_sections.section_type to the corresponding block.type.
@@ -28,56 +28,85 @@ export function sectionTypeToBlockType(sectionType: SectionType): BlockType | nu
 }
 
 /**
- * Build the default block layout for a user who has no blocks yet but already
- * has resume_sections. Used on first visit to the unified Resume Builder so
- * nobody sees an empty canvas.
+ * Reconcile resume_blocks with the user's current resume_sections. Safe to
+ * run on every page load — only inserts what's missing, never deletes.
  *
- * Shape of the default layout:
- *   - 1x `header` block in the `header` zone (always first).
- *   - 1x block per existing visible section, in the `main` zone, preserving
- *     the user's current `display_order`.
+ * Specifically:
+ *   - Ensures exactly one `header` block exists in the `header` zone.
+ *   - For every visible section without a backing block, appends one to the
+ *     `main` zone after any existing main-zone blocks (preserving whatever
+ *     order the canvas already had).
  *
- * Idempotent by design: callers should only invoke when the user has zero
- * existing blocks. This helper does not check for itself.
+ * Sections the user hides or deletes don't get their blocks touched here —
+ * the section editor handles the delete cascade explicitly, and hidden
+ * sections keep their block so toggling visibility is a no-op for layout.
  */
-export async function seedBlocksFromSections(
+export async function ensureBlocksSynced(
   supabase: SupabaseClient,
   profileId: string,
 ): Promise<void> {
-  const { data: sections } = await supabase
-    .from("resume_sections")
-    .select("id, section_type, display_order")
-    .eq("profile_id", profileId)
-    .eq("is_visible", true)
-    .order("display_order");
+  const [sectionsRes, blocksRes] = await Promise.all([
+    supabase
+      .from("resume_sections")
+      .select("id, section_type, display_order")
+      .eq("profile_id", profileId)
+      .eq("is_visible", true)
+      .order("display_order"),
+    supabase
+      .from("resume_blocks")
+      .select("id, zone, source_section_id")
+      .eq("profile_id", profileId),
+  ]);
 
-  const sectionRows = (sections || []) as Pick<ResumeSection, "id" | "section_type" | "display_order">[];
+  const sections = (sectionsRes.data || []) as Pick<ResumeSection, "id" | "section_type" | "display_order">[];
+  const existing = (blocksRes.data || []) as Pick<ResumeBlock, "id" | "zone" | "source_section_id">[];
 
-  const rows = [
-    {
+  const hasHeader = existing.some((b) => b.zone === "header");
+  const backedSectionIds = new Set(
+    existing.map((b) => b.source_section_id).filter((id): id is string => typeof id === "string"),
+  );
+
+  const rows: Array<{
+    profile_id: string;
+    type: BlockType;
+    zone: "header" | "main" | "sidebar";
+    display_order: number;
+    source_section_id: string | null;
+    style: Record<string, unknown>;
+  }> = [];
+
+  if (!hasHeader) {
+    rows.push({
       profile_id: profileId,
-      type: "header" as BlockType,
-      zone: "header" as const,
+      type: "header",
+      zone: "header",
       display_order: 0,
       source_section_id: null,
       style: {},
-    },
-    ...sectionRows
-      .map((sec, idx) => {
-        const blockType = sectionTypeToBlockType(sec.section_type);
-        if (!blockType) return null;
-        return {
-          profile_id: profileId,
-          type: blockType,
-          zone: "main" as const,
-          display_order: idx,
-          source_section_id: sec.id,
-          style: {},
-        };
-      })
-      .filter((r): r is NonNullable<typeof r> => r !== null),
-  ];
+    });
+  }
+
+  let nextMainOrder = existing.filter((b) => b.zone === "main").length;
+  for (const sec of sections) {
+    if (backedSectionIds.has(sec.id)) continue;
+    const type = sectionTypeToBlockType(sec.section_type);
+    if (!type) continue;
+    rows.push({
+      profile_id: profileId,
+      type,
+      zone: "main",
+      display_order: nextMainOrder++,
+      source_section_id: sec.id,
+      style: {},
+    });
+  }
 
   if (rows.length === 0) return;
   await supabase.from("resume_blocks").insert(rows);
 }
+
+/**
+ * @deprecated Use {@link ensureBlocksSynced}. Retained for the migration
+ * path — removes on the next cleanup pass.
+ */
+export const seedBlocksFromSections = ensureBlocksSynced;
