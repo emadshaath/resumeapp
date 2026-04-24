@@ -1,50 +1,126 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
+import { fetchResumeBlocks } from "@/lib/blocks/fetch";
 import { renderResumePdf } from "@/lib/pdf/render";
 import { applyVariantToResume } from "@/lib/tailor";
-import type { PdfLayout, PdfColorTheme } from "@/lib/pdf/types";
-import type { VariantData } from "@/types/database";
+import type { PdfLayout, PdfColorTheme, PdfFontFamily, PdfFontConfig } from "@/lib/pdf/types";
+import { DEFAULT_FONT_CONFIG, FONT_OPTIONS } from "@/lib/pdf/types";
+import type { VariantData, PdfSettingsSnapshot, PageTemplate } from "@/types/database";
 
-const VALID_LAYOUTS: PdfLayout[] = ["classic", "modern", "minimal", "executive"];
+const VALID_LAYOUTS: PdfLayout[] = ["classic", "modern", "minimal", "executive", "custom"];
 const VALID_THEMES: PdfColorTheme[] = ["navy", "teal", "charcoal"];
+const VALID_FONTS = Object.keys(FONT_OPTIONS) as PdfFontFamily[];
+const VALID_PAGE_TEMPLATES: PageTemplate[] = ["single-column", "sidebar-left"];
 
-// GET /api/autofill/resume.pdf?variant=<id> — Generates a PDF resume, optionally tailored
+function clamp(n: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, n));
+}
+
+// GET /api/autofill/resume.pdf?variant=<id> — Generates a PDF resume, optionally tailored.
+//
+// Styling resolution order (highest precedence first):
+//   1. Explicit query params (for live preview overrides from the PDF Studio)
+//   2. Variant's frozen pdf_settings_snapshot (when ?variant=<id> is supplied)
+//   3. User's current pdf_settings row
+//   4. Hard-coded defaults
+//
+// When the effective layout is "custom", the user's current resume_blocks are
+// used to render the PDF. Block arrangement is not yet part of the variant
+// snapshot — see README note in lib/blocks for the v2 plan.
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = req.nextUrl;
-  const layout = (searchParams.get("layout") || "classic") as PdfLayout;
-  const colorTheme = (searchParams.get("theme") || "navy") as PdfColorTheme;
+  const layoutParam = searchParams.get("layout") as PdfLayout | null;
+  const themeParam = searchParams.get("theme") as PdfColorTheme | null;
+  const fontParam = searchParams.get("font") as PdfFontFamily | null;
+  const fontScaleParam = searchParams.get("fontScale");
+  const lineHeightParam = searchParams.get("lineHeight");
+  const spacingScaleParam = searchParams.get("spacingScale");
+  const pageTemplateParam = searchParams.get("pageTemplate") as PageTemplate | null;
+  const sidebarWidthParam = searchParams.get("sidebarWidth");
   const variantId = searchParams.get("variant");
 
-  if (!VALID_LAYOUTS.includes(layout)) {
-    return NextResponse.json({ error: "Invalid layout" }, { status: 400 });
+  // Load user's current saved settings (baseline for the base resume, or
+  // fallback for legacy variants created before pdf_settings_snapshot existed).
+  const { data: saved } = await supabase
+    .from("pdf_settings")
+    .select("layout, color_theme, font_family, font_scale, line_height, spacing_scale, page_template, sidebar_width")
+    .eq("profile_id", user.id)
+    .single();
+
+  // If this is a variant download, load the variant (incl. its frozen snapshot).
+  type VariantRow = { variant_data: VariantData; pdf_settings_snapshot: PdfSettingsSnapshot | null };
+  let variantRow: VariantRow | null = null;
+  if (variantId) {
+    const { data } = await supabase
+      .from("profile_variants")
+      .select("variant_data, pdf_settings_snapshot")
+      .eq("id", variantId)
+      .eq("profile_id", user.id)
+      .single();
+    if (data) variantRow = data as unknown as VariantRow;
   }
-  if (!VALID_THEMES.includes(colorTheme)) {
-    return NextResponse.json({ error: "Invalid theme" }, { status: 400 });
-  }
+
+  // Styling baseline: variant snapshot > user's saved settings > defaults.
+  const baseline = variantRow?.pdf_settings_snapshot ?? saved ?? null;
+
+  const layout: PdfLayout = (layoutParam && VALID_LAYOUTS.includes(layoutParam))
+    ? layoutParam
+    : ((baseline?.layout as PdfLayout) || "classic");
+
+  const colorTheme: PdfColorTheme = (themeParam && VALID_THEMES.includes(themeParam))
+    ? themeParam
+    : ((baseline?.color_theme as PdfColorTheme) || "navy");
+
+  const fontFamily: PdfFontFamily = (fontParam && VALID_FONTS.includes(fontParam))
+    ? fontParam
+    : ((baseline?.font_family as PdfFontFamily) || DEFAULT_FONT_CONFIG.fontFamily);
+
+  const fontConfig: PdfFontConfig = {
+    fontFamily,
+    fontScale: fontScaleParam != null
+      ? clamp(parseFloat(fontScaleParam), 0.8, 1.25)
+      : (baseline?.font_scale ?? DEFAULT_FONT_CONFIG.fontScale),
+    lineHeight: lineHeightParam != null
+      ? clamp(parseFloat(lineHeightParam), 1.15, 1.85)
+      : (baseline?.line_height ?? DEFAULT_FONT_CONFIG.lineHeight),
+    spacingScale: spacingScaleParam != null
+      ? clamp(parseFloat(spacingScaleParam), 0.8, 1.3)
+      : (baseline?.spacing_scale ?? DEFAULT_FONT_CONFIG.spacingScale),
+  };
+
+  // Custom-layout inputs are only used when layout === "custom"; cheap to
+  // compute, so build them unconditionally and let the renderer ignore them
+  // for other layouts.
+  const pageTemplate: PageTemplate = (pageTemplateParam && VALID_PAGE_TEMPLATES.includes(pageTemplateParam))
+    ? pageTemplateParam
+    : ((saved?.page_template as PageTemplate) || "single-column");
+  const sidebarWidth: number = sidebarWidthParam != null
+    ? Math.round(clamp(parseFloat(sidebarWidthParam), 120, 260))
+    : (saved?.sidebar_width ?? 180);
+
+  const blocks = layout === "custom"
+    ? await fetchResumeBlocks(supabase, user.id)
+    : [];
 
   let data = await fetchResumeData(supabase, user.id);
   if (!data) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
-  // Apply variant if specified
-  if (variantId) {
-    const { data: variant } = await supabase
-      .from("profile_variants")
-      .select("variant_data")
-      .eq("id", variantId)
-      .eq("profile_id", user.id)
-      .single();
-
-    if (variant?.variant_data) {
-      data = applyVariantToResume(data, variant.variant_data as VariantData);
-    }
+  if (variantRow?.variant_data) {
+    data = applyVariantToResume(data, variantRow.variant_data);
   }
 
-  const pdfBuffer = await renderResumePdf(data, layout, colorTheme);
+  const pdfBuffer = await renderResumePdf(
+    data,
+    layout,
+    colorTheme,
+    fontConfig,
+    { blocks, pageTemplate, sidebarWidth },
+  );
   const fileName = `${data.profile.first_name}_${data.profile.last_name}_Resume.pdf`;
 
   return new NextResponse(pdfBuffer as unknown as BodyInit, {

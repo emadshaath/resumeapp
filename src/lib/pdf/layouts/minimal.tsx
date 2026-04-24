@@ -1,36 +1,39 @@
 import React from "react";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
-import type { PdfColorPalette, ResumeData } from "../types";
+import type { PdfColorPalette, PdfFontConfig, ResumeData } from "../types";
 import { formatDateRange, groupSkillsByCategory } from "../utils";
 
-function createStyles(c: PdfColorPalette) {
+function createStyles(c: PdfColorPalette, f: PdfFontConfig) {
+  const s = f.fontScale;
+  const sp = f.spacingScale;
+  const lh = f.lineHeight;
   return StyleSheet.create({
-    page: { padding: 50, fontFamily: "Helvetica", fontSize: 10, color: c.text, backgroundColor: c.background },
-    header: { marginBottom: 28, textAlign: "center" },
-    name: { fontSize: 22, fontWeight: "bold", color: c.heading, letterSpacing: 2, marginBottom: 6 },
-    headline: { fontSize: 11, color: c.textLight, marginBottom: 10 },
-    contactRow: { flexDirection: "row", justifyContent: "center", flexWrap: "wrap", gap: 16 },
-    contactItem: { fontSize: 9, color: c.textLight },
-    divider: { borderBottomWidth: 0.5, borderBottomColor: c.border, marginVertical: 4 },
-    section: { marginBottom: 18 },
-    sectionTitle: { fontSize: 10, fontWeight: "bold", color: c.primary, textTransform: "uppercase", letterSpacing: 2, marginBottom: 10 },
-    entryRow: { flexDirection: "row", marginBottom: 8 },
-    entryDateCol: { width: 90, paddingRight: 12 },
+    page: { padding: 50 * sp, fontFamily: f.fontFamily, fontSize: 10 * s, color: c.text, backgroundColor: c.background, lineHeight: lh },
+    header: { marginBottom: 28 * sp, textAlign: "center" },
+    name: { fontSize: 22 * s, fontWeight: "bold", color: c.heading, letterSpacing: 2, marginBottom: 6 * sp },
+    headline: { fontSize: 11 * s, color: c.textLight, marginBottom: 10 * sp },
+    contactRow: { flexDirection: "row", justifyContent: "center", flexWrap: "wrap", gap: 16 * sp },
+    contactItem: { fontSize: 9 * s, color: c.textLight },
+    divider: { borderBottomWidth: 0.5, borderBottomColor: c.border, marginVertical: 4 * sp },
+    section: { marginBottom: 18 * sp },
+    sectionTitle: { fontSize: 10 * s, fontWeight: "bold", color: c.primary, textTransform: "uppercase", letterSpacing: 2, marginBottom: 10 * sp },
+    entryRow: { flexDirection: "row", marginBottom: 8 * sp },
+    entryDateCol: { width: 90, paddingRight: 12 * sp },
     entryContentCol: { flex: 1 },
-    entryDate: { fontSize: 8.5, color: c.textLight, textAlign: "right" },
-    entryTitle: { fontSize: 10.5, fontWeight: "bold", color: c.heading },
-    entrySubtitle: { fontSize: 9.5, color: c.textLight, marginTop: 1 },
-    entryDescription: { fontSize: 9.5, color: c.text, marginTop: 3, lineHeight: 1.5 },
-    highlight: { fontSize: 9.5, color: c.text, marginLeft: 8, marginTop: 2, lineHeight: 1.4 },
-    skillRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 4 },
-    skillTag: { fontSize: 8.5, color: c.primary, paddingVertical: 2, paddingHorizontal: 8, borderWidth: 0.5, borderColor: c.border, borderRadius: 3 },
-    skillCategory: { fontSize: 8.5, fontWeight: "bold", color: c.heading, marginBottom: 4, marginTop: 6 },
-    techList: { fontSize: 8.5, color: c.textLight, marginTop: 2, fontStyle: "italic" },
+    entryDate: { fontSize: 8.5 * s, color: c.textLight, textAlign: "right" },
+    entryTitle: { fontSize: 10.5 * s, fontWeight: "bold", color: c.heading },
+    entrySubtitle: { fontSize: 9.5 * s, color: c.textLight, marginTop: 1 },
+    entryDescription: { fontSize: 9.5 * s, color: c.text, marginTop: 3 * sp, lineHeight: lh },
+    highlight: { fontSize: 9.5 * s, color: c.text, marginLeft: 8 * sp, marginTop: 2 * sp, lineHeight: lh },
+    skillRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 * sp, marginBottom: 4 * sp },
+    skillTag: { fontSize: 8.5 * s, color: c.primary, paddingVertical: 2 * sp, paddingHorizontal: 8 * sp, borderWidth: 0.5, borderColor: c.border, borderRadius: 3 },
+    skillCategory: { fontSize: 8.5 * s, fontWeight: "bold", color: c.heading, marginBottom: 4 * sp, marginTop: 6 * sp },
+    techList: { fontSize: 8.5 * s, color: c.textLight, marginTop: 2 * sp, fontStyle: "italic" },
   });
 }
 
-export function MinimalLayout({ data, palette }: { data: ResumeData; palette: PdfColorPalette }) {
-  const s = createStyles(palette);
+export function MinimalLayout({ data, palette, font }: { data: ResumeData; palette: PdfColorPalette; font: PdfFontConfig }) {
+  const s = createStyles(palette, font);
   const { profile, sections, experiences, educations, skills, certifications, projects, customSections } = data;
 
   return (
@@ -42,10 +45,10 @@ export function MinimalLayout({ data, palette }: { data: ResumeData; palette: Pd
           {profile.headline && <Text style={s.headline}>{profile.headline}</Text>}
           <View style={s.divider} />
           <View style={s.contactRow}>
-            <Text style={s.contactItem}>{profile.email}</Text>
-            {profile.phone_personal && <Text style={s.contactItem}>{profile.phone_personal}</Text>}
-            {profile.location && <Text style={s.contactItem}>{profile.location}</Text>}
-            {profile.website_url && <Text style={s.contactItem}>{profile.website_url}</Text>}
+            {profile.show_email !== false && <Text style={s.contactItem}>{profile.email}</Text>}
+            {profile.phone_personal && profile.show_phone !== false && <Text style={s.contactItem}>{profile.phone_personal}</Text>}
+            {profile.location && profile.show_location !== false && <Text style={s.contactItem}>{profile.location}</Text>}
+            {profile.website_url && profile.show_website !== false && <Text style={s.contactItem}>{profile.website_url}</Text>}
           </View>
         </View>
 
@@ -59,7 +62,7 @@ export function MinimalLayout({ data, palette }: { data: ResumeData; palette: Pd
           const sectionCustom = customSections.filter((c) => c.section_id === section.id);
 
           return (
-            <View key={section.id} style={s.section} wrap={false}>
+            <View key={section.id} style={s.section}>
               <Text style={s.sectionTitle}>{section.title}</Text>
 
               {(section.section_type === "summary" || section.section_type === "custom") &&

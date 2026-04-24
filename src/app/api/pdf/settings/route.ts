@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import type { PdfLayout, PdfColorTheme } from "@/lib/pdf/types";
+import type { PdfLayout, PdfColorTheme, PdfFontFamily } from "@/lib/pdf/types";
+import { FONT_OPTIONS } from "@/lib/pdf/types";
+import type { PageTemplate } from "@/types/database";
 
-const VALID_LAYOUTS: PdfLayout[] = ["classic", "modern", "minimal", "executive"];
+const VALID_LAYOUTS: PdfLayout[] = ["classic", "modern", "minimal", "executive", "custom"];
 const VALID_THEMES: PdfColorTheme[] = ["navy", "teal", "charcoal"];
+const VALID_FONTS: PdfFontFamily[] = Object.keys(FONT_OPTIONS) as PdfFontFamily[];
+const VALID_PAGE_TEMPLATES: PageTemplate[] = ["single-column", "sidebar-left"];
+
+function clamp(n: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, n));
+}
 
 // GET /api/pdf/settings — Fetch current user's PDF settings
 export async function GET() {
@@ -27,7 +35,17 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { layout, color_theme, show_on_profile } = body;
+  const {
+    layout,
+    color_theme,
+    show_on_profile,
+    font_family,
+    font_scale,
+    line_height,
+    spacing_scale,
+    page_template,
+    sidebar_width,
+  } = body;
 
   if (layout && !VALID_LAYOUTS.includes(layout)) {
     return NextResponse.json({ error: "Invalid layout" }, { status: 400 });
@@ -35,6 +53,17 @@ export async function POST(req: NextRequest) {
   if (color_theme && !VALID_THEMES.includes(color_theme)) {
     return NextResponse.json({ error: "Invalid color theme" }, { status: 400 });
   }
+  if (font_family && !VALID_FONTS.includes(font_family)) {
+    return NextResponse.json({ error: "Invalid font family" }, { status: 400 });
+  }
+  if (page_template && !VALID_PAGE_TEMPLATES.includes(page_template)) {
+    return NextResponse.json({ error: "Invalid page template" }, { status: 400 });
+  }
+
+  const fontScale = typeof font_scale === "number" ? clamp(font_scale, 0.8, 1.25) : undefined;
+  const lineHeight = typeof line_height === "number" ? clamp(line_height, 1.15, 1.85) : undefined;
+  const spacingScale = typeof spacing_scale === "number" ? clamp(spacing_scale, 0.8, 1.3) : undefined;
+  const sidebarWidth = typeof sidebar_width === "number" ? Math.round(clamp(sidebar_width, 120, 260)) : undefined;
 
   // Upsert the settings
   const { data: existing } = await supabase
@@ -43,15 +72,22 @@ export async function POST(req: NextRequest) {
     .eq("profile_id", user.id)
     .single();
 
+  const payload = {
+    layout: layout || "classic",
+    color_theme: color_theme || "navy",
+    show_on_profile: show_on_profile ?? false,
+    font_family: font_family || "Helvetica",
+    font_scale: fontScale ?? 1.0,
+    line_height: lineHeight ?? 1.45,
+    spacing_scale: spacingScale ?? 1.0,
+    page_template: page_template || "single-column",
+    sidebar_width: sidebarWidth ?? 180,
+  };
+
   if (existing) {
     const { data, error } = await supabase
       .from("pdf_settings")
-      .update({
-        layout: layout || "classic",
-        color_theme: color_theme || "navy",
-        show_on_profile: show_on_profile ?? false,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ ...payload, updated_at: new Date().toISOString() })
       .eq("profile_id", user.id)
       .select()
       .single();
@@ -62,12 +98,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabase
     .from("pdf_settings")
-    .insert({
-      profile_id: user.id,
-      layout: layout || "classic",
-      color_theme: color_theme || "navy",
-      show_on_profile: show_on_profile ?? false,
-    })
+    .insert({ profile_id: user.id, ...payload })
     .select()
     .single();
 

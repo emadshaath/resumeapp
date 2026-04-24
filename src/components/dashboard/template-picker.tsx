@@ -113,9 +113,9 @@ export function TemplatePicker({ profile, onUpdate }: TemplatePickerProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Template</CardTitle>
+          <CardTitle className="text-lg">Public profile theme</CardTitle>
           <CardDescription>
-            Choose how your public profile is laid out. Your content stays the same — only the visual style changes.
+            Choose how your public profile page is laid out. Your content stays the same — only the visual style changes. For resume PDF styling, use the <a href="/dashboard/sections" className="underline underline-offset-2">Resume Builder</a>.
           </CardDescription>
         </CardHeader>
         <CardContent>
