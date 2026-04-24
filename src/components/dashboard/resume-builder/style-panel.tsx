@@ -10,6 +10,7 @@ import {
   Palette,
   ArrowDownUp,
   AlignJustify,
+  Sparkles,
 } from "lucide-react";
 import {
   COLOR_THEMES,
@@ -23,6 +24,7 @@ import type {
   PdfFontConfig,
   PdfFontFamily,
 } from "@/lib/pdf/types";
+import { STARTERS, type StarterId } from "@/lib/blocks/starters";
 import type { PageTemplate } from "@/types/database";
 import type { StyleState } from "./style-state";
 
@@ -33,13 +35,18 @@ interface StylePanelProps {
   onChange: (patch: Partial<StyleState>) => void;
   /** Called when the user clicks a font preset (Compact / Comfortable / Spacious). */
   onPreset?: (key: keyof typeof FONT_PRESETS) => void;
+  /** Apply a starter template — replaces the user's current canvas blocks
+   *  with a predefined arrangement and switches to the Custom layout. The
+   *  parent is expected to confirm-then-call the API. Skipped on this
+   *  panel if not provided. */
+  onApplyStarter?: (id: StarterId) => Promise<void> | void;
 }
 
 /**
  * The styling controls. Self-contained — owns nothing except its tab state.
  * All real state is hoisted to the parent (ResumeBuilder).
  */
-export function StylePanel({ value, onChange, onPreset }: StylePanelProps) {
+export function StylePanel({ value, onChange, onPreset, onApplyStarter }: StylePanelProps) {
   const [tab, setTab] = useState<TabKey>("style");
 
   const setFont = <K extends keyof PdfFontConfig>(key: K, v: PdfFontConfig[K]) => {
@@ -231,6 +238,37 @@ export function StylePanel({ value, onChange, onPreset }: StylePanelProps) {
                       <PageTemplateThumb template={opt.key} />
                       <div className="mt-2 text-sm font-semibold">{opt.label}</div>
                       <div className="mt-0.5 text-[11px] text-zinc-500">{opt.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </Section>
+            )}
+
+            {onApplyStarter && (
+              <Section
+                title="Starter templates"
+                subtitle="Replace the current canvas layout with a preset arrangement. Your section content stays."
+              >
+                <div className="grid grid-cols-2 gap-2">
+                  {(Object.values(STARTERS)).map((starter) => (
+                    <button
+                      key={starter.id}
+                      type="button"
+                      onClick={() => {
+                        const ok = window.confirm(
+                          `Apply the ${starter.label} starter? This replaces your current canvas layout — section content (jobs, education, skills) is kept.`,
+                        );
+                        if (ok) onApplyStarter(starter.id);
+                      }}
+                      className="rounded-lg border-2 border-dashed border-zinc-200 p-3 text-left transition-all hover:border-brand hover:bg-brand/5 dark:border-zinc-800"
+                    >
+                      <div className="flex items-center gap-1.5 text-sm font-semibold">
+                        <Sparkles className="h-3.5 w-3.5 text-brand" />
+                        {starter.label}
+                      </div>
+                      <div className="mt-1 text-[11px] text-zinc-500 leading-relaxed">
+                        {starter.description}
+                      </div>
                     </button>
                   ))}
                 </div>
