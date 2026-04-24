@@ -5,6 +5,7 @@ import { SECTION_SUGGEST_SYSTEM_PROMPT, buildSectionSuggestPrompt } from "@/lib/
 import { rateLimit } from "@/lib/rate-limit";
 import { z } from "zod";
 import type { SectionSuggestions } from "@/lib/claude/schemas";
+import { buildAutoApplyJobContext } from "@/lib/auto-apply/job-context";
 
 const suggestSchema = z.object({
   section_title: z.string(),
@@ -39,6 +40,8 @@ export async function POST(request: Request) {
 
     const { section_title, section_type, content } = parsed.data;
 
+    const jobContext = await buildAutoApplyJobContext(supabase, user.id);
+
     const anthropic = getAnthropicClient();
     const response = await anthropic.messages.create({
       model: AI_MODEL,
@@ -50,6 +53,7 @@ export async function POST(request: Request) {
           title: section_title,
           type: section_type,
           content,
+          jobContext: jobContext?.summary ?? null,
         }),
       }],
     });
@@ -66,7 +70,13 @@ export async function POST(request: Request) {
 
     const suggestions: SectionSuggestions = JSON.parse(jsonText);
 
-    return NextResponse.json({ success: true, suggestions: suggestions.suggestions });
+    return NextResponse.json({
+      success: true,
+      suggestions: suggestions.suggestions,
+      targeted: jobContext
+        ? { candidate_count: jobContext.candidateCount }
+        : null,
+    });
   } catch (error) {
     console.error("AI suggest error:", error);
     return NextResponse.json(

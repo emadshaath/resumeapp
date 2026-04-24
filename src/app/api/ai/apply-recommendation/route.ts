@@ -92,10 +92,11 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { recommendation, section_type, section_name } = body as {
+    const { recommendation, section_type, section_name, preview } = body as {
       recommendation: string;
       section_type: string;
       section_name: string;
+      preview?: boolean;
     };
 
     if (!recommendation || !section_type || !section_name) {
@@ -180,6 +181,22 @@ Apply this recommendation to the section data. Return ONLY the JSON object.`;
     }
 
     const result: ApplyRecommendationResult = JSON.parse(jsonText);
+
+    // Preview mode: return the proposal without writing to the DB.
+    // The client renders a review UI, then calls /commit to apply.
+    if (preview) {
+      return NextResponse.json({
+        success: true,
+        preview: true,
+        section_id: section.id,
+        section_type,
+        section_name,
+        current_items: items,
+        updates: result.updates,
+        inserts: result.inserts,
+        explanation: result.explanation,
+      });
+    }
 
     // Apply updates
     for (const update of result.updates) {

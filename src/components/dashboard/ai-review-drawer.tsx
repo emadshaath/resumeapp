@@ -4,8 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Sparkles,
   RefreshCw,
@@ -18,9 +16,6 @@ import {
   ChevronUp,
   Clock,
   FileText,
-  Play,
-  Check,
-  Loader2,
 } from "lucide-react";
 import type { FullReviewResult, SectionReview } from "@/lib/claude/schemas";
 
@@ -39,7 +34,7 @@ interface AIReviewDrawerProps {
   userTier?: "free" | "pro" | "premium";
 }
 
-export function AIReviewDrawer({ open, onClose, onSectionUpdate, userTier = "free" }: AIReviewDrawerProps) {
+export function AIReviewDrawer({ open, onClose }: AIReviewDrawerProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [review, setReview] = useState<FullReviewResult | null>(null);
@@ -143,7 +138,10 @@ export function AIReviewDrawer({ open, onClose, onSectionUpdate, userTier = "fre
                 <Button variant="ghost" size="sm" onClick={() => { setViewingHistory(null); setReview(null); }}>Clear</Button>
               </div>
             )}
-            <ReviewResults review={review} onSectionUpdate={onSectionUpdate} canApply={userTier !== "free"} />
+            <ReviewResults review={review} />
+            <p className="text-xs text-zinc-500 italic">
+              Open a section from the sidebar and click <span className="font-medium">AI Suggestions</span> to apply any of these recommendations.
+            </p>
           </>
         )}
 
@@ -222,50 +220,8 @@ function ScoreRing({ score, label }: { score: number; label: string }) {
   );
 }
 
-function SectionCard({
-  section,
-  onSectionUpdate,
-  canApply,
-}: {
-  section: SectionReview;
-  onSectionUpdate?: () => void;
-  canApply?: boolean;
-}) {
+function SectionCard({ section }: { section: SectionReview }) {
   const [expanded, setExpanded] = useState(false);
-  const [applyingIndex, setApplyingIndex] = useState<number | null>(null);
-  const [appliedIndices, setAppliedIndices] = useState<Set<number>>(new Set());
-  const [applyError, setApplyError] = useState<string | null>(null);
-
-  async function applyRecommendation(rec: string, index: number) {
-    setApplyingIndex(index);
-    setApplyError(null);
-
-    try {
-      const res = await fetch("/api/ai/apply-recommendation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          recommendation: rec,
-          section_type: section.section_type,
-          section_name: section.section_name,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setApplyError(data.error || "Failed to apply.");
-        return;
-      }
-
-      setAppliedIndices((prev) => new Set(prev).add(index));
-      onSectionUpdate?.();
-    } catch {
-      setApplyError("Network error. Please try again.");
-    } finally {
-      setApplyingIndex(null);
-    }
-  }
 
   return (
     <div className="rounded-lg bg-zinc-50 dark:bg-zinc-900 p-3">
@@ -281,49 +237,14 @@ function SectionCard({
       {expanded && (
         <div className="mt-2 pt-2 border-t border-zinc-200 dark:border-zinc-700 space-y-2">
           <p className="text-sm text-zinc-600 dark:text-zinc-400">{section.feedback}</p>
-          {applyError && (
-            <p className="text-xs text-red-500">{applyError}</p>
-          )}
           {section.recommendations.length > 0 && (
-            <ul className="space-y-2">
-              {section.recommendations.map((rec, i) => {
-                const isApplying = applyingIndex === i;
-                const isApplied = appliedIndices.has(i);
-
-                return (
-                  <li key={i} className="text-sm text-zinc-600 dark:text-zinc-400">
-                    <div className="flex items-start gap-2">
-                      <span className="text-brand mt-0.5 shrink-0">•</span>
-                      <span className="flex-1">{rec}</span>
-                    </div>
-                    <div className="ml-4 mt-1.5">
-                      {isApplied ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
-                          <Check className="h-3 w-3" /> Applied
-                        </span>
-                      ) : canApply ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs px-2.5"
-                          disabled={isApplying || applyingIndex !== null}
-                          onClick={() => applyRecommendation(rec, i)}
-                        >
-                          {isApplying ? (
-                            <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Applying...</>
-                          ) : (
-                            <><Play className="h-3 w-3 mr-1" />Apply</>
-                          )}
-                        </Button>
-                      ) : (
-                        <Badge variant="secondary" className="text-xs font-normal">
-                          Pro
-                        </Badge>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
+            <ul className="space-y-1.5">
+              {section.recommendations.map((rec, i) => (
+                <li key={i} className="text-sm text-zinc-600 dark:text-zinc-400 flex items-start gap-2">
+                  <span className="text-brand mt-0.5 shrink-0">•</span>
+                  <span className="flex-1">{rec}</span>
+                </li>
+              ))}
             </ul>
           )}
         </div>
@@ -332,7 +253,7 @@ function SectionCard({
   );
 }
 
-function ReviewResults({ review, onSectionUpdate, canApply }: { review: FullReviewResult; onSectionUpdate?: () => void; canApply?: boolean }) {
+function ReviewResults({ review }: { review: FullReviewResult }) {
   return (
     <div className="space-y-5">
       <div className="flex justify-center gap-8">
@@ -373,7 +294,7 @@ function ReviewResults({ review, onSectionUpdate, canApply }: { review: FullRevi
       {review.sections.length > 0 && (
         <div>
           <h4 className="text-xs font-semibold flex items-center gap-1.5 mb-2"><TrendingUp className="h-3.5 w-3.5 text-purple-500" /> Section Feedback</h4>
-          <div className="space-y-1.5">{review.sections.map((section, i) => <SectionCard key={i} section={section} onSectionUpdate={onSectionUpdate} canApply={canApply} />)}</div>
+          <div className="space-y-1.5">{review.sections.map((section, i) => <SectionCard key={i} section={section} />)}</div>
         </div>
       )}
     </div>
