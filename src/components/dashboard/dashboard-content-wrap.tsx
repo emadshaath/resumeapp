@@ -6,11 +6,10 @@ import { usePathname } from "next/navigation";
  * Routes inside the dashboard that should render edge-to-edge — overriding the
  * default centered max-w-5xl content container. Anything matching by prefix.
  *
- * The Resume Builder needs the full width to fit a 3-pane (forms / preview /
- * styling) layout. PDF Studio is the same shape and is paired here so both
- * surfaces feel consistent until /dashboard/pdf gets folded into the builder.
+ * The Resume Builder is the only full-width route: its 3-pane layout
+ * (forms / canvas / style) needs every pixel of the main area.
  */
-const FULL_WIDTH_PREFIXES = ["/dashboard/sections", "/dashboard/pdf"];
+const FULL_WIDTH_PREFIXES = ["/dashboard/sections"];
 
 interface Props {
   children: React.ReactNode;

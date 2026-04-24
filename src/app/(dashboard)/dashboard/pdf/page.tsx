@@ -1,34 +1,12 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
-import { fetchResumeBlocks } from "@/lib/blocks/fetch";
-import { PdfStudio } from "@/components/dashboard/pdf-studio";
-import type { PdfSettings } from "@/lib/pdf/types";
 
-export const dynamic = "force-dynamic";
-
-export default async function PdfStudioPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const [data, { data: settings }, blocks] = await Promise.all([
-    fetchResumeData(supabase, user.id),
-    supabase
-      .from("pdf_settings")
-      .select("*")
-      .eq("profile_id", user.id)
-      .single(),
-    fetchResumeBlocks(supabase, user.id),
-  ]);
-
-  if (!data) redirect("/dashboard/sections");
-
-  return (
-    <PdfStudio
-      data={data}
-      initialSettings={(settings as PdfSettings) ?? null}
-      initialBlocks={blocks}
-    />
-  );
+// /dashboard/pdf used to host a standalone PDF Studio with its own 3-pane
+// layout. All of its controls (fonts, layout, color, spacing, page template,
+// public-download toggle) now live inside the right rail of /dashboard/sections
+// alongside the block canvas, so the separate page is dead weight.
+//
+// Kept as a server-side redirect so old bookmarks, deep links, and the
+// occasional external mention land on the builder without a 404.
+export default function PdfStudioPage() {
+  redirect("/dashboard/sections");
 }

@@ -37,7 +37,7 @@ interface StylePanelProps {
 
 /**
  * The styling controls. Self-contained — owns nothing except its tab state.
- * All real state is hoisted to the parent (PdfStudio or ResumeBuilder).
+ * All real state is hoisted to the parent (ResumeBuilder).
  */
 export function StylePanel({ value, onChange, onPreset }: StylePanelProps) {
   const [tab, setTab] = useState<TabKey>("style");
@@ -193,6 +193,23 @@ export function StylePanel({ value, onChange, onPreset }: StylePanelProps) {
                 ))}
               </div>
             </Section>
+
+            {value.layout !== "custom" && (
+              <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+                <p className="font-medium text-zinc-900 dark:text-zinc-100">Fixed layout</p>
+                <p className="mt-1 leading-relaxed">
+                  {LAYOUT_OPTIONS[value.layout].label} uses a preset arrangement — drag and inline editing don&apos;t apply. Switch to{" "}
+                  <button
+                    type="button"
+                    onClick={() => onChange({ layout: "custom" })}
+                    className="font-medium text-brand underline underline-offset-2 hover:text-brand-hover"
+                  >
+                    Custom
+                  </button>
+                  {" "}to rearrange blocks and type directly on the canvas.
+                </p>
+              </div>
+            )}
 
             {value.layout === "custom" && (
               <Section title="Page template" subtitle="Arrangement of block zones on the page">
