@@ -42,12 +42,23 @@ export type SaveFieldFn = (spec: {
   value: string | string[];
 }) => void | Promise<void>;
 
+/**
+ * Called by the canvas when a whole row should be removed (e.g. deleting a
+ * skill, certification, or project entry). Parent maps this to a
+ * supabase.delete + local ResumeData cleanup.
+ */
+export type DeleteRowFn = (spec: {
+  table: EditableTable;
+  id: string;
+}) => void | Promise<void>;
+
 export interface BlockRenderContext {
   data: ResumeData;
   style: StyleState;
   palette: PdfColorPalette;
   inSidebar: boolean;
   saveField: SaveFieldFn;
+  deleteRow: DeleteRowFn;
   /** Whether inline editing is enabled (false when e.g. previewing or for unauth'd views). */
   editable: boolean;
 }
@@ -235,6 +246,30 @@ function BulletActions({ onDelete }: { onDelete: () => void }) {
         <X className="h-3 w-3" />
       </button>
     </span>
+  );
+}
+
+/**
+ * Generic inline delete button — shown on hover via the enclosing
+ * `group/skill` container. Used by SkillsBlock today; any future per-row
+ * delete action can reuse this. Kept separate from BulletActions so
+ * bullet-specific decorations (Bold/Italic later) stay contained.
+ */
+function InlineDeleteButton({ onDelete }: { onDelete: () => void }) {
+  return (
+    <button
+      type="button"
+      contentEditable={false}
+      onClick={(e) => {
+        e.stopPropagation();
+        onDelete();
+      }}
+      className="ml-0.5 inline-flex shrink-0 rounded p-0.5 text-zinc-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-500 focus:opacity-100 group-hover/skill:opacity-100 dark:hover:bg-red-950"
+      aria-label="Delete"
+      title="Delete"
+    >
+      <X className="h-2.5 w-2.5" />
+    </button>
   );
 }
 
@@ -512,8 +547,24 @@ function SkillsBlock({ ctx, block }: { ctx: BlockRenderContext; block: ResumeBlo
   const section = findSection(ctx, block.source_section_id);
   const skills = section ? ctx.data.skills.filter((sk) => sk.section_id === section.id) : [];
   const grouped = groupSkillsByCategory(skills);
-  const saveSkill = (sk: Skill) => (v: string) =>
-    ctx.saveField({ table: "skills", id: sk.id, field: "name", value: v });
+
+  // Each skill is a row in the skills table, not an item in an array — so
+  // clearing the name on blur or pressing Backspace-on-empty triggers a
+  // row-level delete, not just a field update. The × hover button does the
+  // same explicitly.
+  const handleSkillSave = (sk: Skill) => (v: string) => {
+    if (v.trim().length === 0) {
+      ctx.deleteRow({ table: "skills", id: sk.id });
+    } else {
+      ctx.saveField({ table: "skills", id: sk.id, field: "name", value: v });
+    }
+  };
+  const handleSkillKeyDown = (sk: Skill) => (e: React.KeyboardEvent) => {
+    if (e.key === "Backspace" && (sk.name ?? "").length === 0) {
+      e.preventDefault();
+      ctx.deleteRow({ table: "skills", id: sk.id });
+    }
+  };
 
   return (
     <div style={{ marginBottom: spacing(ctx, 12) }}>
@@ -528,9 +579,28 @@ function SkillsBlock({ ctx, block }: { ctx: BlockRenderContext; block: ResumeBlo
                 </div>
               )}
               {catSkills.map((sk) => (
-                <div key={sk.id} style={{ ...fontStyle(ctx, 9), color: ctx.palette.sidebarText, marginBottom: spacing(ctx, 2) }}>
-                  {"• "}
-                  <Editable ctx={ctx} value={sk.name || ""} onSave={saveSkill(sk)} placeholder="Skill" />
+                <div
+                  key={sk.id}
+                  className="group/skill"
+                  style={{
+                    ...fontStyle(ctx, 9),
+                    color: ctx.palette.sidebarText,
+                    marginBottom: spacing(ctx, 2),
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: "0.4em",
+                  }}
+                >
+                  <span aria-hidden style={{ userSelect: "none" }}>•</span>
+                  <Editable
+                    ctx={ctx}
+                    value={sk.name || ""}
+                    onSave={handleSkillSave(sk)}
+                    onKeyDown={handleSkillKeyDown(sk)}
+                    placeholder="Skill"
+                    style={{ flex: 1, minWidth: 0 }}
+                  />
+                  {ctx.editable && <InlineDeleteButton onDelete={() => ctx.deleteRow({ table: "skills", id: sk.id })} />}
                 </div>
               ))}
             </div>
@@ -545,9 +615,16 @@ function SkillsBlock({ ctx, block }: { ctx: BlockRenderContext; block: ResumeBlo
             )}
             <div style={{ ...fontStyle(ctx, 9.5), color: ctx.palette.text, lineHeight: ctx.style.fontConfig.lineHeight }}>
               {catSkills.map((sk, i) => (
-                <span key={sk.id}>
-                  {i > 0 && "  ·  "}
-                  <Editable ctx={ctx} value={sk.name || ""} onSave={saveSkill(sk)} placeholder="Skill" />
+                <span key={sk.id} className="group/skill" style={{ position: "relative", display: "inline-flex", alignItems: "baseline" }}>
+                  {i > 0 && <span style={{ opacity: 0.7, margin: "0 0.4em" }}>·</span>}
+                  <Editable
+                    ctx={ctx}
+                    value={sk.name || ""}
+                    onSave={handleSkillSave(sk)}
+                    onKeyDown={handleSkillKeyDown(sk)}
+                    placeholder="Skill"
+                  />
+                  {ctx.editable && <InlineDeleteButton onDelete={() => ctx.deleteRow({ table: "skills", id: sk.id })} />}
                 </span>
               ))}
             </div>

@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { COLOR_THEMES } from "@/lib/pdf/types";
 import type { ResumeData } from "@/lib/pdf/types";
 import type { ResumeBlock } from "@/types/database";
-import { renderBlockHtml, type BlockRenderContext, type SaveFieldFn } from "./block-renderers";
+import { renderBlockHtml, type BlockRenderContext, type SaveFieldFn, type DeleteRowFn } from "./block-renderers";
 import type { StyleState } from "./style-state";
 
 interface BlockCanvasProps {
@@ -34,6 +34,9 @@ interface BlockCanvasProps {
   onSelectBlock: (id: string | null) => void;
   /** Persist a single text field change from an inline editor. */
   saveField: SaveFieldFn;
+  /** Remove a whole row from one of the content tables — e.g. deleting a
+   *  skill or a project from the canvas without opening the section form. */
+  deleteRow: DeleteRowFn;
   /** Called after a drag-reorder with the full new block list. Parent
    *  persists via PUT /api/resume/blocks. */
   onReorder: (nextBlocks: ResumeBlock[]) => void;
@@ -57,6 +60,7 @@ export function BlockCanvas({
   selectedBlockId,
   onSelectBlock,
   saveField,
+  deleteRow,
   onReorder,
   editable = true,
 }: BlockCanvasProps) {
@@ -71,8 +75,8 @@ export function BlockCanvas({
   const mainBlocks = sorted.filter((b) => b.zone === "main");
   const sidebarBlocks = sorted.filter((b) => b.zone === "sidebar");
 
-  const ctxMain: BlockRenderContext = { data, style, palette, inSidebar: false, saveField, editable };
-  const ctxSidebar: BlockRenderContext = { data, style, palette, inSidebar: true, saveField, editable };
+  const ctxMain: BlockRenderContext = { data, style, palette, inSidebar: false, saveField, deleteRow, editable };
+  const ctxSidebar: BlockRenderContext = { data, style, palette, inSidebar: true, saveField, deleteRow, editable };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),

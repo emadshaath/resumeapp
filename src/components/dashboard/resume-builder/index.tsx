@@ -32,7 +32,7 @@ import { SectionsBottomSheet } from "./sections-bottom-sheet";
 import { StylePanel } from "./style-panel";
 import { BlockCanvas } from "./block-canvas";
 import { BlockProperties } from "./block-properties";
-import type { SaveFieldFn } from "./block-renderers";
+import type { SaveFieldFn, DeleteRowFn } from "./block-renderers";
 import {
   styleStateFromSettings,
   styleFingerprint,
@@ -178,6 +178,17 @@ export function ResumeBuilder({
       // Nudge the expanded section editor (if any) to refetch so it stops
       // showing stale data. Debounced save means this only fires after the
       // user pauses — no per-keystroke remounts.
+      setSectionFormVersion((n) => n + 1);
+    },
+    [supabase],
+  );
+
+  // Whole-row deletions from the canvas (e.g. removing a single skill chip).
+  // Optimistic: drop the row locally first, then DELETE via supabase.
+  const deleteRow: DeleteRowFn = useCallback(
+    async ({ table, id }) => {
+      setData((cur) => removeRowFromResumeData(cur, table, id));
+      await supabase.from(table).delete().eq("id", id);
       setSectionFormVersion((n) => n + 1);
     },
     [supabase],
@@ -433,6 +444,7 @@ export function ResumeBuilder({
                 selectedBlockId={selectedBlockId}
                 onSelectBlock={selectBlock}
                 saveField={saveField}
+                deleteRow={deleteRow}
                 onReorder={reorderBlocks}
               />
             ) : (
@@ -539,6 +551,24 @@ export function ResumeBuilder({
 // ResumeData bag and update a single field. Returns a new ResumeData so
 // React picks up the change. Untouched rows are shared by reference.
 // ---------------------------------------------------------------------------
+
+/** Mirror of patchResumeData for deletions — drops the row matching
+ *  (table, id) and returns a new ResumeData. Profile + resume_sections
+ *  aren't deletable from the canvas (profile has a single row; sections
+ *  have their own delete path through SectionList). */
+function removeRowFromResumeData(data: ResumeData, table: string, id: string): ResumeData {
+  const removeRow = <T extends { id: string }>(rows: T[]): T[] =>
+    rows.filter((r) => r.id !== id);
+  switch (table) {
+    case "experiences":     return { ...data, experiences:    removeRow(data.experiences) };
+    case "educations":      return { ...data, educations:     removeRow(data.educations) };
+    case "skills":          return { ...data, skills:         removeRow(data.skills) };
+    case "certifications":  return { ...data, certifications: removeRow(data.certifications) };
+    case "projects":        return { ...data, projects:       removeRow(data.projects) };
+    case "custom_sections": return { ...data, customSections: removeRow(data.customSections) };
+    default:                return data;
+  }
+}
 
 function patchResumeData(
   data: ResumeData,
