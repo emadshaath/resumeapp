@@ -46,6 +46,12 @@ interface SectionListProps {
   onRefresh: () => void;
   /** Open the import dialog from the empty state. */
   onOpenImport: () => void;
+  /** Called after a new section row is created so the parent can ensure a
+   *  matching canvas block exists. */
+  onSectionAdded?: (section: ResumeSection) => void;
+  /** Called before a section is deleted so the parent can remove the
+   *  corresponding canvas block(s). Optional — no-op if not provided. */
+  onSectionDeleting?: (sectionId: string) => Promise<void> | void;
 }
 
 /**
@@ -60,6 +66,8 @@ export function SectionList({
   profileId,
   onRefresh,
   onOpenImport,
+  onSectionAdded,
+  onSectionDeleting,
 }: SectionListProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -78,13 +86,18 @@ export function SectionList({
       .single();
 
     if (data && !error) {
-      setSections([...sections, data as ResumeSection]);
-      setExpandedId(data.id);
+      const created = data as ResumeSection;
+      setSections([...sections, created]);
+      setExpandedId(created.id);
       setShowAdd(false);
+      onSectionAdded?.(created);
     }
   }
 
   async function deleteSection(id: string) {
+    // Let the parent remove the corresponding canvas block first so the UI
+    // doesn't flash an orphaned block between the two writes.
+    await onSectionDeleting?.(id);
     const { error } = await supabase.from("resume_sections").delete().eq("id", id);
     if (!error) {
       setSections(sections.filter((s) => s.id !== id));

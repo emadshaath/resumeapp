@@ -25,6 +25,7 @@ import { ImportResumeDialog } from "@/components/dashboard/import-resume-dialog"
 import { AIReviewDrawer } from "@/components/dashboard/ai-review-drawer";
 import { VersionHistoryDrawer } from "@/components/dashboard/version-history-drawer";
 import { LinkedInAnalyzerDrawer } from "@/components/dashboard/linkedin-analyzer-drawer";
+import { sectionTypeToBlockType } from "@/lib/blocks/seed";
 import { BuilderHeader, type BuilderView } from "./builder-header";
 import { SectionList } from "./section-list";
 import { SectionsBottomSheet } from "./sections-bottom-sheet";
@@ -172,6 +173,46 @@ export function ResumeBuilder({
     [supabase],
   );
 
+  // When a new section is created in the SectionList, auto-append a matching
+  // block to the main zone so the new content shows up on the canvas without
+  // any manual step. Visual-only section types (there are none today) would
+  // return null from sectionTypeToBlockType and we'd skip the insert.
+  const handleSectionAdded = useCallback(async (section: ResumeSection) => {
+    const blockType = sectionTypeToBlockType(section.section_type);
+    if (!blockType) return;
+    const nextOrder = blocks.filter((b) => b.zone === "main").length;
+
+    const res = await fetch("/api/resume/blocks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: blockType,
+        zone: "main",
+        display_order: nextOrder,
+        source_section_id: section.id,
+        style: {},
+      }),
+    });
+    if (!res.ok) return;
+    const { block } = await res.json();
+    setBlocks((cur) => (cur.some((b) => b.id === block.id) ? cur : [...cur, block]));
+  }, [blocks]);
+
+  // When a section is about to be deleted, remove its corresponding canvas
+  // blocks first. The DB would cascade source_section_id to NULL anyway, but
+  // keeping orphaned blocks around produces empty shells on the canvas.
+  const handleSectionDeleting = useCallback(async (sectionId: string) => {
+    const victims = blocks.filter((b) => b.source_section_id === sectionId);
+    if (victims.length === 0) return;
+    setBlocks((cur) => cur.filter((b) => b.source_section_id !== sectionId));
+    if (selectedBlockId && victims.some((b) => b.id === selectedBlockId)) {
+      setSelectedBlockId(null);
+    }
+    await Promise.all(
+      victims.map((b) => fetch(`/api/resume/blocks/${b.id}`, { method: "DELETE" })),
+    );
+  }, [blocks, selectedBlockId]);
+
   // Persist a new block ordering after a canvas drag. Optimistic: update the
   // local blocks list immediately, then PUT the whole list. If the write
   // fails the next page load corrects things — drag feedback is what matters.
@@ -280,6 +321,8 @@ export function ResumeBuilder({
             profileId={userId}
             onRefresh={refreshAll}
             onOpenImport={() => setImportOpen(true)}
+            onSectionAdded={handleSectionAdded}
+            onSectionDeleting={handleSectionDeleting}
           />
         </aside>
 
@@ -407,6 +450,8 @@ export function ResumeBuilder({
             setSectionsOpen(false);
             setImportOpen(true);
           }}
+          onSectionAdded={handleSectionAdded}
+          onSectionDeleting={handleSectionDeleting}
         />
       </SectionsBottomSheet>
     </div>
