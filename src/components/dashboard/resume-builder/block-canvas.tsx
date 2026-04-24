@@ -333,6 +333,11 @@ function SortableBlockShell({
         onSelect();
       }}
       onKeyDown={(e) => {
+        // Only act on Enter/Space when the block shell itself is the focus
+        // target. Inline contentEditable children inside the block receive
+        // these keys for actual text entry — without this guard a space
+        // inside an EditableText bubbles up and gets swallowed.
+        if (e.target !== e.currentTarget) return;
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           onSelect();

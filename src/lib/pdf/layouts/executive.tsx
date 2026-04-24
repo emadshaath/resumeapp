@@ -66,7 +66,7 @@ export function ExecutiveLayout({ data, palette, font }: { data: ResumeData; pal
             const sectionCustom = customSections.filter((c) => c.section_id === section.id);
 
             return (
-              <View key={section.id} style={s.section} wrap={false}>
+              <View key={section.id} style={s.section}>
                 <View style={s.sectionTitleRow}>
                   <View style={s.accentBar} />
                   <Text style={s.sectionTitle}>{section.title}</Text>

@@ -59,7 +59,7 @@ export function ClassicLayout({ data, palette, font }: { data: ResumeData; palet
           const sectionCustom = customSections.filter((c) => c.section_id === section.id);
 
           return (
-            <View key={section.id} style={s.section} wrap={false}>
+            <View key={section.id} style={s.section}>
               <Text style={s.sectionTitle}>{section.title}</Text>
 
               {(section.section_type === "summary" || section.section_type === "custom") &&

@@ -65,6 +65,11 @@ interface SectionListProps {
    *  can mirror the new order on the canvas main-zone blocks. Receives
    *  the new section ids in top-to-bottom order. */
   onSectionsReordered?: (orderedSectionIds: string[]) => Promise<void> | void;
+  /** Incremented whenever the canvas makes a DB-level edit. Used to remount
+   *  the inner SectionContentEditor so its internal state refetches and the
+   *  form shows the latest value instead of lagging until the user
+   *  collapses + re-expands the card. */
+  formRefreshVersion?: number;
 }
 
 /**
@@ -84,6 +89,7 @@ export function SectionList({
   blocks = [],
   onAddToCanvas,
   onSectionsReordered,
+  formRefreshVersion = 0,
 }: SectionListProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -290,7 +296,11 @@ export function SectionList({
                             onChange={(e) => updateTitle(section.id, e.target.value)}
                           />
                         </div>
-                        <SectionContentEditor section={section} onUpdate={onRefresh} />
+                        <SectionContentEditor
+                          key={`${section.id}-${formRefreshVersion}`}
+                          section={section}
+                          onUpdate={onRefresh}
+                        />
                       </div>
                     </CardContent>
                   )}

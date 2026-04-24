@@ -93,6 +93,10 @@ export function EditableText({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      // Keep keystrokes contained — parents may have keyboard handlers (the
+      // canvas's block shell toggles selection on Space/Enter) that would
+      // otherwise swallow text input inside the editable.
+      e.stopPropagation();
       if (!multiline && e.key === "Enter") {
         e.preventDefault();
         (e.currentTarget as HTMLElement).blur();

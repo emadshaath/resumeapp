@@ -160,6 +160,12 @@ export function ResumeBuilder({
     // ?open=pdf is now a no-op — PDF settings are the right rail of this page.
   }, [searchParams]);
 
+  // Counter bumped after each inline canvas save settles. Used as part of
+  // the SectionContentEditor's React key so any expanded form in the left
+  // rail refetches and shows the post-save value without the user having
+  // to collapse + re-expand the card.
+  const [sectionFormVersion, setSectionFormVersion] = useState(0);
+
   // Inline text edits from the canvas. Optimistically update local state, then
   // persist via supabase (RLS-gated per table). Re-fetch isn't strictly needed
   // because we already patched local state, but we skip it to avoid clobbering
@@ -169,6 +175,10 @@ export function ResumeBuilder({
       // Optimistic local update — mutate the right row in the ResumeData bag.
       setData((cur) => patchResumeData(cur, table, id, field, value));
       await supabase.from(table).update({ [field]: value }).eq("id", id);
+      // Nudge the expanded section editor (if any) to refetch so it stops
+      // showing stale data. Debounced save means this only fires after the
+      // user pauses — no per-keystroke remounts.
+      setSectionFormVersion((n) => n + 1);
     },
     [supabase],
   );
@@ -375,6 +385,7 @@ export function ResumeBuilder({
             onSectionsReordered={mirrorSectionOrder}
             blocks={blocks}
             onAddToCanvas={addBlockForSection}
+            formRefreshVersion={sectionFormVersion}
           />
         </aside>
 
@@ -414,7 +425,7 @@ export function ResumeBuilder({
           </div>
 
           <div className="flex-1 w-full min-h-0">
-            {centerMode === "design" ? (
+            {centerMode === "design" && style.layout === "custom" ? (
               <BlockCanvas
                 data={data}
                 blocks={blocks}
@@ -425,6 +436,11 @@ export function ResumeBuilder({
                 onReorder={reorderBlocks}
               />
             ) : (
+              // Preview mode — and also the fallback for Design when the user
+              // picked a preset layout (Classic/Modern/Minimal/Executive). The
+              // block canvas is block-driven; the preset layouts aren't, so
+              // there'd be nothing meaningful to edit on them beyond what the
+              // section forms already handle.
               <PdfLivePreview
                 data={data}
                 layout={style.layout}
@@ -511,6 +527,7 @@ export function ResumeBuilder({
             // Drop the sheet so the user immediately sees the new block.
             setSectionsOpen(false);
           }}
+          formRefreshVersion={sectionFormVersion}
         />
       </SectionsBottomSheet>
     </div>

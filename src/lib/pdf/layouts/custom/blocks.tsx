@@ -61,7 +61,7 @@ function SummaryBlock({ ctx, block }: { ctx: Ctx; block: ResumeBlock }) {
     ? ctx.data.customSections.filter((c) => c.section_id === section.id)
     : [];
   return (
-    <View style={ctx.s.section} wrap={false}>
+    <View style={ctx.s.section}>
       <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Summary")} />
       {items.map((item) => (
         <Text key={item.id} style={ctx.s.bodyText}>{item.content}</Text>
@@ -77,10 +77,10 @@ function ExperienceBlock({ ctx, block }: { ctx: Ctx; block: ResumeBlock }) {
     ? ctx.data.experiences.filter((e) => e.section_id === section.id)
     : [];
   return (
-    <View style={ctx.s.section} wrap={false}>
+    <View style={ctx.s.section}>
       <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Experience")} />
       {entries.map((exp) => (
-        <View key={exp.id} style={ctx.s.entry}>
+        <View key={exp.id} style={ctx.s.entry} wrap={false}>
           <View style={ctx.s.entryHeader}>
             <View>
               <Text style={ctx.s.entryTitle}>{exp.position}</Text>
@@ -111,10 +111,10 @@ function EducationBlock({ ctx, block }: { ctx: Ctx; block: ResumeBlock }) {
     ? ctx.data.educations.filter((e) => e.section_id === section.id)
     : [];
   return (
-    <View style={ctx.s.section} wrap={false}>
+    <View style={ctx.s.section}>
       <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Education")} />
       {entries.map((edu) => (
-        <View key={edu.id} style={ctx.s.entry}>
+        <View key={edu.id} style={ctx.s.entry} wrap={false}>
           <View style={ctx.s.entryHeader}>
             <View>
               <Text style={ctx.s.entryTitle}>{edu.institution}</Text>
@@ -143,7 +143,7 @@ function SkillsBlock({ ctx, block }: { ctx: Ctx; block: ResumeBlock }) {
     : [];
   const grouped = groupSkillsByCategory(skills);
   return (
-    <View style={ctx.s.section} wrap={false}>
+    <View style={ctx.s.section}>
       <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Skills")} />
       {Array.from(grouped.entries()).map(([cat, catSkills]) => {
         if (ctx.inSidebar) {
@@ -173,10 +173,10 @@ function CertificationsBlock({ ctx, block }: { ctx: Ctx; block: ResumeBlock }) {
     ? ctx.data.certifications.filter((c) => c.section_id === section.id)
     : [];
   return (
-    <View style={ctx.s.section} wrap={false}>
+    <View style={ctx.s.section}>
       <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Certifications")} />
       {certs.map((cert) => (
-        <View key={cert.id} style={ctx.s.entry}>
+        <View key={cert.id} style={ctx.s.entry} wrap={false}>
           <View style={ctx.s.entryHeader}>
             <Text style={ctx.s.entryTitle}>{cert.name}</Text>
             {cert.issue_date && (
@@ -198,10 +198,10 @@ function ProjectsBlock({ ctx, block }: { ctx: Ctx; block: ResumeBlock }) {
     ? ctx.data.projects.filter((p) => p.section_id === section.id)
     : [];
   return (
-    <View style={ctx.s.section} wrap={false}>
+    <View style={ctx.s.section}>
       <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Projects")} />
       {projects.map((proj) => (
-        <View key={proj.id} style={ctx.s.entry}>
+        <View key={proj.id} style={ctx.s.entry} wrap={false}>
           <Text style={ctx.s.entryTitle}>
             {proj.name}{proj.url ? ` — ${proj.url}` : ""}
           </Text>
@@ -227,7 +227,7 @@ function CustomTextBlock({ ctx, block }: { ctx: Ctx; block: ResumeBlock }) {
   const hasAnyContent = items.length > 0 || (inlineText && inlineText.trim().length > 0);
   if (!hasAnyContent && !section) return null;
   return (
-    <View style={ctx.s.section} wrap={false}>
+    <View style={ctx.s.section}>
       {section && (
         <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Section")} />
       )}
