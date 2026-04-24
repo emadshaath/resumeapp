@@ -20,7 +20,7 @@ import type {
   CustomSection,
 } from "@/types/database";
 import type { ResumeData } from "@/lib/pdf/types";
-import { parseHighlights } from "@/lib/utils";
+import { cn, parseHighlights } from "@/lib/utils";
 import { ImportResumeDialog } from "@/components/dashboard/import-resume-dialog";
 import { AIReviewDrawer } from "@/components/dashboard/ai-review-drawer";
 import { VersionHistoryDrawer } from "@/components/dashboard/version-history-drawer";
@@ -267,9 +267,15 @@ export function ResumeBuilder({
       <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
         {/* Left: section content forms */}
         <aside
-          className={`w-full shrink-0 border-zinc-200 bg-white lg:h-[calc(100vh-50px)] lg:w-[340px] lg:border-r dark:border-zinc-800 dark:bg-zinc-950 ${
-            view === "edit" ? "flex flex-col" : "hidden"
-          } lg:flex lg:flex-col`}
+          className={cn(
+            "flex shrink-0 flex-col border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950",
+            // Desktop: fixed 340px column, always visible.
+            "lg:h-[calc(100vh-50px)] lg:w-[340px] lg:border-r",
+            // Mobile: full width + fill remaining height, visible only when
+            // the header toggle is set to Edit.
+            "max-lg:w-full max-lg:flex-1",
+            view !== "edit" && "max-lg:hidden",
+          )}
         >
           <SectionList
             sections={sections}
@@ -283,9 +289,12 @@ export function ResumeBuilder({
 
         {/* Center: design canvas (default) or PDF preview iframe (toggle). */}
         <section
-          className={`relative flex-1 bg-zinc-100 dark:bg-zinc-900 ${
-            view === "design" ? "block" : "hidden"
-          } lg:block`}
+          className={cn(
+            "relative flex flex-col bg-zinc-100 dark:bg-zinc-900",
+            "lg:h-[calc(100vh-50px)] lg:flex-1",
+            "max-lg:w-full max-lg:flex-1",
+            view !== "design" && "max-lg:hidden",
+          )}
         >
           {/* Design / Preview mode toggle floats over the canvas */}
           <div className="absolute right-3 top-3 z-20 inline-flex rounded-md border border-zinc-300 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-950">
@@ -313,7 +322,7 @@ export function ResumeBuilder({
             </button>
           </div>
 
-          <div className="h-full w-full lg:h-[calc(100vh-50px)]">
+          <div className="flex-1 w-full min-h-0">
             {centerMode === "design" ? (
               <BlockCanvas
                 data={data}
@@ -343,9 +352,12 @@ export function ResumeBuilder({
             desktop always; on mobile it's the third member of the view toggle
             (Edit / Design / Style). */}
         <aside
-          className={`w-full shrink-0 border-zinc-200 bg-white lg:h-[calc(100vh-50px)] lg:w-[340px] lg:border-l dark:border-zinc-800 dark:bg-zinc-950 ${
-            view === "style" ? "flex flex-col" : "hidden"
-          } lg:flex lg:flex-col`}
+          className={cn(
+            "flex shrink-0 flex-col border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950",
+            "lg:h-[calc(100vh-50px)] lg:w-[340px] lg:border-l",
+            "max-lg:w-full max-lg:flex-1",
+            view !== "style" && "max-lg:hidden",
+          )}
         >
           {selectedBlock ? (
             <BlockProperties
