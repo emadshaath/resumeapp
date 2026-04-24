@@ -12,11 +12,10 @@ import {
   Link2,
   Wand2,
   Eye,
-  PencilLine,
   SlidersHorizontal,
 } from "lucide-react";
 
-export type BuilderView = "edit" | "design" | "style";
+export type BuilderView = "design" | "style";
 
 interface BuilderHeaderProps {
   // Style/save state
@@ -66,11 +65,11 @@ export function BuilderHeader({
         <h1 className="text-sm font-semibold tracking-tight sm:text-base">Resume Builder</h1>
       </div>
 
-      {/* Mobile/tablet view toggle — hidden on desktop where everything fits.
-          Three buttons mirror the three desktop columns so every pane is
-          reachable on small screens. */}
+      {/* Mobile/tablet view toggle — hidden on desktop where all columns fit.
+          Only two views below lg: the canvas (Design) and the contextual
+          right rail (Style). The section list is reached via the floating
+          Sections button instead. */}
       <div className="ml-2 inline-flex rounded-md border border-zinc-200 dark:border-zinc-800 lg:hidden">
-        <TogglePill active={view === "edit"} onClick={() => onViewChange("edit")} icon={PencilLine} label="Edit" />
         <TogglePill active={view === "design"} onClick={() => onViewChange("design")} icon={Eye} label="Design" />
         <TogglePill active={view === "style"} onClick={() => onViewChange("style")} icon={SlidersHorizontal} label="Style" />
       </div>

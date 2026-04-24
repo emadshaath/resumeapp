@@ -27,6 +27,7 @@ import { VersionHistoryDrawer } from "@/components/dashboard/version-history-dra
 import { LinkedInAnalyzerDrawer } from "@/components/dashboard/linkedin-analyzer-drawer";
 import { BuilderHeader, type BuilderView } from "./builder-header";
 import { SectionList } from "./section-list";
+import { SectionsBottomSheet } from "./sections-bottom-sheet";
 import { StylePanel } from "./style-panel";
 import { BlockCanvas } from "./block-canvas";
 import { BlockProperties } from "./block-properties";
@@ -112,7 +113,11 @@ export function ResumeBuilder({
 
   // Mobile/tablet view toggle. Desktop ignores this and shows all three
   // columns at once — view only gates visibility below the `lg` breakpoint.
-  const [view, setView] = useState<BuilderView>("edit");
+  // On mobile the user sees Design by default; Style is the contextual rail.
+  // The section list lives in a floating bottom sheet (sectionsOpen below)
+  // rather than a third toggle value.
+  const [view, setView] = useState<BuilderView>("design");
+  const [sectionsOpen, setSectionsOpen] = useState(false);
 
   // Style save indicator
   const [saving, setSaving] = useState(false);
@@ -265,18 +270,9 @@ export function ResumeBuilder({
       />
 
       <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
-        {/* Left: section content forms */}
-        <aside
-          className={cn(
-            "flex shrink-0 flex-col border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950",
-            // Desktop: fixed 340px column, always visible.
-            "lg:h-[calc(100vh-50px)] lg:w-[340px] lg:border-r",
-            // Mobile: full width + fill remaining height, visible only when
-            // the header toggle is set to Edit.
-            "max-lg:w-full max-lg:flex-1",
-            view !== "edit" && "max-lg:hidden",
-          )}
-        >
+        {/* Left: section content forms. Desktop-only — mobile reaches the
+            same list via the floating Sections bottom sheet rendered below. */}
+        <aside className="hidden shrink-0 flex-col border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 lg:flex lg:h-[calc(100vh-50px)] lg:w-[340px] lg:border-r">
           <SectionList
             sections={sections}
             setSections={setSections}
@@ -396,6 +392,23 @@ export function ResumeBuilder({
         onApplyComplete={refreshAll}
       />
       <VersionHistoryDrawer open={historyOpen} onClose={() => setHistoryOpen(false)} />
+
+      {/* Mobile: floating Sections button + bottom sheet hosting the same
+          SectionList the desktop left rail renders. Hidden on lg+ via the
+          component's own wrapper class. */}
+      <SectionsBottomSheet open={sectionsOpen} onOpenChange={setSectionsOpen}>
+        <SectionList
+          sections={sections}
+          setSections={setSections}
+          supabase={supabase}
+          profileId={userId}
+          onRefresh={refreshAll}
+          onOpenImport={() => {
+            setSectionsOpen(false);
+            setImportOpen(true);
+          }}
+        />
+      </SectionsBottomSheet>
     </div>
   );
 }
