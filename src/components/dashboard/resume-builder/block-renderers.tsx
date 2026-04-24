@@ -12,6 +12,7 @@ import type {
   Project,
   CustomSection,
 } from "@/types/database";
+import { X } from "lucide-react";
 import type { ResumeData, PdfColorPalette } from "@/lib/pdf/types";
 import { formatDateRange, groupSkillsByCategory } from "@/lib/pdf/utils";
 import type { StyleState } from "./style-state";
@@ -88,6 +89,7 @@ function Editable({
   as = "span",
   className,
   style,
+  onKeyDown,
 }: {
   ctx: BlockRenderContext;
   value: string;
@@ -97,6 +99,7 @@ function Editable({
   as?: EditableTag;
   className?: string;
   style?: React.CSSProperties;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
 }) {
   if (!ctx.editable) {
     switch (as) {
@@ -117,6 +120,7 @@ function Editable({
       as={as}
       className={className}
       style={style}
+      onKeyDown={onKeyDown}
     />
   );
 }
@@ -127,8 +131,10 @@ function Editable({
  * back via onSave — which maps to a single .update on the containing row's
  * highlights column (TEXT[] / JSONB, both handled by supabase-js).
  *
- * Blank bullets (after edit) are filtered out on save so an empty edit box
- * doesn't leave a zombie bullet behind.
+ * Each bullet carries a per-item actions slot (× delete today; Bold / Italic
+ * / etc. slot in here later). Backspace on an empty bullet also deletes it,
+ * matching Notion / Confluence keyboard muscle memory. Blank bullets are
+ * filtered out on every save.
  */
 function BulletList({
   ctx,
@@ -140,12 +146,29 @@ function BulletList({
   onSave: (next: string[]) => void;
 }) {
   if (items.length === 0 && !ctx.editable) return null;
-  const rows = items.length === 0 && ctx.editable ? [""] : items;
+  // Show a single placeholder row when there are no items yet so the user
+  // has somewhere to start typing. The delete control is suppressed on
+  // placeholder rows (there's nothing to remove).
+  const placeholder = items.length === 0 && ctx.editable;
+  const rows = placeholder ? [""] : items;
+
+  const saveWithIndexChange = (i: number, replacement: string | null) => {
+    const next = [...rows];
+    if (replacement === null) {
+      next.splice(i, 1);
+    } else {
+      next[i] = replacement;
+    }
+    // Always clean up empties on persist so the stored array is tidy.
+    onSave(next.map((s) => s.trim()).filter((s) => s.length > 0));
+  };
+
   return (
     <>
       {rows.map((h, i) => (
         <div
           key={i}
+          className="group/bullet"
           style={{
             ...fontStyle(ctx, 9.5),
             color: ctx.palette.text,
@@ -155,26 +178,63 @@ function BulletList({
             display: "flex",
             alignItems: "baseline",
             gap: "0.4em",
+            position: "relative",
           }}
         >
           <span aria-hidden style={{ userSelect: "none" }}>•</span>
           <Editable
             ctx={ctx}
             value={h}
-            onSave={(v) => {
-              const next = [...rows];
-              next[i] = v;
-              // Strip fully-empty bullets on save so a cleared line doesn't
-              // linger as a bare "•" after blur.
-              const cleaned = next.map((s) => s.trim()).filter((s) => s.length > 0);
-              onSave(cleaned);
+            onSave={(v) => saveWithIndexChange(i, v)}
+            onKeyDown={(e) => {
+              // Backspace on an empty bullet removes the whole row. Match
+              // the behaviour of Notion / Confluence / Canva Docs so users
+              // don't have to find a delete button for the common case.
+              if (!placeholder && e.key === "Backspace" && h.length === 0) {
+                e.preventDefault();
+                saveWithIndexChange(i, null);
+              }
             }}
             placeholder="Describe an accomplishment…"
             style={{ flex: 1, minWidth: 0 }}
           />
+          {!placeholder && (
+            <BulletActions
+              onDelete={() => saveWithIndexChange(i, null)}
+            />
+          )}
         </div>
       ))}
     </>
+  );
+}
+
+/**
+ * Per-bullet action rail. Today: delete. Future slot for Bold / Italic /
+ * convert-to-sub-bullet / etc.
+ *
+ * Shown on hover via the enclosing `group/bullet` so the actions don't
+ * clutter the resume when the user isn't actively hovering that line.
+ */
+function BulletActions({ onDelete }: { onDelete: () => void }) {
+  return (
+    <span
+      contentEditable={false}
+      className="ml-1 inline-flex shrink-0 opacity-0 transition-opacity group-hover/bullet:opacity-100 focus-within:opacity-100"
+      // Prevent clicks from bubbling to the block shell's onClick (which
+      // would toggle selection) or to the canvas's deselect handler.
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        onClick={onDelete}
+        className="rounded p-0.5 text-zinc-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
+        aria-label="Delete bullet"
+        title="Delete bullet"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </span>
   );
 }
 

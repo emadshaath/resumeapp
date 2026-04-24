@@ -22,6 +22,11 @@ interface EditableTextProps {
   /** Disable editing — renders plain text without contentEditable semantics. */
   readOnly?: boolean;
   ariaLabel?: string;
+  /** Called before the built-in keydown logic (Enter/Escape) runs. The
+   *  caller can inspect the event and call preventDefault() to suppress
+   *  the default behaviour. Useful for Backspace-on-empty-to-delete and
+   *  similar per-field keyboard shortcuts. */
+  onKeyDown?: (e: React.KeyboardEvent) => void;
 }
 
 /**
@@ -44,6 +49,7 @@ export function EditableText({
   debounceMs = 500,
   readOnly = false,
   ariaLabel,
+  onKeyDown: externalKeyDown,
 }: EditableTextProps) {
   const ref = useRef<HTMLElement | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -97,6 +103,11 @@ export function EditableText({
       // canvas's block shell toggles selection on Space/Enter) that would
       // otherwise swallow text input inside the editable.
       e.stopPropagation();
+      // Let the caller (e.g. BulletList) handle custom shortcuts like
+      // Backspace-on-empty-to-delete first. If they preventDefault, we skip
+      // our own built-in Enter/Escape behaviour.
+      externalKeyDown?.(e);
+      if (e.defaultPrevented) return;
       if (!multiline && e.key === "Enter") {
         e.preventDefault();
         (e.currentTarget as HTMLElement).blur();
@@ -108,7 +119,7 @@ export function EditableText({
         (e.currentTarget as HTMLElement).blur();
       }
     },
-    [multiline],
+    [multiline, externalKeyDown],
   );
 
   // Clicking an editable shouldn't bubble up to the canvas's "deselect on
