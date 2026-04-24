@@ -30,6 +30,7 @@ import { SectionList } from "./section-list";
 import { StylePanel } from "./style-panel";
 import { BlockCanvas } from "./block-canvas";
 import { BlockProperties } from "./block-properties";
+import type { SaveFieldFn } from "./block-renderers";
 import {
   styleStateFromSettings,
   styleFingerprint,
@@ -136,6 +137,19 @@ export function ResumeBuilder({
     /* eslint-enable react-hooks/set-state-in-effect */
     // ?open=pdf is now a no-op — PDF settings are the right rail of this page.
   }, [searchParams]);
+
+  // Inline text edits from the canvas. Optimistically update local state, then
+  // persist via supabase (RLS-gated per table). Re-fetch isn't strictly needed
+  // because we already patched local state, but we skip it to avoid clobbering
+  // the user's next keystroke mid-flight.
+  const saveField: SaveFieldFn = useCallback(
+    async ({ table, id, field, value }) => {
+      // Optimistic local update — mutate the right row in the ResumeData bag.
+      setData((cur) => patchResumeData(cur, table, id, field, value));
+      await supabase.from(table).update({ [field]: value }).eq("id", id);
+    },
+    [supabase],
+  );
 
   // Patch a single block's fields locally + persist via API. Optimistic so
   // the canvas reflects the change before the server confirms.
@@ -270,6 +284,7 @@ export function ResumeBuilder({
                 style={style}
                 selectedBlockId={selectedBlockId}
                 onSelectBlock={setSelectedBlockId}
+                saveField={saveField}
               />
             ) : (
               <PdfLivePreview
@@ -322,6 +337,46 @@ export function ResumeBuilder({
       <VersionHistoryDrawer open={historyOpen} onClose={() => setHistoryOpen(false)} />
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Optimistic patch helper: find the row matching `table` + `id` in a
+// ResumeData bag and update a single field. Returns a new ResumeData so
+// React picks up the change. Untouched rows are shared by reference.
+// ---------------------------------------------------------------------------
+
+function patchResumeData(
+  data: ResumeData,
+  table: string,
+  id: string,
+  field: string,
+  value: string,
+): ResumeData {
+  const patchRow = <T extends { id: string }>(rows: T[]): T[] =>
+    rows.map((r) => (r.id === id ? { ...r, [field]: value } as T : r));
+
+  switch (table) {
+    case "profiles":
+      return data.profile.id === id
+        ? { ...data, profile: { ...data.profile, [field]: value } }
+        : data;
+    case "resume_sections":
+      return { ...data, sections: patchRow(data.sections) };
+    case "experiences":
+      return { ...data, experiences: patchRow(data.experiences) };
+    case "educations":
+      return { ...data, educations: patchRow(data.educations) };
+    case "skills":
+      return { ...data, skills: patchRow(data.skills) };
+    case "certifications":
+      return { ...data, certifications: patchRow(data.certifications) };
+    case "projects":
+      return { ...data, projects: patchRow(data.projects) };
+    case "custom_sections":
+      return { ...data, customSections: patchRow(data.customSections) };
+    default:
+      return data;
+  }
 }
 
 // ---------------------------------------------------------------------------

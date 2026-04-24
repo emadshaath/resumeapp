@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { COLOR_THEMES } from "@/lib/pdf/types";
 import type { ResumeData } from "@/lib/pdf/types";
 import type { ResumeBlock } from "@/types/database";
-import { renderBlockHtml, type BlockRenderContext } from "./block-renderers";
+import { renderBlockHtml, type BlockRenderContext, type SaveFieldFn } from "./block-renderers";
 import type { StyleState } from "./style-state";
 
 interface BlockCanvasProps {
@@ -13,6 +13,10 @@ interface BlockCanvasProps {
   style: StyleState;
   selectedBlockId: string | null;
   onSelectBlock: (id: string | null) => void;
+  /** Persist a single text field change from an inline editor. */
+  saveField: SaveFieldFn;
+  /** Disable inline editing (e.g. during an explicit read-only preview). */
+  editable?: boolean;
 }
 
 /**
@@ -30,6 +34,8 @@ export function BlockCanvas({
   style,
   selectedBlockId,
   onSelectBlock,
+  saveField,
+  editable = true,
 }: BlockCanvasProps) {
   const palette = COLOR_THEMES[style.colorTheme].palette;
   const isSidebarTemplate = style.pageTemplate === "sidebar-left";
@@ -42,8 +48,8 @@ export function BlockCanvas({
   const mainBlocks = sorted.filter((b) => b.zone === "main");
   const sidebarBlocks = sorted.filter((b) => b.zone === "sidebar");
 
-  const ctxMain: BlockRenderContext = { data, style, palette, inSidebar: false };
-  const ctxSidebar: BlockRenderContext = { data, style, palette, inSidebar: true };
+  const ctxMain: BlockRenderContext = { data, style, palette, inSidebar: false, saveField, editable };
+  const ctxSidebar: BlockRenderContext = { data, style, palette, inSidebar: true, saveField, editable };
 
   // 40 * spacingScale matches the PDF's page padding so spacing slider effects
   // line up between canvas and PDF preview.

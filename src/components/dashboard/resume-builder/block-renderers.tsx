@@ -1,15 +1,53 @@
 "use client";
 
-import type { ResumeBlock, ResumeSection, BlockStyle } from "@/types/database";
+import type {
+  ResumeBlock,
+  ResumeSection,
+  BlockStyle,
+  Profile,
+  Experience,
+  Education,
+  Skill,
+  Certification,
+  Project,
+  CustomSection,
+} from "@/types/database";
 import type { ResumeData, PdfColorPalette } from "@/lib/pdf/types";
 import { formatDateRange, groupSkillsByCategory } from "@/lib/pdf/utils";
 import type { StyleState } from "./style-state";
+import { EditableText, type EditableTag } from "./editable-text";
+
+/** Table names the canvas inline editor can touch. */
+export type EditableTable =
+  | "profiles"
+  | "resume_sections"
+  | "experiences"
+  | "educations"
+  | "skills"
+  | "certifications"
+  | "projects"
+  | "custom_sections";
+
+/**
+ * Called by the canvas when an inline field loses focus or settles after
+ * debounce. The parent (ResumeBuilder) maps this to a supabase.update() and
+ * triggers a refresh of ResumeData.
+ */
+export type SaveFieldFn = (spec: {
+  table: EditableTable;
+  id: string;
+  field: string;
+  value: string;
+}) => void | Promise<void>;
 
 export interface BlockRenderContext {
   data: ResumeData;
   style: StyleState;
   palette: PdfColorPalette;
   inSidebar: boolean;
+  saveField: SaveFieldFn;
+  /** Whether inline editing is enabled (false when e.g. previewing or for unauth'd views). */
+  editable: boolean;
 }
 
 // ----------------------------------------------------------------------------
@@ -28,7 +66,6 @@ function resolveTitle(block: ResumeBlock, section: ResumeSection | undefined, fa
   return fallback;
 }
 
-/** Inline style helpers that mirror the PDF's font / spacing scale math. */
 function fontStyle(ctx: BlockRenderContext, base: number) {
   return {
     fontSize: `${base * ctx.style.fontConfig.fontScale}px`,
@@ -40,7 +77,49 @@ function spacing(ctx: BlockRenderContext, base: number) {
   return base * ctx.style.fontConfig.spacingScale;
 }
 
-/** Visual section heading — uppercased, bordered, palette colored. */
+/** Thin wrapper that chooses EditableText or a static span based on `editable`. */
+function Editable({
+  ctx,
+  value,
+  onSave,
+  multiline,
+  placeholder,
+  as = "span",
+  className,
+  style,
+}: {
+  ctx: BlockRenderContext;
+  value: string;
+  onSave: (v: string) => void;
+  multiline?: boolean;
+  placeholder?: string;
+  as?: EditableTag;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  if (!ctx.editable) {
+    switch (as) {
+      case "div": return <div className={className} style={style}>{value}</div>;
+      case "p": return <p className={className} style={style}>{value}</p>;
+      case "h1": return <h1 className={className} style={style}>{value}</h1>;
+      case "h2": return <h2 className={className} style={style}>{value}</h2>;
+      case "h3": return <h3 className={className} style={style}>{value}</h3>;
+      default: return <span className={className} style={style}>{value}</span>;
+    }
+  }
+  return (
+    <EditableText
+      value={value}
+      onSave={onSave}
+      multiline={multiline}
+      placeholder={placeholder}
+      as={as}
+      className={className}
+      style={style}
+    />
+  );
+}
+
 function SectionHeading({ ctx, text }: { ctx: BlockRenderContext; text: string }) {
   return (
     <div
@@ -63,11 +142,16 @@ function SectionHeading({ ctx, text }: { ctx: BlockRenderContext; text: string }
 }
 
 // ----------------------------------------------------------------------------
-// Per-type renderers
+// Per-type renderers — now with inline editing on the most commonly edited
+// fields. Multiline descriptions fall back to contentEditable with multiline
+// mode enabled; bullets / list fields still require the left-rail forms.
 // ----------------------------------------------------------------------------
 
 function HeaderBlock({ ctx }: { ctx: BlockRenderContext }) {
   const { profile } = ctx.data;
+  const save = (field: keyof Profile) => (v: string) =>
+    ctx.saveField({ table: "profiles", id: profile.id, field: String(field), value: v });
+
   return (
     <div
       style={{
@@ -84,18 +168,57 @@ function HeaderBlock({ ctx }: { ctx: BlockRenderContext }) {
           marginBottom: spacing(ctx, 4),
         }}
       >
-        {profile.first_name} {profile.last_name}
+        <Editable
+          ctx={ctx}
+          value={profile.first_name || ""}
+          onSave={save("first_name")}
+          placeholder="First name"
+        />
+        {" "}
+        <Editable
+          ctx={ctx}
+          value={profile.last_name || ""}
+          onSave={save("last_name")}
+          placeholder="Last name"
+        />
       </div>
-      {profile.headline && (
-        <div style={{ ...fontStyle(ctx, 12), color: ctx.palette.textLight, marginBottom: spacing(ctx, 6) }}>
-          {profile.headline}
-        </div>
-      )}
+      <Editable
+        ctx={ctx}
+        value={profile.headline || ""}
+        onSave={save("headline")}
+        placeholder="Professional headline"
+        as="div"
+        style={{ ...fontStyle(ctx, 12), color: ctx.palette.textLight, marginBottom: spacing(ctx, 6) }}
+      />
       <div style={{ display: "flex", flexWrap: "wrap", gap: spacing(ctx, 12) }}>
-        <span style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}>{profile.email}</span>
-        {profile.phone_personal && <span style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}>{profile.phone_personal}</span>}
-        {profile.location && <span style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}>{profile.location}</span>}
-        {profile.website_url && <span style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}>{profile.website_url}</span>}
+        <Editable
+          ctx={ctx}
+          value={profile.email || ""}
+          onSave={save("email")}
+          placeholder="email@example.com"
+          style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}
+        />
+        <Editable
+          ctx={ctx}
+          value={profile.phone_personal || ""}
+          onSave={save("phone_personal")}
+          placeholder="Phone"
+          style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}
+        />
+        <Editable
+          ctx={ctx}
+          value={profile.location || ""}
+          onSave={save("location")}
+          placeholder="Location"
+          style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}
+        />
+        <Editable
+          ctx={ctx}
+          value={profile.website_url || ""}
+          onSave={save("website_url")}
+          placeholder="Website"
+          style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}
+        />
       </div>
     </div>
   );
@@ -108,17 +231,22 @@ function SummaryBlock({ ctx, block }: { ctx: BlockRenderContext; block: ResumeBl
     <div style={{ marginBottom: spacing(ctx, 12) }}>
       <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Summary")} />
       {items.map((item) => (
-        <p
+        <Editable
           key={item.id}
+          ctx={ctx}
+          value={item.content || ""}
+          onSave={(v) => ctx.saveField({ table: "custom_sections", id: item.id, field: "content", value: v })}
+          multiline
+          placeholder="Add a short summary…"
+          as="p"
           style={{
             ...fontStyle(ctx, 9.5),
             color: ctx.palette.text,
             lineHeight: ctx.style.fontConfig.lineHeight,
             marginBottom: spacing(ctx, 2),
+            whiteSpace: "pre-wrap",
           }}
-        >
-          {item.content}
-        </p>
+        />
       ))}
     </div>
   );
@@ -128,28 +256,61 @@ function ExperienceBlock({ ctx, block }: { ctx: BlockRenderContext; block: Resum
   const section = findSection(ctx, block.source_section_id);
   const showDates = block.style?.show_dates !== false;
   const entries = section ? ctx.data.experiences.filter((e) => e.section_id === section.id) : [];
+  const save = (exp: Experience, field: keyof Experience) => (v: string) =>
+    ctx.saveField({ table: "experiences", id: exp.id, field: String(field), value: v });
+
   return (
     <div style={{ marginBottom: spacing(ctx, 12) }}>
       <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Experience")} />
       {entries.map((exp) => (
         <div key={exp.id} style={{ marginBottom: spacing(ctx, 8) }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: spacing(ctx, 1) }}>
-            <div>
-              <div style={{ ...fontStyle(ctx, 11), fontWeight: 700, color: ctx.palette.heading }}>{exp.position}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Editable
+                ctx={ctx}
+                value={exp.position || ""}
+                onSave={save(exp, "position")}
+                placeholder="Position"
+                style={{ ...fontStyle(ctx, 11), fontWeight: 700, color: ctx.palette.heading, display: "block" }}
+              />
               <div style={{ ...fontStyle(ctx, 10), color: ctx.palette.textLight }}>
-                {exp.company_name}{exp.location ? ` · ${exp.location}` : ""}
+                <Editable
+                  ctx={ctx}
+                  value={exp.company_name || ""}
+                  onSave={save(exp, "company_name")}
+                  placeholder="Company"
+                />
+                {exp.location || ctx.editable ? " · " : ""}
+                <Editable
+                  ctx={ctx}
+                  value={exp.location || ""}
+                  onSave={save(exp, "location")}
+                  placeholder="Location"
+                />
               </div>
             </div>
             {showDates && (
-              <div style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}>
+              <div style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight, whiteSpace: "nowrap", marginLeft: spacing(ctx, 8) }}>
                 {formatDateRange(exp.start_date, exp.end_date, exp.is_current)}
               </div>
             )}
           </div>
-          {exp.description && (
-            <p style={{ ...fontStyle(ctx, 9.5), color: ctx.palette.text, lineHeight: ctx.style.fontConfig.lineHeight, marginTop: spacing(ctx, 2) }}>
-              {exp.description}
-            </p>
+          {(exp.description || ctx.editable) && (
+            <Editable
+              ctx={ctx}
+              value={exp.description || ""}
+              onSave={save(exp, "description")}
+              multiline
+              placeholder="Short summary…"
+              as="p"
+              style={{
+                ...fontStyle(ctx, 9.5),
+                color: ctx.palette.text,
+                lineHeight: ctx.style.fontConfig.lineHeight,
+                marginTop: spacing(ctx, 2),
+                whiteSpace: "pre-wrap",
+              }}
+            />
           )}
           {exp.highlights?.map((h, i) => (
             <div
@@ -175,29 +336,62 @@ function EducationBlock({ ctx, block }: { ctx: BlockRenderContext; block: Resume
   const section = findSection(ctx, block.source_section_id);
   const showDates = block.style?.show_dates !== false;
   const entries = section ? ctx.data.educations.filter((e) => e.section_id === section.id) : [];
+  const save = (edu: Education, field: keyof Education) => (v: string) =>
+    ctx.saveField({ table: "educations", id: edu.id, field: String(field), value: v });
+
   return (
     <div style={{ marginBottom: spacing(ctx, 12) }}>
       <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Education")} />
       {entries.map((edu) => (
         <div key={edu.id} style={{ marginBottom: spacing(ctx, 8) }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <div>
-              <div style={{ ...fontStyle(ctx, 11), fontWeight: 700, color: ctx.palette.heading }}>{edu.institution}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Editable
+                ctx={ctx}
+                value={edu.institution || ""}
+                onSave={save(edu, "institution")}
+                placeholder="Institution"
+                style={{ ...fontStyle(ctx, 11), fontWeight: 700, color: ctx.palette.heading, display: "block" }}
+              />
               <div style={{ ...fontStyle(ctx, 10), color: ctx.palette.textLight }}>
-                {[edu.degree, edu.field_of_study].filter(Boolean).join(" in ")}
+                <Editable
+                  ctx={ctx}
+                  value={edu.degree || ""}
+                  onSave={save(edu, "degree")}
+                  placeholder="Degree"
+                />
+                {(edu.degree && edu.field_of_study) || ctx.editable ? " in " : ""}
+                <Editable
+                  ctx={ctx}
+                  value={edu.field_of_study || ""}
+                  onSave={save(edu, "field_of_study")}
+                  placeholder="Field of study"
+                />
                 {edu.gpa ? ` · GPA: ${edu.gpa}` : ""}
               </div>
             </div>
             {showDates && (
-              <div style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}>
+              <div style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight, whiteSpace: "nowrap", marginLeft: spacing(ctx, 8) }}>
                 {formatDateRange(edu.start_date, edu.end_date, edu.is_current)}
               </div>
             )}
           </div>
-          {edu.description && (
-            <p style={{ ...fontStyle(ctx, 9.5), color: ctx.palette.text, marginTop: spacing(ctx, 2), lineHeight: ctx.style.fontConfig.lineHeight }}>
-              {edu.description}
-            </p>
+          {(edu.description || ctx.editable) && (
+            <Editable
+              ctx={ctx}
+              value={edu.description || ""}
+              onSave={save(edu, "description")}
+              multiline
+              placeholder="Notes, honors, coursework…"
+              as="p"
+              style={{
+                ...fontStyle(ctx, 9.5),
+                color: ctx.palette.text,
+                marginTop: spacing(ctx, 2),
+                lineHeight: ctx.style.fontConfig.lineHeight,
+                whiteSpace: "pre-wrap",
+              }}
+            />
           )}
         </div>
       ))}
@@ -209,6 +403,9 @@ function SkillsBlock({ ctx, block }: { ctx: BlockRenderContext; block: ResumeBlo
   const section = findSection(ctx, block.source_section_id);
   const skills = section ? ctx.data.skills.filter((sk) => sk.section_id === section.id) : [];
   const grouped = groupSkillsByCategory(skills);
+  const saveSkill = (sk: Skill) => (v: string) =>
+    ctx.saveField({ table: "skills", id: sk.id, field: "name", value: v });
+
   return (
     <div style={{ marginBottom: spacing(ctx, 12) }}>
       <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Skills")} />
@@ -223,7 +420,8 @@ function SkillsBlock({ ctx, block }: { ctx: BlockRenderContext; block: ResumeBlo
               )}
               {catSkills.map((sk) => (
                 <div key={sk.id} style={{ ...fontStyle(ctx, 9), color: ctx.palette.sidebarText, marginBottom: spacing(ctx, 2) }}>
-                  • {sk.name}
+                  {"• "}
+                  <Editable ctx={ctx} value={sk.name || ""} onSave={saveSkill(sk)} placeholder="Skill" />
                 </div>
               ))}
             </div>
@@ -237,7 +435,12 @@ function SkillsBlock({ ctx, block }: { ctx: BlockRenderContext; block: ResumeBlo
               </div>
             )}
             <div style={{ ...fontStyle(ctx, 9.5), color: ctx.palette.text, lineHeight: ctx.style.fontConfig.lineHeight }}>
-              {catSkills.map((sk) => sk.name).join("  ·  ")}
+              {catSkills.map((sk, i) => (
+                <span key={sk.id}>
+                  {i > 0 && "  ·  "}
+                  <Editable ctx={ctx} value={sk.name || ""} onSave={saveSkill(sk)} placeholder="Skill" />
+                </span>
+              ))}
             </div>
           </div>
         );
@@ -249,22 +452,36 @@ function SkillsBlock({ ctx, block }: { ctx: BlockRenderContext; block: ResumeBlo
 function CertificationsBlock({ ctx, block }: { ctx: BlockRenderContext; block: ResumeBlock }) {
   const section = findSection(ctx, block.source_section_id);
   const certs = section ? ctx.data.certifications.filter((c) => c.section_id === section.id) : [];
+  const save = (cert: Certification, field: keyof Certification) => (v: string) =>
+    ctx.saveField({ table: "certifications", id: cert.id, field: String(field), value: v });
+
   return (
     <div style={{ marginBottom: spacing(ctx, 12) }}>
       <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Certifications")} />
       {certs.map((cert) => (
         <div key={cert.id} style={{ marginBottom: spacing(ctx, 8) }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <div style={{ ...fontStyle(ctx, 11), fontWeight: 700, color: ctx.palette.heading }}>{cert.name}</div>
+            <Editable
+              ctx={ctx}
+              value={cert.name || ""}
+              onSave={save(cert, "name")}
+              placeholder="Certification"
+              style={{ ...fontStyle(ctx, 11), fontWeight: 700, color: ctx.palette.heading }}
+            />
             {cert.issue_date && (
-              <div style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}>
+              <div style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight, whiteSpace: "nowrap", marginLeft: spacing(ctx, 8) }}>
                 {formatDateRange(cert.issue_date, cert.expiry_date, false)}
               </div>
             )}
           </div>
-          {cert.issuing_org && (
-            <div style={{ ...fontStyle(ctx, 10), color: ctx.palette.textLight }}>{cert.issuing_org}</div>
-          )}
+          <Editable
+            ctx={ctx}
+            value={cert.issuing_org || ""}
+            onSave={save(cert, "issuing_org")}
+            placeholder="Issuer"
+            as="div"
+            style={{ ...fontStyle(ctx, 10), color: ctx.palette.textLight }}
+          />
         </div>
       ))}
     </div>
@@ -274,18 +491,39 @@ function CertificationsBlock({ ctx, block }: { ctx: BlockRenderContext; block: R
 function ProjectsBlock({ ctx, block }: { ctx: BlockRenderContext; block: ResumeBlock }) {
   const section = findSection(ctx, block.source_section_id);
   const projects = section ? ctx.data.projects.filter((p) => p.section_id === section.id) : [];
+  const save = (proj: Project, field: keyof Project) => (v: string) =>
+    ctx.saveField({ table: "projects", id: proj.id, field: String(field), value: v });
+
   return (
     <div style={{ marginBottom: spacing(ctx, 12) }}>
       <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Projects")} />
       {projects.map((proj) => (
         <div key={proj.id} style={{ marginBottom: spacing(ctx, 8) }}>
           <div style={{ ...fontStyle(ctx, 11), fontWeight: 700, color: ctx.palette.heading }}>
-            {proj.name}{proj.url ? ` — ${proj.url}` : ""}
+            <Editable
+              ctx={ctx}
+              value={proj.name || ""}
+              onSave={save(proj, "name")}
+              placeholder="Project name"
+            />
+            {proj.url && ` — ${proj.url}`}
           </div>
-          {proj.description && (
-            <p style={{ ...fontStyle(ctx, 9.5), color: ctx.palette.text, marginTop: spacing(ctx, 2), lineHeight: ctx.style.fontConfig.lineHeight }}>
-              {proj.description}
-            </p>
+          {(proj.description || ctx.editable) && (
+            <Editable
+              ctx={ctx}
+              value={proj.description || ""}
+              onSave={save(proj, "description")}
+              multiline
+              placeholder="What did you build?"
+              as="p"
+              style={{
+                ...fontStyle(ctx, 9.5),
+                color: ctx.palette.text,
+                marginTop: spacing(ctx, 2),
+                lineHeight: ctx.style.fontConfig.lineHeight,
+                whiteSpace: "pre-wrap",
+              }}
+            />
           )}
           {proj.technologies?.length > 0 && (
             <div style={{ ...fontStyle(ctx, 8.5), color: ctx.palette.accent, marginTop: spacing(ctx, 2) }}>
@@ -311,12 +549,22 @@ function CustomTextBlock({ ctx, block }: { ctx: BlockRenderContext; block: Resum
     <div style={{ marginBottom: spacing(ctx, 12) }}>
       {section && <SectionHeading ctx={ctx} text={resolveTitle(block, section, "Section")} />}
       {items.map((item) => (
-        <p
+        <Editable
           key={item.id}
-          style={{ ...fontStyle(ctx, 9.5), color: ctx.palette.text, lineHeight: ctx.style.fontConfig.lineHeight, marginBottom: spacing(ctx, 2) }}
-        >
-          {item.content}
-        </p>
+          ctx={ctx}
+          value={item.content || ""}
+          onSave={(v) => ctx.saveField({ table: "custom_sections", id: item.id, field: "content", value: v })}
+          multiline
+          placeholder="Write something…"
+          as="p"
+          style={{
+            ...fontStyle(ctx, 9.5),
+            color: ctx.palette.text,
+            lineHeight: ctx.style.fontConfig.lineHeight,
+            marginBottom: spacing(ctx, 2),
+            whiteSpace: "pre-wrap",
+          }}
+        />
       ))}
       {inlineText && (
         <p style={{ ...fontStyle(ctx, 9.5), color: ctx.palette.text, lineHeight: ctx.style.fontConfig.lineHeight }}>
@@ -374,3 +622,15 @@ export function renderBlockHtml(block: ResumeBlock, ctx: BlockRenderContext): Re
       return null;
   }
 }
+
+// Re-export these types for callers that want to reference them without
+// pulling in the renderer internals.
+export type {
+  Profile,
+  Experience,
+  Education,
+  Skill,
+  Certification,
+  Project,
+  CustomSection,
+};
