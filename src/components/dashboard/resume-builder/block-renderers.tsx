@@ -495,20 +495,32 @@ function HeaderBlock({ ctx }: { ctx: BlockRenderContext }) {
             style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}
           />
         </ContactField>
-        <Editable
+        <ContactField
           ctx={ctx}
-          value={profile.location || ""}
-          onSave={save("location")}
-          placeholder="Location"
-          style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}
-        />
-        <Editable
+          hiddenOnOutput={profile.show_location === false}
+          hiddenHint="Location hidden from the resume — toggle in Profile"
+        >
+          <Editable
+            ctx={ctx}
+            value={profile.location || ""}
+            onSave={save("location")}
+            placeholder="Location"
+            style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}
+          />
+        </ContactField>
+        <ContactField
           ctx={ctx}
-          value={profile.website_url || ""}
-          onSave={save("website_url")}
-          placeholder="Website"
-          style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}
-        />
+          hiddenOnOutput={profile.show_website === false}
+          hiddenHint="Website hidden from the resume — toggle in Profile"
+        >
+          <Editable
+            ctx={ctx}
+            value={profile.website_url || ""}
+            onSave={save("website_url")}
+            placeholder="Website"
+            style={{ ...fontStyle(ctx, 9), color: ctx.palette.textLight }}
+          />
+        </ContactField>
       </div>
     </div>
   );

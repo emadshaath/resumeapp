@@ -141,6 +141,8 @@ export default function ProfileEditorPage() {
         phone_personal: profile.phone_personal,
         show_email: profile.show_email,
         show_phone: profile.show_phone,
+        show_location: profile.show_location,
+        show_website: profile.show_website,
         location: profile.location,
         website_url: profile.website_url,
         linkedin_url: profile.linkedin_url,
@@ -355,6 +357,16 @@ export default function ProfileEditorPage() {
                     value={profile.location || ""}
                     onChange={(e) => patchProfile({ location: e.target.value })}
                   />
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="show_location"
+                      checked={profile.show_location}
+                      onCheckedChange={(v) => patchProfile({ show_location: v })}
+                    />
+                    <Label htmlFor="show_location" className="text-xs text-zinc-500">
+                      Show on resume
+                    </Label>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -366,6 +378,16 @@ export default function ProfileEditorPage() {
                     value={profile.website_url || ""}
                     onChange={(e) => patchProfile({ website_url: e.target.value })}
                   />
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="show_website"
+                      checked={profile.show_website}
+                      onCheckedChange={(v) => patchProfile({ show_website: v })}
+                    />
+                    <Label htmlFor="show_website" className="text-xs text-zinc-500">
+                      Show on resume
+                    </Label>
+                  </div>
                 </div>
 
                 <div className="space-y-2">

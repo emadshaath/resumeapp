@@ -27,6 +27,8 @@ export interface Profile {
   phone_personal: string | null;
   show_email: boolean;
   show_phone: boolean;
+  show_location: boolean;
+  show_website: boolean;
   tier: Tier;
   tier_override: Tier | null;
   stripe_customer_id: string | null;

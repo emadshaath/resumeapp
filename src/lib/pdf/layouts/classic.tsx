@@ -44,8 +44,8 @@ export function ClassicLayout({ data, palette, font }: { data: ResumeData; palet
           <View style={s.contactRow}>
             {profile.show_email !== false && <Text style={s.contactItem}>{profile.email}</Text>}
             {profile.phone_personal && profile.show_phone !== false && <Text style={s.contactItem}>{profile.phone_personal}</Text>}
-            {profile.location && <Text style={s.contactItem}>{profile.location}</Text>}
-            {profile.website_url && <Text style={s.contactItem}>{profile.website_url}</Text>}
+            {profile.location && profile.show_location !== false && <Text style={s.contactItem}>{profile.location}</Text>}
+            {profile.website_url && profile.show_website !== false && <Text style={s.contactItem}>{profile.website_url}</Text>}
           </View>
         </View>
 
