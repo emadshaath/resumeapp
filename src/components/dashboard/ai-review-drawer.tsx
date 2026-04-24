@@ -32,6 +32,21 @@ interface SavedReview {
   created_at: string;
 }
 
+// Key a recommendation by the data we stored alongside it when applied:
+// (section_type, section_name, recommendation text). Normalised so trailing
+// whitespace / casing inconsistencies don't miss a match.
+function appliedKey(
+  sectionType: string,
+  sectionName: string,
+  recommendation: string
+): string {
+  return [
+    sectionType.trim().toLowerCase(),
+    sectionName.trim().toLowerCase(),
+    recommendation.trim(),
+  ].join("::");
+}
+
 interface AIReviewDrawerProps {
   open: boolean;
   onClose: () => void;
@@ -47,6 +62,7 @@ export function AIReviewDrawer({ open, onClose, onSectionUpdate, userTier = "fre
   const [history, setHistory] = useState<SavedReview[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [viewingHistory, setViewingHistory] = useState<string | null>(null);
+  const [appliedKeys, setAppliedKeys] = useState<Set<string>>(new Set());
 
   const supabase = createClient();
 
@@ -62,9 +78,29 @@ export function AIReviewDrawer({ open, onClose, onSectionUpdate, userTier = "fre
     setHistoryLoading(false);
   }, [supabase]);
 
+  const loadAppliedKeys = useCallback(async () => {
+    const { data } = await supabase
+      .from("ai_reviews")
+      .select("recommendations")
+      .eq("review_type", "apply");
+    if (!data) return;
+    const keys = new Set<string>();
+    for (const row of data) {
+      const r = row.recommendations as
+        | { recommendation?: string; section_type?: string; section_name?: string }
+        | null;
+      if (!r?.recommendation || !r.section_type || !r.section_name) continue;
+      keys.add(appliedKey(r.section_type, r.section_name, r.recommendation));
+    }
+    setAppliedKeys(keys);
+  }, [supabase]);
+
   useEffect(() => {
-    if (open) loadHistory();
-  }, [open, loadHistory]);
+    if (open) {
+      loadHistory();
+      loadAppliedKeys();
+    }
+  }, [open, loadHistory, loadAppliedKeys]);
 
   async function runReview() {
     setLoading(true);
@@ -143,7 +179,13 @@ export function AIReviewDrawer({ open, onClose, onSectionUpdate, userTier = "fre
                 <Button variant="ghost" size="sm" onClick={() => { setViewingHistory(null); setReview(null); }}>Clear</Button>
               </div>
             )}
-            <ReviewResults review={review} onSectionUpdate={onSectionUpdate} canApply={userTier !== "free"} />
+            <ReviewResults
+              review={review}
+              onSectionUpdate={onSectionUpdate}
+              canApply={userTier !== "free"}
+              appliedKeys={appliedKeys}
+              onApplied={loadAppliedKeys}
+            />
           </>
         )}
 
@@ -226,14 +268,17 @@ function SectionCard({
   section,
   onSectionUpdate,
   canApply,
+  appliedKeys,
+  onApplied,
 }: {
   section: SectionReview;
   onSectionUpdate?: () => void;
   canApply?: boolean;
+  appliedKeys: Set<string>;
+  onApplied: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [applyingIndex, setApplyingIndex] = useState<number | null>(null);
-  const [appliedIndices, setAppliedIndices] = useState<Set<number>>(new Set());
   const [applyError, setApplyError] = useState<string | null>(null);
 
   async function applyRecommendation(rec: string, index: number) {
@@ -258,7 +303,7 @@ function SectionCard({
         return;
       }
 
-      setAppliedIndices((prev) => new Set(prev).add(index));
+      onApplied();
       onSectionUpdate?.();
     } catch {
       setApplyError("Network error. Please try again.");
@@ -288,7 +333,9 @@ function SectionCard({
             <ul className="space-y-2">
               {section.recommendations.map((rec, i) => {
                 const isApplying = applyingIndex === i;
-                const isApplied = appliedIndices.has(i);
+                const isApplied = appliedKeys.has(
+                  appliedKey(section.section_type, section.section_name, rec)
+                );
 
                 return (
                   <li key={i} className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -332,7 +379,19 @@ function SectionCard({
   );
 }
 
-function ReviewResults({ review, onSectionUpdate, canApply }: { review: FullReviewResult; onSectionUpdate?: () => void; canApply?: boolean }) {
+function ReviewResults({
+  review,
+  onSectionUpdate,
+  canApply,
+  appliedKeys,
+  onApplied,
+}: {
+  review: FullReviewResult;
+  onSectionUpdate?: () => void;
+  canApply?: boolean;
+  appliedKeys: Set<string>;
+  onApplied: () => void;
+}) {
   return (
     <div className="space-y-5">
       <div className="flex justify-center gap-8">
@@ -373,7 +432,7 @@ function ReviewResults({ review, onSectionUpdate, canApply }: { review: FullRevi
       {review.sections.length > 0 && (
         <div>
           <h4 className="text-xs font-semibold flex items-center gap-1.5 mb-2"><TrendingUp className="h-3.5 w-3.5 text-purple-500" /> Section Feedback</h4>
-          <div className="space-y-1.5">{review.sections.map((section, i) => <SectionCard key={i} section={section} onSectionUpdate={onSectionUpdate} canApply={canApply} />)}</div>
+          <div className="space-y-1.5">{review.sections.map((section, i) => <SectionCard key={i} section={section} onSectionUpdate={onSectionUpdate} canApply={canApply} appliedKeys={appliedKeys} onApplied={onApplied} />)}</div>
         </div>
       )}
     </div>
