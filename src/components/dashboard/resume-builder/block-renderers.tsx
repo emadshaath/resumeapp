@@ -35,13 +35,14 @@ export type EditableTable =
  * Called by the canvas when an inline field loses focus or settles after
  * debounce. The parent (ResumeBuilder) maps this to a supabase.update() and
  * triggers a refresh of ResumeData. `value` is usually a string but can be
- * a string[] for array columns like experiences.highlights.
+ * a string[] for array columns like experiences.highlights, or a boolean
+ * for flags like profiles.show_email.
  */
 export type SaveFieldFn = (spec: {
   table: EditableTable;
   id: string;
   field: string;
-  value: string | string[];
+  value: string | string[] | boolean;
 }) => void | Promise<void>;
 
 /**

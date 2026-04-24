@@ -207,6 +207,15 @@ export function ResumeBuilder({
     [supabase],
   );
 
+  // Patch the user's profile row. Used by the Header block's properties
+  // panel for the show-on-resume toggles; shares the profiles table with the
+  // Profile page, so toggling in either surface is reflected in the other
+  // after next navigation.
+  const patchProfile = useCallback(async (patch: Partial<Profile>) => {
+    setData((cur) => ({ ...cur, profile: { ...cur.profile, ...patch } as Profile }));
+    await supabase.from("profiles").update(patch).eq("id", userId);
+  }, [supabase, userId]);
+
   // Shared: create a canvas block for a given section if one doesn't already
   // exist. Used both by the auto-add-on-create flow and by the explicit
   // "add to canvas" button on each section list row.
@@ -505,6 +514,8 @@ export function ResumeBuilder({
                 // user back on the canvas they were inspecting.
                 if (!isDesktop()) setView("design");
               }}
+              profile={data.profile}
+              onProfilePatch={patchProfile}
             />
           ) : (
             <StylePanel value={style} onChange={(p) => setStyle((cur) => ({ ...cur, ...p }))} />
@@ -602,7 +613,7 @@ function patchResumeData(
   table: string,
   id: string,
   field: string,
-  value: string | string[],
+  value: string | string[] | boolean,
 ): ResumeData {
   const patchRow = <T extends { id: string }>(rows: T[]): T[] =>
     rows.map((r) => (r.id === id ? { ...r, [field]: value } as T : r));
