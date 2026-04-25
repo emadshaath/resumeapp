@@ -17,11 +17,13 @@ import {
   COLOR_THEMES,
   FONT_OPTIONS,
   FONT_PRESETS,
+  PAGE_SIZES,
 } from "@/lib/pdf/types";
 import type {
   PdfColorTheme,
   PdfFontConfig,
   PdfFontFamily,
+  PdfPageSize,
 } from "@/lib/pdf/types";
 import { STARTERS, type StarterId } from "@/lib/blocks/starters";
 import type { PageTemplate } from "@/types/database";
@@ -196,6 +198,26 @@ export function StylePanel({ value, onChange, onPreset, onApplyStarter }: StyleP
 
         {tab === "layout" && (
           <>
+            <Section title="Page size" subtitle="Paper format for the downloaded PDF">
+              <div className="grid grid-cols-2 gap-2">
+                {(Object.entries(PAGE_SIZES) as [PdfPageSize, typeof PAGE_SIZES[PdfPageSize]][]).map(([key, opt]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => onChange({ pageSize: key })}
+                    className={`rounded-lg border-2 p-3 text-left transition-all ${
+                      value.pageSize === key
+                        ? "border-brand bg-brand/5"
+                        : "border-zinc-200 hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700"
+                    }`}
+                  >
+                    <div className="text-sm font-semibold">{opt.label}</div>
+                    <div className="mt-0.5 text-[11px] text-zinc-500">{opt.description}</div>
+                  </button>
+                ))}
+              </div>
+            </Section>
+
             <Section title="Page template" subtitle="Arrangement of block zones on the page">
               <div className="grid grid-cols-2 gap-2">
                 {([

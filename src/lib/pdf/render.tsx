@@ -1,6 +1,6 @@
 import React from "react";
 import { renderToBuffer } from "@react-pdf/renderer";
-import type { PdfLayout, PdfColorTheme, PdfFontConfig, ResumeData } from "./types";
+import type { PdfLayout, PdfColorTheme, PdfFontConfig, PdfPageSize, ResumeData } from "./types";
 import { COLOR_THEMES, DEFAULT_FONT_CONFIG } from "./types";
 import type { PageTemplate, ResumeBlock } from "@/types/database";
 import { CustomLayout } from "./layouts/custom";
@@ -11,6 +11,7 @@ export interface CustomLayoutInputs {
   pageTemplate: PageTemplate;
   sidebarWidth: number;
   pageMargin: number;
+  pageSize: PdfPageSize;
 }
 
 const DEFAULT_CUSTOM_INPUTS: CustomLayoutInputs = {
@@ -18,6 +19,7 @@ const DEFAULT_CUSTOM_INPUTS: CustomLayoutInputs = {
   pageTemplate: "single-column",
   sidebarWidth: 180,
   pageMargin: 40,
+  pageSize: "A4",
 };
 
 export async function renderResumePdf(
@@ -54,6 +56,7 @@ export function buildResumeDocument(
       pageTemplate={customInputs.pageTemplate}
       sidebarWidth={customInputs.sidebarWidth}
       pageMargin={customInputs.pageMargin}
+      pageSize={customInputs.pageSize}
     />
   );
 }

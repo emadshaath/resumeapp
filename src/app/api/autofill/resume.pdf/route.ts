@@ -4,7 +4,7 @@ import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
 import { fetchResumeBlocks } from "@/lib/blocks/fetch";
 import { renderResumePdf } from "@/lib/pdf/render";
 import { applyVariantToResume } from "@/lib/tailor";
-import type { PdfLayout, PdfColorTheme, PdfFontFamily, PdfFontConfig } from "@/lib/pdf/types";
+import type { PdfLayout, PdfColorTheme, PdfFontFamily, PdfFontConfig, PdfPageSize } from "@/lib/pdf/types";
 import { DEFAULT_FONT_CONFIG, FONT_OPTIONS } from "@/lib/pdf/types";
 import type { VariantData, PdfSettingsSnapshot, PageTemplate } from "@/types/database";
 
@@ -45,13 +45,14 @@ export async function GET(req: NextRequest) {
   const pageTemplateParam = searchParams.get("pageTemplate") as PageTemplate | null;
   const sidebarWidthParam = searchParams.get("sidebarWidth");
   const pageMarginParam = searchParams.get("pageMargin");
+  const pageSizeParam = searchParams.get("pageSize") as PdfPageSize | null;
   const variantId = searchParams.get("variant");
 
   // Load user's current saved settings (baseline for the base resume, or
   // fallback for legacy variants created before pdf_settings_snapshot existed).
   const { data: saved } = await supabase
     .from("pdf_settings")
-    .select("layout, color_theme, font_family, font_scale, line_height, spacing_scale, page_template, sidebar_width, page_margin")
+    .select("layout, color_theme, font_family, font_scale, line_height, spacing_scale, page_template, sidebar_width, page_margin, page_size")
     .eq("profile_id", user.id)
     .single();
 
@@ -110,6 +111,9 @@ export async function GET(req: NextRequest) {
   const pageMargin: number = pageMarginParam != null
     ? Math.round(clamp(parseFloat(pageMarginParam), 16, 80))
     : (saved?.page_margin ?? 40);
+  const pageSize: PdfPageSize = pageSizeParam === "LETTER" || pageSizeParam === "A4"
+    ? pageSizeParam
+    : ((saved?.page_size as PdfPageSize) || "A4");
 
   const blocks = layout === "custom"
     ? await fetchResumeBlocks(supabase, user.id)
@@ -127,7 +131,7 @@ export async function GET(req: NextRequest) {
     layout,
     colorTheme,
     fontConfig,
-    { blocks, pageTemplate, sidebarWidth, pageMargin },
+    { blocks, pageTemplate, sidebarWidth, pageMargin, pageSize },
   );
   const fileName = `${data.profile.first_name}_${data.profile.last_name}_Resume.pdf`;
 

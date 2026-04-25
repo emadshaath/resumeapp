@@ -3,7 +3,7 @@
 import { useDeferredValue, useMemo } from "react";
 import { PDFViewer } from "@react-pdf/renderer";
 import { buildResumeDocument } from "@/lib/pdf/render";
-import type { PdfLayout, PdfColorTheme, PdfFontConfig, ResumeData } from "@/lib/pdf/types";
+import type { PdfLayout, PdfColorTheme, PdfFontConfig, PdfPageSize, ResumeData } from "@/lib/pdf/types";
 import type { ResumeBlock, PageTemplate } from "@/types/database";
 import "@/lib/pdf/fonts";
 
@@ -16,6 +16,7 @@ interface PdfLivePreviewProps {
   pageTemplate: PageTemplate;
   sidebarWidth: number;
   pageMargin: number;
+  pageSize: PdfPageSize;
 }
 
 /**
@@ -32,6 +33,7 @@ export default function PdfLivePreview({
   pageTemplate,
   sidebarWidth,
   pageMargin,
+  pageSize,
 }: PdfLivePreviewProps) {
   const deferredLayout = useDeferredValue(layout);
   const deferredTheme = useDeferredValue(colorTheme);
@@ -40,6 +42,7 @@ export default function PdfLivePreview({
   const deferredPageTemplate = useDeferredValue(pageTemplate);
   const deferredSidebarWidth = useDeferredValue(sidebarWidth);
   const deferredPageMargin = useDeferredValue(pageMargin);
+  const deferredPageSize = useDeferredValue(pageSize);
 
   const doc = useMemo(
     () => buildResumeDocument(
@@ -52,9 +55,10 @@ export default function PdfLivePreview({
         pageTemplate: deferredPageTemplate,
         sidebarWidth: deferredSidebarWidth,
         pageMargin: deferredPageMargin,
+        pageSize: deferredPageSize,
       },
     ),
-    [data, deferredLayout, deferredTheme, deferredFont, deferredBlocks, deferredPageTemplate, deferredSidebarWidth, deferredPageMargin],
+    [data, deferredLayout, deferredTheme, deferredFont, deferredBlocks, deferredPageTemplate, deferredSidebarWidth, deferredPageMargin, deferredPageSize],
   );
 
   return (

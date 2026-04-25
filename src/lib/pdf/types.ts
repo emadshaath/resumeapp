@@ -8,6 +8,15 @@ import type { Profile, Experience, Education, Skill, Certification, Project, Cus
  * fail loudly at typecheck rather than silently rendering nothing.
  */
 export type PdfLayout = "custom";
+
+/** A4 (210x297mm) or US Letter (8.5"x11"). @react-pdf/renderer accepts both
+ *  as size strings; HTML canvas renders pixel-equivalents at 96dpi. */
+export type PdfPageSize = "A4" | "LETTER";
+
+export const PAGE_SIZES: Record<PdfPageSize, { label: string; description: string; widthPx: number; heightPx: number }> = {
+  A4:     { label: "A4",        description: "210 × 297 mm",   widthPx: 794, heightPx: 1123 },
+  LETTER: { label: "US Letter", description: "8.5 × 11 in",    widthPx: 816, heightPx: 1056 },
+};
 export type PdfColorTheme = "navy" | "teal" | "charcoal";
 
 export type PdfFontFamily =

@@ -1,6 +1,6 @@
 import React from "react";
 import { Document, Page, View } from "@react-pdf/renderer";
-import type { PdfColorPalette, PdfFontConfig, ResumeData } from "../../types";
+import type { PdfColorPalette, PdfFontConfig, PdfPageSize, ResumeData } from "../../types";
 import type { PageTemplate, ResumeBlock } from "@/types/database";
 import { createCustomStyles } from "./styles";
 import { renderBlock } from "./blocks";
@@ -15,6 +15,8 @@ export interface CustomLayoutProps {
   /** Outer page margin in pixels at default scale (40 = previous default).
    *  Multiplied through font.spacingScale at render time. */
   pageMargin: number;
+  /** Paper size — A4 (default) or US Letter. */
+  pageSize: PdfPageSize;
 }
 
 /**
@@ -38,6 +40,7 @@ export function CustomLayout({
   pageTemplate,
   sidebarWidth,
   pageMargin,
+  pageSize,
 }: CustomLayoutProps) {
   const styles = createCustomStyles(palette, font);
   // Apply spacing scale so the margin slider feels consistent with the
@@ -59,7 +62,7 @@ export function CustomLayout({
   if (pageTemplate === "sidebar-left") {
     return (
       <Document>
-        <Page size="A4" style={styles.pageRow}>
+        <Page size={pageSize} style={styles.pageRow}>
           <View
             style={[
               styles.sidebarColFull,
@@ -79,7 +82,7 @@ export function CustomLayout({
 
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
+      <Page size={pageSize} style={styles.page}>
         <View style={[styles.pageBody, { padding: outerPad }]}>
           {headerBlocks.map((b) => renderBlock(b, ctxMain))}
           {mainBlocks.map((b) => renderBlock(b, ctxMain))}

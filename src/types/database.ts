@@ -277,6 +277,7 @@ export interface PdfSettings {
   page_template: "single-column" | "sidebar-left";
   sidebar_width: number;
   page_margin: number;
+  page_size: "A4" | "LETTER";
   created_at: string;
   updated_at: string;
 }

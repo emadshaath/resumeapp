@@ -20,7 +20,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { COLOR_THEMES } from "@/lib/pdf/types";
+import { COLOR_THEMES, PAGE_SIZES } from "@/lib/pdf/types";
 import type { ResumeData } from "@/lib/pdf/types";
 import type { ResumeBlock } from "@/types/database";
 import { renderBlockHtml, type BlockRenderContext, type SaveFieldFn, type DeleteRowFn, type AddRowFn } from "./block-renderers";
@@ -127,7 +127,12 @@ export function BlockCanvas({
   // the coloured sidebar fills the full A4 height.
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <ScalingViewport palette={palette} onDeselect={() => onSelectBlock(null)}>
+      <ScalingViewport
+        palette={palette}
+        onDeselect={() => onSelectBlock(null)}
+        naturalWidth={PAGE_SIZES[style.pageSize].widthPx}
+        naturalHeight={PAGE_SIZES[style.pageSize].heightPx}
+      >
         {isSidebarTemplate ? (
           <div style={{ display: "flex", minHeight: "100%" }}>
             <div
@@ -246,24 +251,31 @@ export function BlockCanvas({
 }
 
 /**
- * Wraps the A4 sheet in a container that scales the sheet down when the
- * available viewport is narrower than the sheet's natural 794px width.
- * Keeps the DOM at full size and uses a CSS transform + compensating outer
- * dimensions so nothing overflows horizontally on phones.
+ * Wraps the page sheet in a container that scales it down when the available
+ * viewport is narrower than the sheet's natural width. Keeps the DOM at full
+ * size and uses a CSS transform + compensating outer dimensions so nothing
+ * overflows horizontally on phones.
+ *
+ * `naturalWidth` / `naturalHeight` come from PAGE_SIZES (A4 = 794×1123,
+ * Letter = 816×1056 — both at 96dpi).
  */
 function ScalingViewport({
   palette,
   onDeselect,
+  naturalWidth,
+  naturalHeight,
   children,
 }: {
   palette: { background: string };
   onDeselect: () => void;
+  naturalWidth: number;
+  naturalHeight: number;
   children: React.ReactNode;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
-  const [sheetHeight, setSheetHeight] = useState(1123);
+  const [sheetHeight, setSheetHeight] = useState(naturalHeight);
 
   // Compute scale from the available width of the scroll container.
   useEffect(() => {
@@ -271,13 +283,13 @@ function ScalingViewport({
     if (!el) return;
     const compute = () => {
       const available = el.clientWidth - 32; // px-4 * 2
-      setScale(Math.min(1, available / 794));
+      setScale(Math.min(1, available / naturalWidth));
     };
     compute();
     const ro = new ResizeObserver(compute);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [naturalWidth]);
 
   // Track the sheet's natural rendered height so the outer reserves the
   // correct scaled vertical space — otherwise the sheet's bottom clips
@@ -298,7 +310,7 @@ function ScalingViewport({
     >
       <div
         style={{
-          width: 794 * scale,
+          width: naturalWidth * scale,
           height: sheetHeight * scale,
         }}
         onClick={(e) => e.stopPropagation()}
@@ -307,8 +319,8 @@ function ScalingViewport({
           ref={sheetRef}
           className="relative rounded-sm shadow-lg"
           style={{
-            width: 794,
-            minHeight: 1123,
+            width: naturalWidth,
+            minHeight: naturalHeight,
             backgroundColor: palette.background,
             transform: `scale(${scale})`,
             transformOrigin: "top left",

@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
     page_template,
     sidebar_width,
     page_margin,
+    page_size,
   } = body;
 
   if (layout && !LEGACY_LAYOUT_VALUES.includes(layout)) {
@@ -62,6 +63,9 @@ export async function POST(req: NextRequest) {
   }
   if (page_template && !VALID_PAGE_TEMPLATES.includes(page_template)) {
     return NextResponse.json({ error: "Invalid page template" }, { status: 400 });
+  }
+  if (page_size && page_size !== "A4" && page_size !== "LETTER") {
+    return NextResponse.json({ error: "Invalid page size" }, { status: 400 });
   }
 
   const fontScale = typeof font_scale === "number" ? clamp(font_scale, 0.8, 1.25) : undefined;
@@ -91,6 +95,7 @@ export async function POST(req: NextRequest) {
     page_template: page_template || "single-column",
     sidebar_width: sidebarWidth ?? 180,
     page_margin: pageMargin ?? 40,
+    page_size: page_size === "LETTER" ? "LETTER" : "A4",
   };
 
   if (existing) {

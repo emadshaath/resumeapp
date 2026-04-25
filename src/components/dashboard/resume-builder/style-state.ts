@@ -3,6 +3,7 @@ import type {
   PdfColorTheme,
   PdfFontConfig,
   PdfFontFamily,
+  PdfPageSize,
   PdfSettings,
 } from "@/lib/pdf/types";
 import { DEFAULT_FONT_CONFIG } from "@/lib/pdf/types";
@@ -19,6 +20,7 @@ export interface StyleState {
   pageTemplate: PageTemplate;
   sidebarWidth: number;
   pageMargin: number;
+  pageSize: PdfPageSize;
   showOnProfile: boolean;
   fontConfig: PdfFontConfig;
 }
@@ -29,6 +31,7 @@ export const DEFAULT_STYLE_STATE: StyleState = {
   pageTemplate: "single-column",
   sidebarWidth: 180,
   pageMargin: 40,
+  pageSize: "A4",
   showOnProfile: false,
   fontConfig: { ...DEFAULT_FONT_CONFIG },
 };
@@ -44,6 +47,7 @@ export function styleStateFromSettings(s: PdfSettings | null): StyleState {
     pageTemplate: (s.page_template as PageTemplate) || "single-column",
     sidebarWidth: s.sidebar_width ?? 180,
     pageMargin: s.page_margin ?? 40,
+    pageSize: (s.page_size as PdfPageSize) || "A4",
     showOnProfile: s.show_on_profile ?? false,
     fontConfig: {
       fontFamily: (s.font_family as PdfFontFamily) || DEFAULT_FONT_CONFIG.fontFamily,
@@ -62,6 +66,7 @@ export function styleFingerprint(s: StyleState): string {
     s.pageTemplate,
     String(s.sidebarWidth),
     String(s.pageMargin),
+    s.pageSize,
     s.showOnProfile ? "1" : "0",
     s.fontConfig.fontFamily,
     s.fontConfig.fontScale.toFixed(2),
@@ -83,6 +88,7 @@ export function styleStateToSavePayload(s: StyleState) {
     page_template: s.pageTemplate,
     sidebar_width: s.sidebarWidth,
     page_margin: s.pageMargin,
+    page_size: s.pageSize,
   };
 }
 
@@ -98,5 +104,6 @@ export function styleStateToDownloadQuery(s: StyleState): URLSearchParams {
     pageTemplate: s.pageTemplate,
     sidebarWidth: String(s.sidebarWidth),
     pageMargin: String(s.pageMargin),
+    pageSize: s.pageSize,
   });
 }
