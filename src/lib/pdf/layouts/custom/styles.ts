@@ -76,7 +76,11 @@ export function createCustomStyles(c: PdfColorPalette, f: PdfFontConfig) {
       fontSize: 24 * s,
       fontWeight: "bold",
       color: c.heading,
-      marginBottom: 4 * sp,
+      // Tight line-height so a single-line name doesn't reserve ~35px of
+      // vertical leading; explicit bottom padding stops descenders from
+      // crashing into the headline below.
+      lineHeight: 1.15,
+      marginBottom: 10 * sp,
     },
     headline: { fontSize: 12 * s, color: c.textLight, marginBottom: 6 * sp },
     contactRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 * sp },

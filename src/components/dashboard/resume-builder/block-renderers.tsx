@@ -513,7 +513,12 @@ function HeaderBlock({ ctx }: { ctx: BlockRenderContext }) {
           ...fontStyle(ctx, 24),
           fontWeight: 700,
           color: ctx.palette.heading,
-          marginBottom: spacing(ctx, 4),
+          // Tighten leading on the big name so a long single-line name
+          // doesn't burn ~35px of vertical space, then add explicit
+          // breathing room before the headline so descenders don't kiss
+          // ascenders below.
+          lineHeight: 1.15,
+          marginBottom: spacing(ctx, 10),
         }}
       >
         <Editable
