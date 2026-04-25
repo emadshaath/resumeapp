@@ -481,7 +481,7 @@ export function ResumeBuilder({
           </div>
 
           <div className="flex-1 w-full min-h-0">
-            {centerMode === "design" && style.layout === "custom" ? (
+            {centerMode === "design" ? (
               <BlockCanvas
                 data={data}
                 blocks={blocks}
@@ -494,11 +494,6 @@ export function ResumeBuilder({
                 onReorder={reorderBlocks}
               />
             ) : (
-              // Preview mode — and also the fallback for Design when the user
-              // picked a preset layout (Classic/Modern/Minimal/Executive). The
-              // block canvas is block-driven; the preset layouts aren't, so
-              // there'd be nothing meaningful to edit on them beyond what the
-              // section forms already handle.
               <PdfLivePreview
                 data={data}
                 layout={style.layout}

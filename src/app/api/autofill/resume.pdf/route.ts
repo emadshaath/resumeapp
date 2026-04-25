@@ -8,7 +8,9 @@ import type { PdfLayout, PdfColorTheme, PdfFontFamily, PdfFontConfig } from "@/l
 import { DEFAULT_FONT_CONFIG, FONT_OPTIONS } from "@/lib/pdf/types";
 import type { VariantData, PdfSettingsSnapshot, PageTemplate } from "@/types/database";
 
-const VALID_LAYOUTS: PdfLayout[] = ["classic", "modern", "minimal", "executive", "custom"];
+// Layout query param is accepted for back-compat (migration 00027 collapsed
+// every variant into "custom") but the value is ignored — every render
+// flows through CustomLayout now.
 const VALID_THEMES: PdfColorTheme[] = ["navy", "teal", "charcoal"];
 const VALID_FONTS = Object.keys(FONT_OPTIONS) as PdfFontFamily[];
 const VALID_PAGE_TEMPLATES: PageTemplate[] = ["single-column", "sidebar-left"];
@@ -69,9 +71,11 @@ export async function GET(req: NextRequest) {
   // Styling baseline: variant snapshot > user's saved settings > defaults.
   const baseline = variantRow?.pdf_settings_snapshot ?? saved ?? null;
 
-  const layout: PdfLayout = (layoutParam && VALID_LAYOUTS.includes(layoutParam))
-    ? layoutParam
-    : ((baseline?.layout as PdfLayout) || "classic");
+  // layoutParam is accepted for back-compat but coerced — every render uses
+  // the block-driven Custom layout. Reference the variable so the param
+  // parsing above stays alive for typecheck.
+  void layoutParam;
+  const layout: PdfLayout = "custom";
 
   const colorTheme: PdfColorTheme = (themeParam && VALID_THEMES.includes(themeParam))
     ? themeParam

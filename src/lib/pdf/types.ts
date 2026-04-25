@@ -1,6 +1,13 @@
 import type { Profile, Experience, Education, Skill, Certification, Project, CustomSection, ResumeSection } from "@/types/database";
 
-export type PdfLayout = "classic" | "modern" | "minimal" | "executive" | "custom";
+/**
+ * Always "custom" now — the four pre-existing presets (classic / modern /
+ * minimal / executive) collapsed into starter templates that produce a
+ * Custom-layout block arrangement (see lib/blocks/starters.ts). Type is
+ * a single-element union so old code paths that switch on layout value
+ * fail loudly at typecheck rather than silently rendering nothing.
+ */
+export type PdfLayout = "custom";
 export type PdfColorTheme = "navy" | "teal" | "charcoal";
 
 export type PdfFontFamily =
@@ -153,22 +160,6 @@ export const COLOR_THEMES: Record<PdfColorTheme, { label: string; palette: PdfCo
 };
 
 export const LAYOUT_OPTIONS: Record<PdfLayout, { label: string; description: string }> = {
-  classic: {
-    label: "Classic",
-    description: "Traditional single-column layout with clean section dividers",
-  },
-  modern: {
-    label: "Modern",
-    description: "Two-column design with a colored sidebar for skills and contact",
-  },
-  minimal: {
-    label: "Minimal",
-    description: "Spacious, typography-focused layout with subtle accents",
-  },
-  executive: {
-    label: "Executive",
-    description: "Bold header with structured sections and accent bars",
-  },
   custom: {
     label: "Custom",
     description: "Block-based layout you arrange yourself in the builder",

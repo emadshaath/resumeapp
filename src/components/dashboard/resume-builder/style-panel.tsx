@@ -15,12 +15,10 @@ import {
 } from "lucide-react";
 import {
   COLOR_THEMES,
-  LAYOUT_OPTIONS,
   FONT_OPTIONS,
   FONT_PRESETS,
 } from "@/lib/pdf/types";
 import type {
-  PdfLayout,
   PdfColorTheme,
   PdfFontConfig,
   PdfFontFamily,
@@ -198,69 +196,29 @@ export function StylePanel({ value, onChange, onPreset, onApplyStarter }: StyleP
 
         {tab === "layout" && (
           <>
-            <Section title="Layout" subtitle="Overall arrangement of the page">
+            <Section title="Page template" subtitle="Arrangement of block zones on the page">
               <div className="grid grid-cols-2 gap-2">
-                {(Object.entries(LAYOUT_OPTIONS) as [PdfLayout, typeof LAYOUT_OPTIONS[PdfLayout]][]).map(([key, opt]) => (
+                {([
+                  { key: "single-column" as PageTemplate, label: "Single column", description: "All blocks flow top to bottom" },
+                  { key: "sidebar-left" as PageTemplate, label: "Sidebar left", description: "Colored sidebar for skills, certs, contact" },
+                ]).map((opt) => (
                   <button
-                    key={key}
+                    key={opt.key}
                     type="button"
-                    onClick={() => onChange({ layout: key })}
+                    onClick={() => onChange({ pageTemplate: opt.key })}
                     className={`rounded-lg border-2 p-3 text-left transition-all ${
-                      value.layout === key
+                      value.pageTemplate === opt.key
                         ? "border-brand bg-brand/5"
                         : "border-zinc-200 hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700"
                     }`}
                   >
-                    <LayoutThumb layout={key} />
+                    <PageTemplateThumb template={opt.key} />
                     <div className="mt-2 text-sm font-semibold">{opt.label}</div>
                     <div className="mt-0.5 text-[11px] text-zinc-500">{opt.description}</div>
                   </button>
                 ))}
               </div>
             </Section>
-
-            {value.layout !== "custom" && (
-              <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-                <p className="font-medium text-zinc-900 dark:text-zinc-100">Fixed layout</p>
-                <p className="mt-1 leading-relaxed">
-                  {LAYOUT_OPTIONS[value.layout].label} uses a preset arrangement — drag and inline editing don&apos;t apply. Switch to{" "}
-                  <button
-                    type="button"
-                    onClick={() => onChange({ layout: "custom" })}
-                    className="font-medium text-brand underline underline-offset-2 hover:text-brand-hover"
-                  >
-                    Custom
-                  </button>
-                  {" "}to rearrange blocks and type directly on the canvas.
-                </p>
-              </div>
-            )}
-
-            {value.layout === "custom" && (
-              <Section title="Page template" subtitle="Arrangement of block zones on the page">
-                <div className="grid grid-cols-2 gap-2">
-                  {([
-                    { key: "single-column" as PageTemplate, label: "Single column", description: "All blocks flow top to bottom" },
-                    { key: "sidebar-left" as PageTemplate, label: "Sidebar left", description: "Colored sidebar for skills, certs, contact" },
-                  ]).map((opt) => (
-                    <button
-                      key={opt.key}
-                      type="button"
-                      onClick={() => onChange({ pageTemplate: opt.key })}
-                      className={`rounded-lg border-2 p-3 text-left transition-all ${
-                        value.pageTemplate === opt.key
-                          ? "border-brand bg-brand/5"
-                          : "border-zinc-200 hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700"
-                      }`}
-                    >
-                      <PageTemplateThumb template={opt.key} />
-                      <div className="mt-2 text-sm font-semibold">{opt.label}</div>
-                      <div className="mt-0.5 text-[11px] text-zinc-500">{opt.description}</div>
-                    </button>
-                  ))}
-                </div>
-              </Section>
-            )}
 
             {onApplyStarter && (
               <Section
@@ -418,77 +376,6 @@ function SliderRow({ icon: Icon, label, value, onChange, min, max, step, format,
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function LayoutThumb({ layout }: { layout: PdfLayout }) {
-  const base = "h-14 w-full rounded bg-zinc-100 p-1.5 dark:bg-zinc-800";
-  if (layout === "classic") {
-    return (
-      <div className={`${base} flex flex-col gap-1`}>
-        <div className="h-1.5 w-10 rounded-sm bg-zinc-300 dark:bg-zinc-600" />
-        <div className="h-1 w-14 rounded-sm bg-zinc-200 dark:bg-zinc-700" />
-        <div className="mt-0.5 flex-1 space-y-0.5">
-          <div className="h-1 w-full rounded-sm bg-zinc-200 dark:bg-zinc-700" />
-          <div className="h-1 w-3/4 rounded-sm bg-zinc-200 dark:bg-zinc-700" />
-        </div>
-      </div>
-    );
-  }
-  if (layout === "modern") {
-    return (
-      <div className={`${base} flex gap-1.5`}>
-        <div className="w-5 rounded-sm bg-zinc-300 dark:bg-zinc-600" />
-        <div className="flex-1 space-y-0.5 py-0.5">
-          <div className="h-1.5 w-8 rounded-sm bg-zinc-300 dark:bg-zinc-600" />
-          <div className="h-1 w-full rounded-sm bg-zinc-200 dark:bg-zinc-700" />
-          <div className="h-1 w-3/4 rounded-sm bg-zinc-200 dark:bg-zinc-700" />
-        </div>
-      </div>
-    );
-  }
-  if (layout === "minimal") {
-    return (
-      <div className={`${base} flex flex-col items-center gap-1`}>
-        <div className="h-1.5 w-9 rounded-sm bg-zinc-300 dark:bg-zinc-600" />
-        <div className="h-px w-12 bg-zinc-300 dark:bg-zinc-600" />
-        <div className="mt-0.5 w-full flex-1 space-y-0.5">
-          <div className="h-1 w-full rounded-sm bg-zinc-200 dark:bg-zinc-700" />
-          <div className="h-1 w-3/4 rounded-sm bg-zinc-200 dark:bg-zinc-700" />
-        </div>
-      </div>
-    );
-  }
-  if (layout === "executive") {
-    return (
-      <div className={`${base} flex flex-col gap-1`}>
-        <div className="-mx-1.5 -mt-1.5 h-3 rounded-t bg-zinc-300 px-1.5 pt-1 dark:bg-zinc-600">
-          <div className="h-1 w-9 rounded-sm bg-zinc-100 dark:bg-zinc-800" />
-        </div>
-        <div className="mt-0.5 flex-1 space-y-0.5">
-          <div className="h-1 w-full rounded-sm bg-zinc-200 dark:bg-zinc-700" />
-          <div className="h-1 w-3/4 rounded-sm bg-zinc-200 dark:bg-zinc-700" />
-        </div>
-      </div>
-    );
-  }
-  // custom
-  return (
-    <div className={`${base} flex flex-col gap-1`}>
-      <div className="h-1.5 w-10 rounded-sm bg-brand/40 dark:bg-brand/30" />
-      <div className="flex flex-1 gap-1">
-        <div className="flex w-1/3 flex-col gap-0.5 rounded-sm bg-brand/10 p-0.5">
-          <div className="h-0.5 w-full rounded-sm bg-brand/30" />
-          <div className="h-0.5 w-full rounded-sm bg-brand/30" />
-          <div className="h-0.5 w-3/4 rounded-sm bg-brand/30" />
-        </div>
-        <div className="flex flex-1 flex-col gap-0.5">
-          <div className="h-1 w-full rounded-sm bg-zinc-200 dark:bg-zinc-700" />
-          <div className="h-1 w-full rounded-sm bg-zinc-200 dark:bg-zinc-700" />
-          <div className="h-1 w-3/4 rounded-sm bg-zinc-200 dark:bg-zinc-700" />
-        </div>
-      </div>
     </div>
   );
 }

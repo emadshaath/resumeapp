@@ -24,7 +24,7 @@ export interface StyleState {
 }
 
 export const DEFAULT_STYLE_STATE: StyleState = {
-  layout: "classic",
+  layout: "custom",
   colorTheme: "navy",
   pageTemplate: "single-column",
   sidebarWidth: 180,
@@ -37,7 +37,9 @@ export const DEFAULT_STYLE_STATE: StyleState = {
 export function styleStateFromSettings(s: PdfSettings | null): StyleState {
   if (!s) return { ...DEFAULT_STYLE_STATE };
   return {
-    layout: (s.layout as PdfLayout) || "classic",
+    // Migration 00027 collapsed every preset value into "custom"; legacy rows
+    // are flipped on the way in.
+    layout: "custom" as PdfLayout,
     colorTheme: (s.color_theme as PdfColorTheme) || "navy",
     pageTemplate: (s.page_template as PageTemplate) || "single-column",
     sidebarWidth: s.sidebar_width ?? 180,

@@ -39,7 +39,10 @@ export async function GET(req: NextRequest) {
   const data = await fetchResumeData(supabase, profile.id);
   if (!data) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
-  const layout = settings.layout as PdfLayout;
+  // Always Custom — see migration 00027. Kept as a typed constant rather
+  // than reading settings.layout to make the intent explicit.
+  const layout: PdfLayout = "custom";
+  void settings.layout;
   const colorTheme = settings.color_theme as PdfColorTheme;
   const fontConfig: PdfFontConfig = {
     fontFamily: (settings.font_family as PdfFontFamily) || DEFAULT_FONT_CONFIG.fontFamily,
