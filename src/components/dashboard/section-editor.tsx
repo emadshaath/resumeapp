@@ -16,6 +16,11 @@ import { parseHighlights } from "@/lib/utils";
 interface SectionContentEditorProps {
   section: ResumeSection;
   onUpdate: () => void;
+  /** Bump to ask the editor to refetch its rows from the DB without
+   *  remounting (which would wipe in-flight typing state). Used by the
+   *  Resume Builder when the canvas inline-edits a value the form is also
+   *  showing. */
+  refreshKey?: number;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -288,25 +293,25 @@ function AISuggestButton({ section }: { section: ResumeSection }) {
   );
 }
 
-export function SectionContentEditor({ section, onUpdate }: SectionContentEditorProps) {
+export function SectionContentEditor({ section, onUpdate, refreshKey }: SectionContentEditorProps) {
   return (
     <div className="space-y-4">
       {(() => {
         switch (section.section_type) {
           case "summary":
-            return <SummaryEditor section={section} onUpdate={onUpdate} />;
+            return <SummaryEditor section={section} onUpdate={onUpdate} refreshKey={refreshKey} />;
           case "experience":
-            return <ExperienceEditor section={section} onUpdate={onUpdate} />;
+            return <ExperienceEditor section={section} onUpdate={onUpdate} refreshKey={refreshKey} />;
           case "education":
-            return <EducationEditor section={section} onUpdate={onUpdate} />;
+            return <EducationEditor section={section} onUpdate={onUpdate} refreshKey={refreshKey} />;
           case "skills":
-            return <SkillsEditor section={section} onUpdate={onUpdate} />;
+            return <SkillsEditor section={section} onUpdate={onUpdate} refreshKey={refreshKey} />;
           case "certifications":
-            return <CertificationsEditor section={section} onUpdate={onUpdate} />;
+            return <CertificationsEditor section={section} onUpdate={onUpdate} refreshKey={refreshKey} />;
           case "projects":
-            return <ProjectsEditor section={section} onUpdate={onUpdate} />;
+            return <ProjectsEditor section={section} onUpdate={onUpdate} refreshKey={refreshKey} />;
           case "custom":
-            return <CustomEditor section={section} onUpdate={onUpdate} />;
+            return <CustomEditor section={section} onUpdate={onUpdate} refreshKey={refreshKey} />;
           default:
             return null;
         }
@@ -317,7 +322,7 @@ export function SectionContentEditor({ section, onUpdate }: SectionContentEditor
 }
 
 // === SUMMARY EDITOR ===
-function SummaryEditor({ section, onUpdate }: SectionContentEditorProps) {
+function SummaryEditor({ section, onUpdate, refreshKey }: SectionContentEditorProps) {
   const [content, setContent] = useState("");
   const [supabase] = useState(() => createClient());
   const loadedRef = useRef(false);
@@ -337,7 +342,7 @@ function SummaryEditor({ section, onUpdate }: SectionContentEditorProps) {
         loadedRef.current = true;
       });
     return () => { cancelled = true; };
-  }, [section.id, supabase]);
+  }, [section.id, supabase, refreshKey]);
 
   const { schedule, status } = useDebouncedAutosave(async () => {
     const next = contentRef.current;
@@ -378,7 +383,7 @@ function SummaryEditor({ section, onUpdate }: SectionContentEditorProps) {
 }
 
 // === EXPERIENCE EDITOR ===
-function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
+function ExperienceEditor({ section, onUpdate, refreshKey }: SectionContentEditorProps) {
   const [items, setItems] = useState<Experience[]>([]);
   const [loading, setLoading] = useState(true);
   const [supabase] = useState(() => createClient());
@@ -393,7 +398,7 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
     setLoading(false);
   }, [section.id, supabase]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const { schedule, flush, status } = useBatchedAutosave<Experience>(async (batch) => {
     await Promise.all(
@@ -586,7 +591,7 @@ function ExperienceEditor({ section, onUpdate }: SectionContentEditorProps) {
 }
 
 // === EDUCATION EDITOR ===
-function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
+function EducationEditor({ section, onUpdate, refreshKey }: SectionContentEditorProps) {
   const [items, setItems] = useState<Education[]>([]);
   const [loading, setLoading] = useState(true);
   const [supabase] = useState(() => createClient());
@@ -601,7 +606,7 @@ function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
     setLoading(false);
   }, [section.id, supabase]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const { schedule, flush, status } = useBatchedAutosave<Education>(async (batch) => {
     await Promise.all(
@@ -740,7 +745,7 @@ function EducationEditor({ section, onUpdate }: SectionContentEditorProps) {
 }
 
 // === SKILLS EDITOR ===
-function SkillsEditor({ section }: SectionContentEditorProps) {
+function SkillsEditor({ section, refreshKey }: SectionContentEditorProps) {
   const [items, setItems] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [supabase] = useState(() => createClient());
@@ -755,7 +760,7 @@ function SkillsEditor({ section }: SectionContentEditorProps) {
     setLoading(false);
   }, [section.id, supabase]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const { schedule, flush, status } = useBatchedAutosave<Skill>(async (batch) => {
     await Promise.all(
@@ -860,7 +865,7 @@ function SkillsEditor({ section }: SectionContentEditorProps) {
 }
 
 // === CERTIFICATIONS EDITOR ===
-function CertificationsEditor({ section }: SectionContentEditorProps) {
+function CertificationsEditor({ section, refreshKey }: SectionContentEditorProps) {
   const [items, setItems] = useState<Certification[]>([]);
   const [loading, setLoading] = useState(true);
   const [supabase] = useState(() => createClient());
@@ -875,7 +880,7 @@ function CertificationsEditor({ section }: SectionContentEditorProps) {
     setLoading(false);
   }, [section.id, supabase]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const { schedule, flush, status } = useBatchedAutosave<Certification>(async (batch) => {
     await Promise.all(
@@ -996,7 +1001,7 @@ function CertificationsEditor({ section }: SectionContentEditorProps) {
 }
 
 // === PROJECTS EDITOR ===
-function ProjectsEditor({ section }: SectionContentEditorProps) {
+function ProjectsEditor({ section, refreshKey }: SectionContentEditorProps) {
   const [items, setItems] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [supabase] = useState(() => createClient());
@@ -1011,7 +1016,7 @@ function ProjectsEditor({ section }: SectionContentEditorProps) {
     setLoading(false);
   }, [section.id, supabase]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const { schedule, flush, status } = useBatchedAutosave<Project>(async (batch) => {
     await Promise.all(
@@ -1125,6 +1130,6 @@ function ProjectsEditor({ section }: SectionContentEditorProps) {
 }
 
 // === CUSTOM SECTION EDITOR ===
-function CustomEditor({ section, onUpdate }: SectionContentEditorProps) {
-  return <SummaryEditor section={section} onUpdate={onUpdate} />;
+function CustomEditor({ section, onUpdate, refreshKey }: SectionContentEditorProps) {
+  return <SummaryEditor section={section} onUpdate={onUpdate} refreshKey={refreshKey} />;
 }
