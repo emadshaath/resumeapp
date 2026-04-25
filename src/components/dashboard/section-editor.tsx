@@ -614,24 +614,35 @@ function AISuggestButton({
 }
 
 export function SectionContentEditor({ section, onUpdate, refreshKey }: SectionContentEditorProps) {
+  // The parent (ResumeBuilder) bumps `refreshKey` when the canvas inline-
+  // edits a value the form is also showing; we also bump locally when AI
+  // commits a suggestion. Combining both into a single token keeps the
+  // sub-editors' load effect dependency simple and consistent.
+  const [aiAppliedTick, setAiAppliedTick] = useState(0);
+  const combinedRefreshKey = (refreshKey ?? 0) + aiAppliedTick;
+  const handleAIApplied = useCallback(() => {
+    setAiAppliedTick((t) => t + 1);
+    onUpdate();
+  }, [onUpdate]);
+
   return (
     <div className="space-y-4">
       {(() => {
         switch (section.section_type) {
           case "summary":
-            return <SummaryEditor section={section} onUpdate={onUpdate} refreshKey={refreshKey} />;
+            return <SummaryEditor section={section} onUpdate={onUpdate} refreshKey={combinedRefreshKey} />;
           case "experience":
-            return <ExperienceEditor section={section} onUpdate={onUpdate} refreshKey={refreshKey} />;
+            return <ExperienceEditor section={section} onUpdate={onUpdate} refreshKey={combinedRefreshKey} />;
           case "education":
-            return <EducationEditor section={section} onUpdate={onUpdate} refreshKey={refreshKey} />;
+            return <EducationEditor section={section} onUpdate={onUpdate} refreshKey={combinedRefreshKey} />;
           case "skills":
-            return <SkillsEditor section={section} onUpdate={onUpdate} refreshKey={refreshKey} />;
+            return <SkillsEditor section={section} onUpdate={onUpdate} refreshKey={combinedRefreshKey} />;
           case "certifications":
-            return <CertificationsEditor section={section} onUpdate={onUpdate} refreshKey={refreshKey} />;
+            return <CertificationsEditor section={section} onUpdate={onUpdate} refreshKey={combinedRefreshKey} />;
           case "projects":
-            return <ProjectsEditor section={section} onUpdate={onUpdate} refreshKey={refreshKey} />;
+            return <ProjectsEditor section={section} onUpdate={onUpdate} refreshKey={combinedRefreshKey} />;
           case "custom":
-            return <CustomEditor section={section} onUpdate={onUpdate} refreshKey={refreshKey} />;
+            return <CustomEditor section={section} onUpdate={onUpdate} refreshKey={combinedRefreshKey} />;
           default:
             return null;
         }
