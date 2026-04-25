@@ -16,10 +16,16 @@ export interface CustomLayoutProps {
 
 /**
  * Block-driven PDF layout. Takes an arbitrary list of ResumeBlocks and renders
- * them into the page's zones. The header zone always occupies the full page
- * width at the top. Main + sidebar zones are split side-by-side when
- * pageTemplate is "sidebar-left"; otherwise sidebar blocks are appended below
- * main blocks so nothing silently disappears when the user switches templates.
+ * them into the page's zones.
+ *
+ * Two page shapes:
+ *   - single-column: header block at the top (full width), main + sidebar
+ *     blocks stacked below in a single column. (Sidebar-zoned blocks fall
+ *     through here so switching templates never silently drops content.)
+ *   - sidebar-left: the Page itself is a flex row so the coloured sidebar
+ *     extends to full page height, matching the Modern preset. The header
+ *     block lives inside the sidebar (Modern-style: name + headline +
+ *     contact stacked at the top of the sidebar).
  */
 export function CustomLayout({
   data,
@@ -39,31 +45,31 @@ export function CustomLayout({
   const ctxMain = { s: styles, data, inSidebar: false };
   const ctxSidebar = { s: styles, data, inSidebar: true };
 
-  const isSidebarTemplate = pageTemplate === "sidebar-left";
+  if (pageTemplate === "sidebar-left") {
+    return (
+      <Document>
+        <Page size="A4" style={styles.pageRow}>
+          <View style={[styles.sidebarColFull, { width: sidebarWidth }]}>
+            {headerBlocks.map((b) => renderBlock(b, ctxSidebar))}
+            {sidebarBlocks.map((b) => renderBlock(b, ctxSidebar))}
+          </View>
+          <View style={styles.mainColPad}>
+            {mainBlocks.map((b) => renderBlock(b, ctxMain))}
+          </View>
+        </Page>
+      </Document>
+    );
+  }
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.pageBody}>
           {headerBlocks.map((b) => renderBlock(b, ctxMain))}
-
-          {isSidebarTemplate ? (
-            <View style={styles.columns}>
-              <View style={[styles.sidebarCol, { width: sidebarWidth }]}>
-                {sidebarBlocks.map((b) => renderBlock(b, ctxSidebar))}
-              </View>
-              <View style={styles.mainCol}>
-                {mainBlocks.map((b) => renderBlock(b, ctxMain))}
-              </View>
-            </View>
-          ) : (
-            <View>
-              {mainBlocks.map((b) => renderBlock(b, ctxMain))}
-              {/* Fallback: render sidebar-zoned blocks inline so switching
-                  templates never silently drops content. */}
-              {sidebarBlocks.map((b) => renderBlock(b, ctxMain))}
-            </View>
-          )}
+          {mainBlocks.map((b) => renderBlock(b, ctxMain))}
+          {/* Fallback: render sidebar-zoned blocks inline so switching
+              templates never silently drops content. */}
+          {sidebarBlocks.map((b) => renderBlock(b, ctxMain))}
         </View>
       </Page>
     </Document>

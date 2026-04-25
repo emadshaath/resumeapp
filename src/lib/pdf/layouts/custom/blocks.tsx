@@ -39,6 +39,23 @@ function findSection(ctx: Ctx, id: string | null): ResumeSection | undefined {
 
 function HeaderBlock({ ctx }: { ctx: Ctx }) {
   const { profile } = ctx.data;
+  // When the header lives inside a coloured sidebar (Modern-style page
+  // template), name + contact stack vertically and use the sidebar palette.
+  if (ctx.inSidebar) {
+    return (
+      <View style={ctx.s.sidebarHeaderWrap}>
+        <Text style={ctx.s.sidebarName}>
+          {profile.first_name} {profile.last_name}
+        </Text>
+        {profile.headline && <Text style={ctx.s.sidebarHeadline}>{profile.headline}</Text>}
+        {profile.show_email !== false && <Text style={ctx.s.sidebarContactItem}>{profile.email}</Text>}
+        {profile.phone_personal && profile.show_phone !== false && <Text style={ctx.s.sidebarContactItem}>{profile.phone_personal}</Text>}
+        {profile.location && profile.show_location !== false && <Text style={ctx.s.sidebarContactItem}>{profile.location}</Text>}
+        {profile.website_url && profile.show_website !== false && <Text style={ctx.s.sidebarContactItem}>{profile.website_url}</Text>}
+      </View>
+    );
+  }
+
   return (
     <View style={ctx.s.headerWrap}>
       <Text style={ctx.s.name}>

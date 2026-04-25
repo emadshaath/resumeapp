@@ -119,11 +119,79 @@ export function BlockCanvas({
   // line up between canvas and PDF preview.
   const pagePadding = 40 * style.fontConfig.spacingScale;
 
+  // For sidebar-left, the sidebar bleeds to the page edges (Modern-style)
+  // and the header lives inside it. The page itself becomes a flex row so
+  // the coloured sidebar fills the full A4 height.
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <ScalingViewport palette={palette} onDeselect={() => onSelectBlock(null)}>
-        <div style={{ padding: pagePadding }}>
-          {/* Header zone — single sortable context, usually one block. */}
+        {isSidebarTemplate ? (
+          <div style={{ display: "flex", minHeight: "100%" }}>
+            <div
+              style={{
+                width: style.sidebarWidth,
+                backgroundColor: palette.sidebarBg,
+                color: palette.sidebarText,
+                paddingLeft: 22 * style.fontConfig.spacingScale,
+                paddingRight: 22 * style.fontConfig.spacingScale,
+                paddingTop: 32 * style.fontConfig.spacingScale,
+                paddingBottom: 32 * style.fontConfig.spacingScale,
+                flexShrink: 0,
+              }}
+            >
+              <SortableContext items={headerBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+                {headerBlocks.map((b) => (
+                  <SortableBlockShell
+                    key={b.id}
+                    block={b}
+                    selected={selectedBlockId === b.id}
+                    onSelect={() => onSelectBlock(b.id)}
+                  >
+                    {renderBlockHtml(b, ctxSidebar)}
+                  </SortableBlockShell>
+                ))}
+              </SortableContext>
+              <SortableContext items={sidebarBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+                {sidebarBlocks.map((b) => (
+                  <SortableBlockShell
+                    key={b.id}
+                    block={b}
+                    selected={selectedBlockId === b.id}
+                    onSelect={() => onSelectBlock(b.id)}
+                  >
+                    {renderBlockHtml(b, ctxSidebar)}
+                  </SortableBlockShell>
+                ))}
+              </SortableContext>
+              {sidebarBlocks.length === 0 && <EmptyZoneHint label="Sidebar zone" colorOnDark />}
+            </div>
+            <div
+              style={{
+                flex: 1,
+                minWidth: 0,
+                paddingLeft: 32 * style.fontConfig.spacingScale,
+                paddingRight: 32 * style.fontConfig.spacingScale,
+                paddingTop: 36 * style.fontConfig.spacingScale,
+                paddingBottom: 36 * style.fontConfig.spacingScale,
+              }}
+            >
+              <SortableContext items={mainBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+                {mainBlocks.map((b) => (
+                  <SortableBlockShell
+                    key={b.id}
+                    block={b}
+                    selected={selectedBlockId === b.id}
+                    onSelect={() => onSelectBlock(b.id)}
+                  >
+                    {renderBlockHtml(b, ctxMain)}
+                  </SortableBlockShell>
+                ))}
+              </SortableContext>
+              {mainBlocks.length === 0 && <EmptyZoneHint label="Main zone" />}
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding: pagePadding }}>
             <SortableContext items={headerBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
               {headerBlocks.map((b) => (
                 <SortableBlockShell
@@ -136,83 +204,39 @@ export function BlockCanvas({
                 </SortableBlockShell>
               ))}
             </SortableContext>
-
-            {isSidebarTemplate ? (
-              <div style={{ display: "flex", gap: 18 * style.fontConfig.spacingScale }}>
-                <div
-                  style={{
-                    width: style.sidebarWidth,
-                    backgroundColor: palette.sidebarBg,
-                    color: palette.sidebarText,
-                    padding: 18 * style.fontConfig.spacingScale,
-                    borderRadius: 2,
-                    flexShrink: 0,
-                  }}
-                >
-                  <SortableContext items={sidebarBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-                    {sidebarBlocks.map((b) => (
-                      <SortableBlockShell
-                        key={b.id}
-                        block={b}
-                        selected={selectedBlockId === b.id}
-                        onSelect={() => onSelectBlock(b.id)}
-                      >
-                        {renderBlockHtml(b, ctxSidebar)}
-                      </SortableBlockShell>
-                    ))}
-                  </SortableContext>
-                  {sidebarBlocks.length === 0 && <EmptyZoneHint label="Sidebar zone" colorOnDark />}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <SortableContext items={mainBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-                    {mainBlocks.map((b) => (
-                      <SortableBlockShell
-                        key={b.id}
-                        block={b}
-                        selected={selectedBlockId === b.id}
-                        onSelect={() => onSelectBlock(b.id)}
-                      >
-                        {renderBlockHtml(b, ctxMain)}
-                      </SortableBlockShell>
-                    ))}
-                  </SortableContext>
-                  {mainBlocks.length === 0 && <EmptyZoneHint label="Main zone" />}
-                </div>
-              </div>
-            ) : (
-              <div>
-                <SortableContext items={mainBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-                  {mainBlocks.map((b) => (
-                    <SortableBlockShell
-                      key={b.id}
-                      block={b}
-                      selected={selectedBlockId === b.id}
-                      onSelect={() => onSelectBlock(b.id)}
-                    >
-                      {renderBlockHtml(b, ctxMain)}
-                    </SortableBlockShell>
-                  ))}
-                </SortableContext>
-                {/* Sidebar-zoned blocks fall through inline so nothing
-                    disappears; keep them sortable as their own group. */}
-                <SortableContext items={sidebarBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-                  {sidebarBlocks.map((b) => (
-                    <SortableBlockShell
-                      key={b.id}
-                      block={b}
-                      selected={selectedBlockId === b.id}
-                      onSelect={() => onSelectBlock(b.id)}
-                    >
-                      {renderBlockHtml(b, ctxMain)}
-                    </SortableBlockShell>
-                  ))}
-                </SortableContext>
-                {mainBlocks.length === 0 && sidebarBlocks.length === 0 && (
-                  <EmptyZoneHint label="No blocks yet — add a section or tap the layout icon next to one in the section list to drop it here." />
-                )}
-              </div>
-            )}
-        </div>
+            <div>
+              <SortableContext items={mainBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+                {mainBlocks.map((b) => (
+                  <SortableBlockShell
+                    key={b.id}
+                    block={b}
+                    selected={selectedBlockId === b.id}
+                    onSelect={() => onSelectBlock(b.id)}
+                  >
+                    {renderBlockHtml(b, ctxMain)}
+                  </SortableBlockShell>
+                ))}
+              </SortableContext>
+              {/* Sidebar-zoned blocks fall through inline so nothing
+                  disappears; keep them sortable as their own group. */}
+              <SortableContext items={sidebarBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+                {sidebarBlocks.map((b) => (
+                  <SortableBlockShell
+                    key={b.id}
+                    block={b}
+                    selected={selectedBlockId === b.id}
+                    onSelect={() => onSelectBlock(b.id)}
+                  >
+                    {renderBlockHtml(b, ctxMain)}
+                  </SortableBlockShell>
+                ))}
+              </SortableContext>
+              {mainBlocks.length === 0 && sidebarBlocks.length === 0 && (
+                <EmptyZoneHint label="No blocks yet — add a section or tap the layout icon next to one in the section list to drop it here." />
+              )}
+            </div>
+          </div>
+        )}
       </ScalingViewport>
     </DndContext>
   );
