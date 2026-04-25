@@ -942,3 +942,236 @@ window.addEventListener("message", (event) => {
     });
   }
 });
+
+// ─── Auto-apply: URL param handler ───
+// When a job page is opened with ?rezm_auto_apply=<candidate_id>, pull the
+// pre-drafted fields + AI answers from the API, fill the form, and show a
+// review bar. Submission stays user-initiated (user clicks the page's Submit).
+const REZMAI_API_BASE = "https://rezm.ai";
+
+(function initAutoApply() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const candidateId = params.get("rezm_auto_apply");
+    if (!candidateId) return;
+
+    // Wait for page to settle before running
+    const start = () => runAutoApply(candidateId).catch((err) => {
+      console.warn("[rezm.ai] auto-apply failed:", err);
+      showAutoApplyToast("Auto-apply failed: " + (err.message || err));
+    });
+
+    if (document.readyState === "complete") {
+      setTimeout(start, 800);
+    } else {
+      window.addEventListener("load", () => setTimeout(start, 800), { once: true });
+    }
+  } catch (err) {
+    console.warn("[rezm.ai] auto-apply init error:", err);
+  }
+})();
+
+async function runAutoApply(candidateId) {
+  const token = await getStoredToken();
+  if (!token) {
+    showAutoApplyToast(
+      "Connect the rezm.ai extension first (click the extension icon).",
+      true
+    );
+    return;
+  }
+
+  const res = await fetch(`${REZMAI_API_BASE}/api/extension/candidate/${candidateId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error(`candidate fetch ${res.status}`);
+  }
+  const data = await res.json();
+
+  // Fetch resume PDF as blob (optional — not all pages need the upload)
+  let pdfBlob = null;
+  if (data.resume_pdf_url) {
+    try {
+      const pdfRes = await fetch(`${REZMAI_API_BASE}${data.resume_pdf_url}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (pdfRes.ok) {
+        const buf = await pdfRes.arrayBuffer();
+        // Convert to structure fillForm expects (see attachPDFFromBlob)
+        pdfBlob = {
+          data: Array.from(new Uint8Array(buf)),
+          type: "application/pdf",
+          name: "resume.pdf",
+        };
+      }
+    } catch (err) {
+      console.warn("[rezm.ai] resume PDF fetch failed:", err);
+    }
+  }
+
+  // Fill standard fields via existing logic
+  const filled = fillForm(data.fields, pdfBlob);
+
+  // Match AI answers to detected form questions by text similarity
+  let answersFilled = 0;
+  if (Array.isArray(data.ai_answers) && data.ai_answers.length > 0) {
+    const formQuestions = extractFormQuestions();
+    const matched = matchAnswersToQuestions(data.ai_answers, formQuestions);
+    if (matched.length > 0) {
+      const result = applyAIAnswers(matched);
+      answersFilled = typeof result === "number" ? result : (result?.filled ?? matched.length);
+    }
+  }
+
+  showAutoApplyBar(candidateId, filled, answersFilled, data);
+}
+
+function getStoredToken() {
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage({ type: "GET_TOKEN" }, (resp) => {
+        if (!resp || !resp.token) {
+          resolve(null);
+          return;
+        }
+        if (resp.expires_at && Date.now() / 1000 > resp.expires_at) {
+          resolve(null);
+          return;
+        }
+        resolve(resp.token);
+      });
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+function normalizeText(s) {
+  return (s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function matchAnswersToQuestions(preDrafted, formQuestions) {
+  const out = [];
+  const used = new Set();
+  for (const { question, answer } of preDrafted) {
+    if (!answer || answer === "[needs user input]") continue;
+    const nq = normalizeText(question);
+    let best = null;
+    let bestScore = 0;
+    for (const fq of formQuestions) {
+      if (used.has(fq.id)) continue;
+      const label = normalizeText(fq.label || fq.question || "");
+      const score = similarity(nq, label);
+      if (score > bestScore) {
+        bestScore = score;
+        best = fq;
+      }
+    }
+    if (best && bestScore >= 0.4) {
+      used.add(best.id);
+      out.push({ id: best.id, answer });
+    }
+  }
+  return out;
+}
+
+function similarity(a, b) {
+  if (!a || !b) return 0;
+  const aWords = new Set(a.split(" ").filter((w) => w.length > 2));
+  const bWords = new Set(b.split(" ").filter((w) => w.length > 2));
+  if (aWords.size === 0 || bWords.size === 0) return 0;
+  let overlap = 0;
+  for (const w of aWords) if (bWords.has(w)) overlap++;
+  return overlap / Math.min(aWords.size, bWords.size);
+}
+
+function showAutoApplyBar(candidateId, fieldCount, answerCount, data) {
+  if (document.getElementById("rezmai-auto-apply-bar")) return;
+
+  const bar = document.createElement("div");
+  bar.id = "rezmai-auto-apply-bar";
+  bar.style.cssText = [
+    "position:fixed",
+    "bottom:16px",
+    "right:16px",
+    "z-index:2147483647",
+    "background:#111827",
+    "color:#fff",
+    "border-radius:12px",
+    "padding:14px 18px",
+    "box-shadow:0 10px 30px rgba(0,0,0,0.25)",
+    "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+    "font-size:13px",
+    "max-width:360px",
+  ].join(";");
+
+  const company = data?.fields?.current_company || "";
+  const msg = [
+    `<div style="font-weight:600;margin-bottom:4px">rezm.ai auto-apply</div>`,
+    `<div style="opacity:0.85;margin-bottom:8px">Filled ${fieldCount} field${fieldCount === 1 ? "" : "s"}${answerCount > 0 ? ` and ${answerCount} answer${answerCount === 1 ? "" : "s"}` : ""}. Review and click Submit when ready.${company ? "" : ""}</div>`,
+    `<div style="display:flex;gap:8px">`,
+    `<button id="rezmai-aa-dismiss" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.3);padding:6px 10px;border-radius:6px;cursor:pointer;font-size:12px">Dismiss</button>`,
+    `</div>`,
+  ].join("");
+  bar.innerHTML = msg;
+  document.body.appendChild(bar);
+
+  bar.querySelector("#rezmai-aa-dismiss").addEventListener("click", () => bar.remove());
+
+  // Hook the page's submit button(s): when user clicks, flag candidate as submitted.
+  // Using capture phase so we run before the page's own handler.
+  const hookSubmit = () => {
+    document.addEventListener(
+      "click",
+      (e) => {
+        const t = e.target;
+        if (!t || !(t instanceof HTMLElement)) return;
+        const btn = t.closest('button[type="submit"], input[type="submit"], button.application-form-submit, button[data-testid*="submit"], button[aria-label*="Submit"]');
+        if (!btn) return;
+        // Fire-and-forget; don't block the real submission
+        markCandidateSubmitted(candidateId).catch((err) =>
+          console.warn("[rezm.ai] mark-submitted failed:", err)
+        );
+      },
+      true
+    );
+  };
+  hookSubmit();
+}
+
+function showAutoApplyToast(message, isError) {
+  const el = document.createElement("div");
+  el.style.cssText = [
+    "position:fixed",
+    "bottom:16px",
+    "right:16px",
+    "z-index:2147483647",
+    `background:${isError ? "#991b1b" : "#111827"}`,
+    "color:#fff",
+    "border-radius:8px",
+    "padding:10px 14px",
+    "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+    "font-size:13px",
+    "max-width:360px",
+  ].join(";");
+  el.textContent = message;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 6000);
+}
+
+async function markCandidateSubmitted(candidateId) {
+  const token = await getStoredToken();
+  if (!token) return;
+  await fetch(
+    `${REZMAI_API_BASE}/api/auto-apply/candidates/${candidateId}/mark-submitted`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+}

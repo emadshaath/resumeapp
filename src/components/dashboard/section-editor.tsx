@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, Loader2, Plus, Trash2, Sparkles, X, ChevronUp, ChevronDown, AlertCircle } from "lucide-react";
+import { Check, Loader2, Plus, Trash2, Sparkles, X, ChevronUp, ChevronDown, AlertCircle, Wand2 } from "lucide-react";
 import type { ResumeSection, Experience, Education, Skill, Certification, Project } from "@/types/database";
 import type { SuggestionItem } from "@/lib/claude/schemas";
 import { parseHighlights } from "@/lib/utils";
@@ -165,17 +165,145 @@ function SaveStatusIndicator({ status }: { status: SaveStatus }) {
 }
 
 
-function AISuggestButton({ section }: { section: ResumeSection }) {
+interface ProposedUpdate {
+  id: string;
+  fields: Record<string, unknown>;
+}
+
+interface PreviewPayload {
+  section_id: string;
+  section_type: string;
+  section_name: string;
+  current_items: Record<string, unknown>[];
+  updates: ProposedUpdate[];
+  inserts: Record<string, unknown>[];
+  explanation: string;
+}
+
+const DIFF_IGNORED_FIELDS = new Set([
+  "id",
+  "section_id",
+  "profile_id",
+  "created_at",
+  "updated_at",
+  "display_order",
+]);
+
+function formatDiffValue(value: unknown): string {
+  if (value === null || value === undefined) return "(empty)";
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
+}
+
+// Jira Rovo / Gmail "Help me write" style: the proposed text is what you see
+// first. The original is tucked behind a small "Show original" disclosure so
+// the preview reads like a clean draft, not a diff.
+function DiffCard({
+  current,
+  proposed,
+  label,
+}: {
+  current: Record<string, unknown> | null;
+  proposed: Record<string, unknown>;
+  label: string;
+}) {
+  const [showOriginal, setShowOriginal] = useState(false);
+  const fieldKeys = Object.keys(proposed).filter(
+    (k) => !DIFF_IGNORED_FIELDS.has(k)
+  );
+  if (fieldKeys.length === 0) return null;
+
+  const headerLabel =
+    (current?.position as string) ||
+    (current?.company_name as string) ||
+    (current?.name as string) ||
+    (current?.title as string) ||
+    (proposed.position as string) ||
+    (proposed.company_name as string) ||
+    (proposed.name as string) ||
+    (proposed.title as string) ||
+    null;
+
+  const hasOriginal =
+    current !== null &&
+    fieldKeys.some(
+      (k) => formatDiffValue(current[k]) !== formatDiffValue(proposed[k])
+    );
+
+  return (
+    <div className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-100 dark:border-zinc-800">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          {label}
+        </span>
+        {headerLabel && (
+          <span className="text-xs text-zinc-700 dark:text-zinc-300 truncate">
+            · {headerLabel}
+          </span>
+        )}
+      </div>
+      <div className="px-3 py-2.5 space-y-2.5">
+        {fieldKeys.map((key) => {
+          const after = proposed[key];
+          const displayKey = key.replace(/_/g, " ");
+          return (
+            <div key={key} className="text-sm">
+              <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500 mb-1">
+                {displayKey}
+              </div>
+              <div className="text-zinc-800 dark:text-zinc-100 whitespace-pre-wrap leading-relaxed">
+                {formatDiffValue(after)}
+              </div>
+              {showOriginal && current !== null && (
+                <div className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400 border-l-2 border-zinc-200 dark:border-zinc-700 pl-2 whitespace-pre-wrap">
+                  <span className="text-[10px] uppercase tracking-wide text-zinc-400 mr-1">
+                    Original:
+                  </span>
+                  {formatDiffValue(current[key])}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {hasOriginal && (
+          <button
+            type="button"
+            onClick={() => setShowOriginal((v) => !v)}
+            className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 underline-offset-2 hover:underline"
+          >
+            {showOriginal ? "Hide original" : "Show original"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AISuggestButton({
+  section,
+  onUpdate,
+}: {
+  section: ResumeSection;
+  onUpdate: () => void;
+}) {
   const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [targetedCount, setTargetedCount] = useState<number | null>(null);
+  const [previewingIndex, setPreviewingIndex] = useState<number | null>(null);
+  const [preview, setPreview] = useState<PreviewPayload | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [committing, setCommitting] = useState(false);
+  const [appliedIndexes, setAppliedIndexes] = useState<Set<number>>(new Set());
   const [supabase] = useState(() => createClient());
 
   async function getSuggestions() {
     setLoading(true);
     setError(null);
     setSuggestions([]);
+    setTargetedCount(null);
     setOpen(true);
 
     try {
@@ -222,12 +350,88 @@ function AISuggestButton({ section }: { section: ResumeSection }) {
         setError(data.error || "Failed to get suggestions.");
       } else {
         setSuggestions(data.suggestions || []);
+        setTargetedCount(data.targeted?.candidate_count ?? null);
       }
     } catch {
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function requestPreview(index: number, suggestion: SuggestionItem) {
+    setPreviewingIndex(index);
+    setPreview(null);
+    setPreviewError(null);
+    const recText = suggestion.example
+      ? `${suggestion.text}\n\nExample of improved text: ${suggestion.example}`
+      : suggestion.text;
+    try {
+      const res = await fetch("/api/ai/apply-recommendation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recommendation: recText,
+          section_type: section.section_type,
+          section_name: section.title,
+          preview: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPreviewError(data.error || "Preview failed.");
+      } else {
+        setPreview({
+          section_id: data.section_id,
+          section_type: data.section_type,
+          section_name: data.section_name,
+          current_items: data.current_items || [],
+          updates: data.updates || [],
+          inserts: data.inserts || [],
+          explanation: data.explanation || "",
+        });
+      }
+    } catch {
+      setPreviewError("Network error. Please try again.");
+    }
+  }
+
+  async function commitPreview() {
+    if (!preview) return;
+    setCommitting(true);
+    try {
+      const res = await fetch("/api/ai/apply-recommendation/commit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          section_id: preview.section_id,
+          section_type: preview.section_type,
+          updates: preview.updates,
+          inserts: preview.inserts,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPreviewError(data.error || "Failed to apply.");
+      } else {
+        if (previewingIndex !== null) {
+          setAppliedIndexes((prev) => new Set(prev).add(previewingIndex));
+        }
+        setPreview(null);
+        setPreviewingIndex(null);
+        onUpdate();
+      }
+    } catch {
+      setPreviewError("Network error. Please try again.");
+    } finally {
+      setCommitting(false);
+    }
+  }
+
+  function cancelPreview() {
+    setPreview(null);
+    setPreviewingIndex(null);
+    setPreviewError(null);
   }
 
   const typeColors: Record<string, string> = {
@@ -269,24 +473,140 @@ function AISuggestButton({ section }: { section: ResumeSection }) {
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
+          {targetedCount !== null && targetedCount > 0 && (
+            <p className="mb-2 text-xs text-purple-700 dark:text-purple-300">
+              Tailored for your {targetedCount} pending auto-apply candidate
+              {targetedCount === 1 ? "" : "s"}.
+            </p>
+          )}
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-          {suggestions.map((s, i) => (
-            <div key={i} className="mb-2 last:mb-0">
-              <div className="flex items-start gap-2">
-                <Badge className={`text-xs shrink-0 mt-0.5 ${typeColors[s.type] || ""}`}>
-                  {s.type}
-                </Badge>
-                <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                  <p>{s.text}</p>
-                  {s.example && (
-                    <p className="mt-1 text-xs text-zinc-500 italic border-l-2 border-purple-300 pl-2">
-                      Example: {s.example}
-                    </p>
-                  )}
+          {suggestions.map((s, i) => {
+            const isPreviewingThis = previewingIndex === i;
+            const applied = appliedIndexes.has(i);
+            return (
+              <div key={i} className="mb-3 last:mb-0">
+                <div className="flex items-start gap-2">
+                  <Badge className={`text-xs shrink-0 mt-0.5 ${typeColors[s.type] || ""}`}>
+                    {s.type}
+                  </Badge>
+                  <div className="flex-1 text-sm text-zinc-700 dark:text-zinc-300">
+                    <p>{s.text}</p>
+                    {s.example && (
+                      <p className="mt-1 text-xs text-zinc-500 italic border-l-2 border-purple-300 pl-2">
+                        Example: {s.example}
+                      </p>
+                    )}
+                    {!applied && !isPreviewingThis && s.type !== "remove" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 h-7 text-xs"
+                        onClick={() => requestPreview(i, s)}
+                      >
+                        <Wand2 className="h-3 w-3 mr-1" />
+                        Apply & review
+                      </Button>
+                    )}
+                    {applied && (
+                      <p className="mt-2 text-xs text-green-700 dark:text-green-400 inline-flex items-center gap-1">
+                        <Check className="h-3 w-3" /> Applied
+                      </p>
+                    )}
+                  </div>
                 </div>
+                {isPreviewingThis && (
+                  <div className="mt-2 ml-7 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50/60 dark:bg-zinc-900/40 shadow-sm overflow-hidden">
+                    <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-200 dark:border-zinc-700">
+                      <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                      <span className="text-xs font-medium text-zinc-700 dark:text-zinc-200">
+                        Suggested rewrite
+                      </span>
+                    </div>
+                    <div className="p-3">
+                      {preview === null && previewError === null && (
+                        <p className="text-xs text-zinc-500 inline-flex items-center gap-1.5">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Drafting changes…
+                        </p>
+                      )}
+                      {previewError && (
+                        <p className="text-sm text-red-600 dark:text-red-400">{previewError}</p>
+                      )}
+                      {preview && (
+                        <div className="space-y-3">
+                          {preview.updates.length === 0 && preview.inserts.length === 0 ? (
+                            <p className="text-xs text-zinc-500">
+                              No changes proposed for this suggestion.
+                            </p>
+                          ) : (
+                            <>
+                              {preview.updates.map((upd) => (
+                                <DiffCard
+                                  key={upd.id}
+                                  current={
+                                    preview.current_items.find(
+                                      (it) => (it as { id: string }).id === upd.id
+                                    ) || null
+                                  }
+                                  proposed={upd.fields}
+                                  label="Update"
+                                />
+                              ))}
+                              {preview.inserts.map((ins, j) => (
+                                <DiffCard
+                                  key={`ins-${j}`}
+                                  current={null}
+                                  proposed={ins}
+                                  label="Add"
+                                />
+                              ))}
+                            </>
+                          )}
+                          {preview.explanation && (
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 italic">
+                              {preview.explanation}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 pt-1">
+                            <Button
+                              size="sm"
+                              className="h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white"
+                              onClick={commitPreview}
+                              disabled={
+                                committing ||
+                                (preview.updates.length === 0 &&
+                                  preview.inserts.length === 0)
+                              }
+                            >
+                              {committing ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  Inserting…
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="h-3 w-3 mr-1" />
+                                  Insert
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 text-xs text-zinc-600 dark:text-zinc-300"
+                              onClick={cancelPreview}
+                              disabled={committing}
+                            >
+                              Discard
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -316,7 +636,7 @@ export function SectionContentEditor({ section, onUpdate, refreshKey }: SectionC
             return null;
         }
       })()}
-      <AISuggestButton section={section} />
+      <AISuggestButton section={section} onUpdate={handleAIApplied} />
     </div>
   );
 }

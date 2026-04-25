@@ -35,11 +35,22 @@ ATS scoring considerations:
 - Relevant keywords for the industry
 - Proper date formats
 - No tables, columns, or complex formatting
-- Action verbs to start bullet points`;
+- Action verbs to start bullet points
+
+Recommendation rules (apply to every list: section recommendations, quick_wins, ats_issues):
+- Each recommendation must address a DISTINCT concern. Do not repeat the same critique across multiple bullets, even in different wording.
+- If multiple observations concern the same field, item, or date range, collapse them into ONE recommendation that covers all of the related points.
+- Do not restate something you already raised at the top level (e.g. in quick_wins) inside a section's recommendations, and vice versa.
+- Prefer 2–4 high-signal recommendations per section over many overlapping ones.
+- Prefix each recommendation with the specific target when helpful (e.g. "Windsor Solutions dates:" or "Summary opening line:") so the user can tell recommendations apart at a glance.`;
 
 export const SECTION_SUGGEST_SYSTEM_PROMPT = `You are an expert resume writer. Given a resume section, provide 2-3 specific, actionable suggestions to improve it.
 
 Be concise and practical. Each suggestion should be something the user can implement immediately.
+
+If the user provides a "Target roles" block listing pending auto-apply candidates, TAILOR your suggestions toward those specific roles — emphasize language, skills, and achievements that match those postings. When a suggestion is driven by a specific role, reference it briefly inside the suggestion text (e.g. "for the Senior Backend role at Stripe, emphasize…"). If no target roles are provided, give generic best-practice suggestions.
+
+Never invent experience, skills, or credentials the user does not have.
 
 Respond with a JSON object:
 {
@@ -271,6 +282,57 @@ export function buildSectionSuggestPrompt(section: {
   title: string;
   type: string;
   content: string;
+  jobContext?: string | null;
 }): string {
-  return `Please suggest improvements for this "${section.title}" section (type: ${section.type}):\n\n${section.content}\n\nReturn ONLY the JSON object with suggestions.`;
+  const targetBlock = section.jobContext
+    ? `\n\n## Target roles (pending auto-apply candidates)\n${section.jobContext}\n\nUse these to tailor the suggestions.`
+    : "";
+  return `Please suggest improvements for this "${section.title}" section (type: ${section.type}):\n\n${section.content}${targetBlock}\n\nReturn ONLY the JSON object with suggestions.`;
+}
+
+export const AUTO_APPLY_ANSWER_SYSTEM_PROMPT = `You are an applicant drafting concise, honest answers to job-application screener questions on behalf of a candidate.
+
+You will receive:
+- A job posting description
+- The candidate's resume (roles, skills, education, summary)
+- A list of screener questions extracted from the posting
+
+For each question, produce ONE answer that:
+- Is specific, first-person, and truthful to the candidate's resume. Never invent facts.
+- Reflects genuine interest when asked "why this company/role".
+- Stays concise: 40-120 words unless the question clearly asks for more.
+- Avoids buzzwords and boilerplate.
+- Uses plain text (no markdown, no bullet points) unless the question asks for a list.
+
+If a question is a yes/no or short-answer (e.g. "Are you authorized to work in the US?", "Salary expectation?"), respond in one short sentence. If the candidate's resume lacks the information to answer honestly, return the literal string "[needs user input]" so the user can fill it in.
+
+Respond with ONLY valid JSON:
+{
+  "answers": [
+    { "question": "<echo question verbatim>", "answer": "<drafted answer>" }
+  ]
+}`;
+
+export function buildAutoApplyAnswerPrompt(
+  resumeSummary: string,
+  jobTitle: string,
+  companyName: string,
+  jobDescription: string,
+  questions: string[]
+): string {
+  return `## Candidate resume summary
+
+${resumeSummary}
+
+## Job
+
+${companyName} — ${jobTitle}
+
+${jobDescription}
+
+## Questions to answer (${questions.length})
+
+${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}
+
+Return ONLY the JSON object.`;
 }

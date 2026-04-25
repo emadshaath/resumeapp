@@ -410,3 +410,58 @@ export interface ReviewComment {
   comment_text: string;
   created_at: string;
 }
+
+export type AutoApplyJobSource = "greenhouse" | "lever";
+
+export interface AutoApplyRule {
+  id: string;
+  profile_id: string;
+  name: string;
+  enabled: boolean;
+  title_keywords: string[];
+  excluded_companies: string[];
+  locations: string[];
+  remote_types: RemoteType[];
+  salary_min: number | null;
+  seniority: string[];
+  min_match_score: number;
+  sources: AutoApplyJobSource[];
+  company_slugs: Partial<Record<AutoApplyJobSource, string[]>>;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AutoApplyCandidateStatus =
+  | "pending_review"
+  | "approved"
+  | "submitted"
+  | "failed"
+  | "skipped";
+
+export interface AutoApplyAnswer {
+  question: string;
+  answer: string;
+}
+
+export interface AutoApplyCandidate {
+  id: string;
+  profile_id: string;
+  rule_id: string | null;
+  job_application_id: string;
+  variant_id: string | null;
+  match_score: number | null;
+  ai_answers: AutoApplyAnswer[];
+  status: AutoApplyCandidateStatus;
+  submit_mode: "extension" | "server" | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutoApplyEvent {
+  id: string;
+  candidate_id: string;
+  event: string;
+  detail: Record<string, unknown>;
+  created_at: string;
+}
