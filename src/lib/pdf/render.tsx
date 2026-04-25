@@ -14,12 +14,14 @@ export interface CustomLayoutInputs {
   blocks: ResumeBlock[];
   pageTemplate: PageTemplate;
   sidebarWidth: number;
+  pageMargin: number;
 }
 
 const DEFAULT_CUSTOM_INPUTS: CustomLayoutInputs = {
   blocks: [],
   pageTemplate: "single-column",
   sidebarWidth: 180,
+  pageMargin: 40,
 };
 
 export async function renderResumePdf(
@@ -58,6 +60,7 @@ export function buildResumeDocument(
           blocks={customInputs.blocks}
           pageTemplate={customInputs.pageTemplate}
           sidebarWidth={customInputs.sidebarWidth}
+          pageMargin={customInputs.pageMargin}
         />
       );
     case "classic":

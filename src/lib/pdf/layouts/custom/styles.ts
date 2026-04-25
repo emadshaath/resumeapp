@@ -166,6 +166,13 @@ export function createCustomStyles(c: PdfColorPalette, f: PdfFontConfig) {
       marginTop: 3 * sp,
       marginBottom: 1 * sp,
     },
+    sidebarSkillCategory: {
+      fontSize: 9 * s,
+      fontWeight: "bold",
+      color: c.sidebarHeading,
+      marginTop: 4 * sp,
+      marginBottom: 2 * sp,
+    },
     sidebarSkillItem: {
       fontSize: 9 * s,
       color: c.sidebarText,

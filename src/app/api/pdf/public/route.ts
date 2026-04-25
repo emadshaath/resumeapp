@@ -53,13 +53,14 @@ export async function GET(req: NextRequest) {
     : [];
   const pageTemplate: PageTemplate = (settings.page_template as PageTemplate) || "single-column";
   const sidebarWidth = settings.sidebar_width ?? 180;
+  const pageMargin = settings.page_margin ?? 40;
 
   const pdfBuffer = await renderResumePdf(
     data,
     layout,
     colorTheme,
     fontConfig,
-    { blocks, pageTemplate, sidebarWidth },
+    { blocks, pageTemplate, sidebarWidth, pageMargin },
   );
   const fileName = `${profile.first_name}_${profile.last_name}_Resume.pdf`;
 

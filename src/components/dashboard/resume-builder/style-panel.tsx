@@ -11,6 +11,7 @@ import {
   ArrowDownUp,
   AlignJustify,
   Sparkles,
+  Frame,
 } from "lucide-react";
 import {
   COLOR_THEMES,
@@ -174,6 +175,23 @@ export function StylePanel({ value, onChange, onPreset, onApplyStarter }: StyleP
                 { label: "Airy", value: 1.2 },
               ]}
               onTickClick={(v) => setFont("spacingScale", v)}
+            />
+
+            <SliderRow
+              icon={Frame}
+              label="Page margin"
+              value={value.pageMargin}
+              onChange={(v) => onChange({ pageMargin: Math.round(v) })}
+              min={16}
+              max={80}
+              step={2}
+              format={(v) => `${Math.round(v)}px`}
+              ticks={[
+                { label: "Tight", value: 24 },
+                { label: "Normal", value: 40 },
+                { label: "Wide", value: 56 },
+              ]}
+              onTickClick={(v) => onChange({ pageMargin: Math.round(v) })}
             />
           </>
         )}

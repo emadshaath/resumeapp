@@ -15,6 +15,7 @@ interface PdfLivePreviewProps {
   blocks: ResumeBlock[];
   pageTemplate: PageTemplate;
   sidebarWidth: number;
+  pageMargin: number;
 }
 
 /**
@@ -30,6 +31,7 @@ export default function PdfLivePreview({
   blocks,
   pageTemplate,
   sidebarWidth,
+  pageMargin,
 }: PdfLivePreviewProps) {
   const deferredLayout = useDeferredValue(layout);
   const deferredTheme = useDeferredValue(colorTheme);
@@ -37,6 +39,7 @@ export default function PdfLivePreview({
   const deferredBlocks = useDeferredValue(blocks);
   const deferredPageTemplate = useDeferredValue(pageTemplate);
   const deferredSidebarWidth = useDeferredValue(sidebarWidth);
+  const deferredPageMargin = useDeferredValue(pageMargin);
 
   const doc = useMemo(
     () => buildResumeDocument(
@@ -48,9 +51,10 @@ export default function PdfLivePreview({
         blocks: deferredBlocks,
         pageTemplate: deferredPageTemplate,
         sidebarWidth: deferredSidebarWidth,
+        pageMargin: deferredPageMargin,
       },
     ),
-    [data, deferredLayout, deferredTheme, deferredFont, deferredBlocks, deferredPageTemplate, deferredSidebarWidth],
+    [data, deferredLayout, deferredTheme, deferredFont, deferredBlocks, deferredPageTemplate, deferredSidebarWidth, deferredPageMargin],
   );
 
   return (

@@ -12,6 +12,9 @@ export interface CustomLayoutProps {
   blocks: ResumeBlock[];
   pageTemplate: PageTemplate;
   sidebarWidth: number;
+  /** Outer page margin in pixels at default scale (40 = previous default).
+   *  Multiplied through font.spacingScale at render time. */
+  pageMargin: number;
 }
 
 /**
@@ -34,8 +37,16 @@ export function CustomLayout({
   blocks,
   pageTemplate,
   sidebarWidth,
+  pageMargin,
 }: CustomLayoutProps) {
   const styles = createCustomStyles(palette, font);
+  // Apply spacing scale so the margin slider feels consistent with the
+  // section-spacing slider.
+  const sp = font.spacingScale;
+  const outerPad = pageMargin * sp;
+  // Sidebar uses ~55% of the page margin so the colored area stays visually
+  // distinct from the main column without feeling cramped.
+  const sidebarPad = Math.round(pageMargin * 0.55) * sp;
 
   const sorted = [...blocks].sort((a, b) => a.display_order - b.display_order);
   const headerBlocks = sorted.filter((b) => b.zone === "header");
@@ -49,11 +60,16 @@ export function CustomLayout({
     return (
       <Document>
         <Page size="A4" style={styles.pageRow}>
-          <View style={[styles.sidebarColFull, { width: sidebarWidth }]}>
+          <View
+            style={[
+              styles.sidebarColFull,
+              { width: sidebarWidth, paddingHorizontal: sidebarPad, paddingVertical: outerPad },
+            ]}
+          >
             {headerBlocks.map((b) => renderBlock(b, ctxSidebar))}
             {sidebarBlocks.map((b) => renderBlock(b, ctxSidebar))}
           </View>
-          <View style={styles.mainColPad}>
+          <View style={[styles.mainColPad, { paddingHorizontal: outerPad, paddingVertical: outerPad }]}>
             {mainBlocks.map((b) => renderBlock(b, ctxMain))}
           </View>
         </Page>
@@ -64,7 +80,7 @@ export function CustomLayout({
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <View style={styles.pageBody}>
+        <View style={[styles.pageBody, { padding: outerPad }]}>
           {headerBlocks.map((b) => renderBlock(b, ctxMain))}
           {mainBlocks.map((b) => renderBlock(b, ctxMain))}
           {/* Fallback: render sidebar-zoned blocks inline so switching

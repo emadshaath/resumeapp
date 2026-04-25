@@ -18,6 +18,7 @@ export interface StyleState {
   colorTheme: PdfColorTheme;
   pageTemplate: PageTemplate;
   sidebarWidth: number;
+  pageMargin: number;
   showOnProfile: boolean;
   fontConfig: PdfFontConfig;
 }
@@ -27,6 +28,7 @@ export const DEFAULT_STYLE_STATE: StyleState = {
   colorTheme: "navy",
   pageTemplate: "single-column",
   sidebarWidth: 180,
+  pageMargin: 40,
   showOnProfile: false,
   fontConfig: { ...DEFAULT_FONT_CONFIG },
 };
@@ -39,6 +41,7 @@ export function styleStateFromSettings(s: PdfSettings | null): StyleState {
     colorTheme: (s.color_theme as PdfColorTheme) || "navy",
     pageTemplate: (s.page_template as PageTemplate) || "single-column",
     sidebarWidth: s.sidebar_width ?? 180,
+    pageMargin: s.page_margin ?? 40,
     showOnProfile: s.show_on_profile ?? false,
     fontConfig: {
       fontFamily: (s.font_family as PdfFontFamily) || DEFAULT_FONT_CONFIG.fontFamily,
@@ -56,6 +59,7 @@ export function styleFingerprint(s: StyleState): string {
     s.colorTheme,
     s.pageTemplate,
     String(s.sidebarWidth),
+    String(s.pageMargin),
     s.showOnProfile ? "1" : "0",
     s.fontConfig.fontFamily,
     s.fontConfig.fontScale.toFixed(2),
@@ -76,6 +80,7 @@ export function styleStateToSavePayload(s: StyleState) {
     spacing_scale: s.fontConfig.spacingScale,
     page_template: s.pageTemplate,
     sidebar_width: s.sidebarWidth,
+    page_margin: s.pageMargin,
   };
 }
 
@@ -90,5 +95,6 @@ export function styleStateToDownloadQuery(s: StyleState): URLSearchParams {
     spacingScale: String(s.fontConfig.spacingScale),
     pageTemplate: s.pageTemplate,
     sidebarWidth: String(s.sidebarWidth),
+    pageMargin: String(s.pageMargin),
   });
 }

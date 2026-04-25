@@ -166,7 +166,7 @@ function SkillsBlock({ ctx, block }: { ctx: Ctx; block: ResumeBlock }) {
         if (ctx.inSidebar) {
           return (
             <View key={cat}>
-              {grouped.size > 1 && <Text style={ctx.s.skillCategory}>{cat}</Text>}
+              {grouped.size > 1 && <Text style={ctx.s.sidebarSkillCategory}>{cat}</Text>}
               {catSkills.map((sk) => (
                 <Text key={sk.id} style={ctx.s.sidebarSkillItem}>• {sk.name}</Text>
               ))}

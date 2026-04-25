@@ -115,9 +115,12 @@ export function BlockCanvas({
     onReorder([...other, ...reorderedZone]);
   }
 
-  // 40 * spacingScale matches the PDF's page padding so spacing slider effects
-  // line up between canvas and PDF preview.
-  const pagePadding = 40 * style.fontConfig.spacingScale;
+  // pageMargin (default 40) * spacingScale matches the PDF's page padding so
+  // both controls work the same in the canvas and the PDF preview.
+  const pagePadding = style.pageMargin * style.fontConfig.spacingScale;
+  // Sidebar uses ~55% of the outer margin so the coloured area stays visually
+  // distinct from the main column without feeling cramped.
+  const sidebarPad = Math.round(style.pageMargin * 0.55) * style.fontConfig.spacingScale;
 
   // For sidebar-left, the sidebar bleeds to the page edges (Modern-style)
   // and the header lives inside it. The page itself becomes a flex row so
@@ -132,10 +135,10 @@ export function BlockCanvas({
                 width: style.sidebarWidth,
                 backgroundColor: palette.sidebarBg,
                 color: palette.sidebarText,
-                paddingLeft: 22 * style.fontConfig.spacingScale,
-                paddingRight: 22 * style.fontConfig.spacingScale,
-                paddingTop: 32 * style.fontConfig.spacingScale,
-                paddingBottom: 32 * style.fontConfig.spacingScale,
+                paddingLeft: sidebarPad,
+                paddingRight: sidebarPad,
+                paddingTop: pagePadding,
+                paddingBottom: pagePadding,
                 flexShrink: 0,
               }}
             >
@@ -169,10 +172,10 @@ export function BlockCanvas({
               style={{
                 flex: 1,
                 minWidth: 0,
-                paddingLeft: 32 * style.fontConfig.spacingScale,
-                paddingRight: 32 * style.fontConfig.spacingScale,
-                paddingTop: 36 * style.fontConfig.spacingScale,
-                paddingBottom: 36 * style.fontConfig.spacingScale,
+                paddingLeft: pagePadding,
+                paddingRight: pagePadding,
+                paddingTop: pagePadding,
+                paddingBottom: pagePadding,
               }}
             >
               <SortableContext items={mainBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>

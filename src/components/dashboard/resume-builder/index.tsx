@@ -507,6 +507,7 @@ export function ResumeBuilder({
                 blocks={blocks}
                 pageTemplate={style.pageTemplate}
                 sidebarWidth={style.sidebarWidth}
+                pageMargin={style.pageMargin}
               />
             )}
           </div>

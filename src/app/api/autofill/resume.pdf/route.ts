@@ -42,13 +42,14 @@ export async function GET(req: NextRequest) {
   const spacingScaleParam = searchParams.get("spacingScale");
   const pageTemplateParam = searchParams.get("pageTemplate") as PageTemplate | null;
   const sidebarWidthParam = searchParams.get("sidebarWidth");
+  const pageMarginParam = searchParams.get("pageMargin");
   const variantId = searchParams.get("variant");
 
   // Load user's current saved settings (baseline for the base resume, or
   // fallback for legacy variants created before pdf_settings_snapshot existed).
   const { data: saved } = await supabase
     .from("pdf_settings")
-    .select("layout, color_theme, font_family, font_scale, line_height, spacing_scale, page_template, sidebar_width")
+    .select("layout, color_theme, font_family, font_scale, line_height, spacing_scale, page_template, sidebar_width, page_margin")
     .eq("profile_id", user.id)
     .single();
 
@@ -102,6 +103,9 @@ export async function GET(req: NextRequest) {
   const sidebarWidth: number = sidebarWidthParam != null
     ? Math.round(clamp(parseFloat(sidebarWidthParam), 120, 260))
     : (saved?.sidebar_width ?? 180);
+  const pageMargin: number = pageMarginParam != null
+    ? Math.round(clamp(parseFloat(pageMarginParam), 16, 80))
+    : (saved?.page_margin ?? 40);
 
   const blocks = layout === "custom"
     ? await fetchResumeBlocks(supabase, user.id)
@@ -119,7 +123,7 @@ export async function GET(req: NextRequest) {
     layout,
     colorTheme,
     fontConfig,
-    { blocks, pageTemplate, sidebarWidth },
+    { blocks, pageTemplate, sidebarWidth, pageMargin },
   );
   const fileName = `${data.profile.first_name}_${data.profile.last_name}_Resume.pdf`;
 
