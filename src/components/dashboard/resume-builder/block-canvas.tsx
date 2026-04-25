@@ -20,7 +20,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { COLOR_THEMES } from "@/lib/pdf/types";
+import { COLOR_THEMES, PAGE_SIZES } from "@/lib/pdf/types";
 import type { ResumeData } from "@/lib/pdf/types";
 import type { ResumeBlock } from "@/types/database";
 import { renderBlockHtml, type BlockRenderContext, type SaveFieldFn, type DeleteRowFn, type AddRowFn } from "./block-renderers";
@@ -115,15 +115,91 @@ export function BlockCanvas({
     onReorder([...other, ...reorderedZone]);
   }
 
-  // 40 * spacingScale matches the PDF's page padding so spacing slider effects
-  // line up between canvas and PDF preview.
-  const pagePadding = 40 * style.fontConfig.spacingScale;
+  // pageMargin (default 40) * spacingScale matches the PDF's page padding so
+  // both controls work the same in the canvas and the PDF preview.
+  const pagePadding = style.pageMargin * style.fontConfig.spacingScale;
+  // Sidebar uses ~55% of the outer margin so the coloured area stays visually
+  // distinct from the main column without feeling cramped.
+  const sidebarPad = Math.round(style.pageMargin * 0.55) * style.fontConfig.spacingScale;
 
+  // For sidebar-left, the sidebar bleeds to the page edges (Modern-style)
+  // and the header lives inside it. The page itself becomes a flex row so
+  // the coloured sidebar fills the full A4 height.
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <ScalingViewport palette={palette} onDeselect={() => onSelectBlock(null)}>
-        <div style={{ padding: pagePadding }}>
-          {/* Header zone — single sortable context, usually one block. */}
+      <ScalingViewport
+        palette={palette}
+        onDeselect={() => onSelectBlock(null)}
+        naturalWidth={PAGE_SIZES[style.pageSize].widthPx}
+        naturalHeight={PAGE_SIZES[style.pageSize].heightPx}
+      >
+        {isSidebarTemplate ? (
+          <div style={{ display: "flex", minHeight: "100%" }}>
+            <div
+              style={{
+                width: style.sidebarWidth,
+                backgroundColor: palette.sidebarBg,
+                color: palette.sidebarText,
+                paddingLeft: sidebarPad,
+                paddingRight: sidebarPad,
+                paddingTop: pagePadding,
+                paddingBottom: pagePadding,
+                flexShrink: 0,
+              }}
+            >
+              <SortableContext items={headerBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+                {headerBlocks.map((b) => (
+                  <SortableBlockShell
+                    key={b.id}
+                    block={b}
+                    selected={selectedBlockId === b.id}
+                    onSelect={() => onSelectBlock(b.id)}
+                  >
+                    {renderBlockHtml(b, ctxSidebar)}
+                  </SortableBlockShell>
+                ))}
+              </SortableContext>
+              <SortableContext items={sidebarBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+                {sidebarBlocks.map((b) => (
+                  <SortableBlockShell
+                    key={b.id}
+                    block={b}
+                    selected={selectedBlockId === b.id}
+                    onSelect={() => onSelectBlock(b.id)}
+                  >
+                    {renderBlockHtml(b, ctxSidebar)}
+                  </SortableBlockShell>
+                ))}
+              </SortableContext>
+              {sidebarBlocks.length === 0 && <EmptyZoneHint label="Sidebar zone" colorOnDark />}
+            </div>
+            <div
+              style={{
+                flex: 1,
+                minWidth: 0,
+                paddingLeft: pagePadding,
+                paddingRight: pagePadding,
+                paddingTop: pagePadding,
+                paddingBottom: pagePadding,
+              }}
+            >
+              <SortableContext items={mainBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+                {mainBlocks.map((b) => (
+                  <SortableBlockShell
+                    key={b.id}
+                    block={b}
+                    selected={selectedBlockId === b.id}
+                    onSelect={() => onSelectBlock(b.id)}
+                  >
+                    {renderBlockHtml(b, ctxMain)}
+                  </SortableBlockShell>
+                ))}
+              </SortableContext>
+              {mainBlocks.length === 0 && <EmptyZoneHint label="Main zone" />}
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding: pagePadding }}>
             <SortableContext items={headerBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
               {headerBlocks.map((b) => (
                 <SortableBlockShell
@@ -136,107 +212,70 @@ export function BlockCanvas({
                 </SortableBlockShell>
               ))}
             </SortableContext>
-
-            {isSidebarTemplate ? (
-              <div style={{ display: "flex", gap: 18 * style.fontConfig.spacingScale }}>
-                <div
-                  style={{
-                    width: style.sidebarWidth,
-                    backgroundColor: palette.sidebarBg,
-                    color: palette.sidebarText,
-                    padding: 18 * style.fontConfig.spacingScale,
-                    borderRadius: 2,
-                    flexShrink: 0,
-                  }}
-                >
-                  <SortableContext items={sidebarBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-                    {sidebarBlocks.map((b) => (
-                      <SortableBlockShell
-                        key={b.id}
-                        block={b}
-                        selected={selectedBlockId === b.id}
-                        onSelect={() => onSelectBlock(b.id)}
-                      >
-                        {renderBlockHtml(b, ctxSidebar)}
-                      </SortableBlockShell>
-                    ))}
-                  </SortableContext>
-                  {sidebarBlocks.length === 0 && <EmptyZoneHint label="Sidebar zone" colorOnDark />}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <SortableContext items={mainBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-                    {mainBlocks.map((b) => (
-                      <SortableBlockShell
-                        key={b.id}
-                        block={b}
-                        selected={selectedBlockId === b.id}
-                        onSelect={() => onSelectBlock(b.id)}
-                      >
-                        {renderBlockHtml(b, ctxMain)}
-                      </SortableBlockShell>
-                    ))}
-                  </SortableContext>
-                  {mainBlocks.length === 0 && <EmptyZoneHint label="Main zone" />}
-                </div>
-              </div>
-            ) : (
-              <div>
-                <SortableContext items={mainBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-                  {mainBlocks.map((b) => (
-                    <SortableBlockShell
-                      key={b.id}
-                      block={b}
-                      selected={selectedBlockId === b.id}
-                      onSelect={() => onSelectBlock(b.id)}
-                    >
-                      {renderBlockHtml(b, ctxMain)}
-                    </SortableBlockShell>
-                  ))}
-                </SortableContext>
-                {/* Sidebar-zoned blocks fall through inline so nothing
-                    disappears; keep them sortable as their own group. */}
-                <SortableContext items={sidebarBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-                  {sidebarBlocks.map((b) => (
-                    <SortableBlockShell
-                      key={b.id}
-                      block={b}
-                      selected={selectedBlockId === b.id}
-                      onSelect={() => onSelectBlock(b.id)}
-                    >
-                      {renderBlockHtml(b, ctxMain)}
-                    </SortableBlockShell>
-                  ))}
-                </SortableContext>
-                {mainBlocks.length === 0 && sidebarBlocks.length === 0 && (
-                  <EmptyZoneHint label="No blocks yet — add a section or tap the layout icon next to one in the section list to drop it here." />
-                )}
-              </div>
-            )}
-        </div>
+            <div>
+              <SortableContext items={mainBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+                {mainBlocks.map((b) => (
+                  <SortableBlockShell
+                    key={b.id}
+                    block={b}
+                    selected={selectedBlockId === b.id}
+                    onSelect={() => onSelectBlock(b.id)}
+                  >
+                    {renderBlockHtml(b, ctxMain)}
+                  </SortableBlockShell>
+                ))}
+              </SortableContext>
+              {/* Sidebar-zoned blocks fall through inline so nothing
+                  disappears; keep them sortable as their own group. */}
+              <SortableContext items={sidebarBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+                {sidebarBlocks.map((b) => (
+                  <SortableBlockShell
+                    key={b.id}
+                    block={b}
+                    selected={selectedBlockId === b.id}
+                    onSelect={() => onSelectBlock(b.id)}
+                  >
+                    {renderBlockHtml(b, ctxMain)}
+                  </SortableBlockShell>
+                ))}
+              </SortableContext>
+              {mainBlocks.length === 0 && sidebarBlocks.length === 0 && (
+                <EmptyZoneHint label="No blocks yet — add a section or tap the layout icon next to one in the section list to drop it here." />
+              )}
+            </div>
+          </div>
+        )}
       </ScalingViewport>
     </DndContext>
   );
 }
 
 /**
- * Wraps the A4 sheet in a container that scales the sheet down when the
- * available viewport is narrower than the sheet's natural 794px width.
- * Keeps the DOM at full size and uses a CSS transform + compensating outer
- * dimensions so nothing overflows horizontally on phones.
+ * Wraps the page sheet in a container that scales it down when the available
+ * viewport is narrower than the sheet's natural width. Keeps the DOM at full
+ * size and uses a CSS transform + compensating outer dimensions so nothing
+ * overflows horizontally on phones.
+ *
+ * `naturalWidth` / `naturalHeight` come from PAGE_SIZES (A4 = 794×1123,
+ * Letter = 816×1056 — both at 96dpi).
  */
 function ScalingViewport({
   palette,
   onDeselect,
+  naturalWidth,
+  naturalHeight,
   children,
 }: {
   palette: { background: string };
   onDeselect: () => void;
+  naturalWidth: number;
+  naturalHeight: number;
   children: React.ReactNode;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
-  const [sheetHeight, setSheetHeight] = useState(1123);
+  const [sheetHeight, setSheetHeight] = useState(naturalHeight);
 
   // Compute scale from the available width of the scroll container.
   useEffect(() => {
@@ -244,13 +283,13 @@ function ScalingViewport({
     if (!el) return;
     const compute = () => {
       const available = el.clientWidth - 32; // px-4 * 2
-      setScale(Math.min(1, available / 794));
+      setScale(Math.min(1, available / naturalWidth));
     };
     compute();
     const ro = new ResizeObserver(compute);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [naturalWidth]);
 
   // Track the sheet's natural rendered height so the outer reserves the
   // correct scaled vertical space — otherwise the sheet's bottom clips
@@ -271,7 +310,7 @@ function ScalingViewport({
     >
       <div
         style={{
-          width: 794 * scale,
+          width: naturalWidth * scale,
           height: sheetHeight * scale,
         }}
         onClick={(e) => e.stopPropagation()}
@@ -280,8 +319,8 @@ function ScalingViewport({
           ref={sheetRef}
           className="relative rounded-sm shadow-lg"
           style={{
-            width: 794,
-            minHeight: 1123,
+            width: naturalWidth,
+            minHeight: naturalHeight,
             backgroundColor: palette.background,
             transform: `scale(${scale})`,
             transformOrigin: "top left",

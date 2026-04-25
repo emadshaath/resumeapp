@@ -24,7 +24,33 @@ export function createCustomStyles(c: PdfColorPalette, f: PdfFontConfig) {
       padding: 40 * sp,
       flexDirection: "column",
     },
-    // Two-column shell for sidebar-left page templates.
+    /**
+     * Sidebar-left page shell. The Page itself is a flex row so the sidebar
+     * column can extend full height (the way the Modern preset works) — no
+     * outer padding because the sidebar's coloured background should bleed
+     * to the page edges.
+     */
+    pageRow: {
+      fontFamily: f.fontFamily,
+      fontSize: 10 * s,
+      color: c.text,
+      backgroundColor: c.background,
+      lineHeight: lh,
+      flexDirection: "row",
+    },
+    sidebarColFull: {
+      backgroundColor: c.sidebarBg,
+      color: c.sidebarText,
+      paddingHorizontal: 22 * sp,
+      paddingVertical: 32 * sp,
+    },
+    mainColPad: {
+      flex: 1,
+      paddingHorizontal: 32 * sp,
+      paddingVertical: 36 * sp,
+    },
+    // Two-column shell for the legacy single-column body that still has
+    // some sidebar-zoned blocks falling through (kept for back-compat).
     columns: {
       flexDirection: "row",
       gap: 18 * sp,
@@ -39,7 +65,7 @@ export function createCustomStyles(c: PdfColorPalette, f: PdfFontConfig) {
       flex: 1,
     },
 
-    // HEADER block
+    // HEADER block (single-column / main rendering)
     headerWrap: {
       marginBottom: 16 * sp,
       borderBottomWidth: 2,
@@ -50,11 +76,41 @@ export function createCustomStyles(c: PdfColorPalette, f: PdfFontConfig) {
       fontSize: 24 * s,
       fontWeight: "bold",
       color: c.heading,
-      marginBottom: 4 * sp,
+      // Tight line-height so a single-line name doesn't reserve ~35px of
+      // vertical leading; explicit bottom padding stops descenders from
+      // crashing into the headline below.
+      lineHeight: 1.15,
+      marginBottom: 10 * sp,
     },
     headline: { fontSize: 12 * s, color: c.textLight, marginBottom: 6 * sp },
     contactRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 * sp },
     contactItem: { fontSize: 9 * s, color: c.textLight },
+
+    // HEADER block (rendered inside a sidebar column — name + contact stacked)
+    sidebarHeaderWrap: {
+      marginBottom: 18 * sp,
+      paddingBottom: 12 * sp,
+      borderBottomWidth: 1,
+      borderBottomColor: c.primaryLight,
+    },
+    sidebarName: {
+      fontSize: 17 * s,
+      fontWeight: "bold",
+      color: c.sidebarHeading,
+      marginBottom: 4 * sp,
+    },
+    sidebarHeadline: {
+      fontSize: 9.5 * s,
+      color: c.sidebarText,
+      marginBottom: 10 * sp,
+      lineHeight: lh,
+    },
+    sidebarContactItem: {
+      fontSize: 8.5 * s,
+      color: c.sidebarText,
+      marginBottom: 3 * sp,
+      lineHeight: lh,
+    },
 
     // Section envelope shared by experience / education / skills / etc.
     section: { marginBottom: 12 * sp },
@@ -113,6 +169,13 @@ export function createCustomStyles(c: PdfColorPalette, f: PdfFontConfig) {
       color: c.heading,
       marginTop: 3 * sp,
       marginBottom: 1 * sp,
+    },
+    sidebarSkillCategory: {
+      fontSize: 9 * s,
+      fontWeight: "bold",
+      color: c.sidebarHeading,
+      marginTop: 4 * sp,
+      marginBottom: 2 * sp,
     },
     sidebarSkillItem: {
       fontSize: 9 * s,

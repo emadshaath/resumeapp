@@ -4,11 +4,13 @@ import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
 import { fetchResumeBlocks } from "@/lib/blocks/fetch";
 import { renderResumePdf } from "@/lib/pdf/render";
 import { applyVariantToResume } from "@/lib/tailor";
-import type { PdfLayout, PdfColorTheme, PdfFontFamily, PdfFontConfig } from "@/lib/pdf/types";
+import type { PdfLayout, PdfColorTheme, PdfFontFamily, PdfFontConfig, PdfPageSize } from "@/lib/pdf/types";
 import { DEFAULT_FONT_CONFIG, FONT_OPTIONS } from "@/lib/pdf/types";
 import type { VariantData, PdfSettingsSnapshot, PageTemplate } from "@/types/database";
 
-const VALID_LAYOUTS: PdfLayout[] = ["classic", "modern", "minimal", "executive", "custom"];
+// Layout query param is accepted for back-compat (migration 00027 collapsed
+// every variant into "custom") but the value is ignored — every render
+// flows through CustomLayout now.
 const VALID_THEMES: PdfColorTheme[] = ["navy", "teal", "charcoal"];
 const VALID_FONTS = Object.keys(FONT_OPTIONS) as PdfFontFamily[];
 const VALID_PAGE_TEMPLATES: PageTemplate[] = ["single-column", "sidebar-left"];
@@ -42,13 +44,15 @@ export async function GET(req: NextRequest) {
   const spacingScaleParam = searchParams.get("spacingScale");
   const pageTemplateParam = searchParams.get("pageTemplate") as PageTemplate | null;
   const sidebarWidthParam = searchParams.get("sidebarWidth");
+  const pageMarginParam = searchParams.get("pageMargin");
+  const pageSizeParam = searchParams.get("pageSize") as PdfPageSize | null;
   const variantId = searchParams.get("variant");
 
   // Load user's current saved settings (baseline for the base resume, or
   // fallback for legacy variants created before pdf_settings_snapshot existed).
   const { data: saved } = await supabase
     .from("pdf_settings")
-    .select("layout, color_theme, font_family, font_scale, line_height, spacing_scale, page_template, sidebar_width")
+    .select("layout, color_theme, font_family, font_scale, line_height, spacing_scale, page_template, sidebar_width, page_margin, page_size")
     .eq("profile_id", user.id)
     .single();
 
@@ -68,9 +72,11 @@ export async function GET(req: NextRequest) {
   // Styling baseline: variant snapshot > user's saved settings > defaults.
   const baseline = variantRow?.pdf_settings_snapshot ?? saved ?? null;
 
-  const layout: PdfLayout = (layoutParam && VALID_LAYOUTS.includes(layoutParam))
-    ? layoutParam
-    : ((baseline?.layout as PdfLayout) || "classic");
+  // layoutParam is accepted for back-compat but coerced — every render uses
+  // the block-driven Custom layout. Reference the variable so the param
+  // parsing above stays alive for typecheck.
+  void layoutParam;
+  const layout: PdfLayout = "custom";
 
   const colorTheme: PdfColorTheme = (themeParam && VALID_THEMES.includes(themeParam))
     ? themeParam
@@ -102,6 +108,12 @@ export async function GET(req: NextRequest) {
   const sidebarWidth: number = sidebarWidthParam != null
     ? Math.round(clamp(parseFloat(sidebarWidthParam), 120, 260))
     : (saved?.sidebar_width ?? 180);
+  const pageMargin: number = pageMarginParam != null
+    ? Math.round(clamp(parseFloat(pageMarginParam), 16, 80))
+    : (saved?.page_margin ?? 40);
+  const pageSize: PdfPageSize = pageSizeParam === "LETTER" || pageSizeParam === "A4"
+    ? pageSizeParam
+    : ((saved?.page_size as PdfPageSize) || "A4");
 
   const blocks = layout === "custom"
     ? await fetchResumeBlocks(supabase, user.id)
@@ -119,7 +131,7 @@ export async function GET(req: NextRequest) {
     layout,
     colorTheme,
     fontConfig,
-    { blocks, pageTemplate, sidebarWidth },
+    { blocks, pageTemplate, sidebarWidth, pageMargin, pageSize },
   );
   const fileName = `${data.profile.first_name}_${data.profile.last_name}_Resume.pdf`;
 

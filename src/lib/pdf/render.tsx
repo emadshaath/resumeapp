@@ -1,12 +1,8 @@
 import React from "react";
 import { renderToBuffer } from "@react-pdf/renderer";
-import type { PdfLayout, PdfColorTheme, PdfFontConfig, ResumeData } from "./types";
+import type { PdfLayout, PdfColorTheme, PdfFontConfig, PdfPageSize, ResumeData } from "./types";
 import { COLOR_THEMES, DEFAULT_FONT_CONFIG } from "./types";
 import type { PageTemplate, ResumeBlock } from "@/types/database";
-import { ClassicLayout } from "./layouts/classic";
-import { ModernLayout } from "./layouts/modern";
-import { MinimalLayout } from "./layouts/minimal";
-import { ExecutiveLayout } from "./layouts/executive";
 import { CustomLayout } from "./layouts/custom";
 import "./fonts";
 
@@ -14,17 +10,24 @@ export interface CustomLayoutInputs {
   blocks: ResumeBlock[];
   pageTemplate: PageTemplate;
   sidebarWidth: number;
+  pageMargin: number;
+  pageSize: PdfPageSize;
 }
 
 const DEFAULT_CUSTOM_INPUTS: CustomLayoutInputs = {
   blocks: [],
   pageTemplate: "single-column",
   sidebarWidth: 180,
+  pageMargin: 40,
+  pageSize: "A4",
 };
 
 export async function renderResumePdf(
   data: ResumeData,
-  layout: PdfLayout = "classic",
+  // `layout` is preserved as an argument for back-compat with callers that
+  // still pass the old preset values, but only "custom" is rendered now —
+  // everything routes through CustomLayout. See migration 00027.
+  layout: PdfLayout = "custom",
   colorTheme: PdfColorTheme = "navy",
   fontConfig: PdfFontConfig = DEFAULT_FONT_CONFIG,
   customInputs: CustomLayoutInputs = DEFAULT_CUSTOM_INPUTS,
@@ -36,32 +39,24 @@ export async function renderResumePdf(
 
 export function buildResumeDocument(
   data: ResumeData,
-  layout: PdfLayout = "classic",
+  // see renderResumePdf — argument retained for signature compatibility.
+  layout: PdfLayout = "custom",
   colorTheme: PdfColorTheme = "navy",
   fontConfig: PdfFontConfig = DEFAULT_FONT_CONFIG,
   customInputs: CustomLayoutInputs = DEFAULT_CUSTOM_INPUTS,
 ): React.JSX.Element {
+  void layout; // signature-compat only — every render flows through CustomLayout
   const palette = COLOR_THEMES[colorTheme].palette;
-  switch (layout) {
-    case "modern":
-      return <ModernLayout data={data} palette={palette} font={fontConfig} />;
-    case "minimal":
-      return <MinimalLayout data={data} palette={palette} font={fontConfig} />;
-    case "executive":
-      return <ExecutiveLayout data={data} palette={palette} font={fontConfig} />;
-    case "custom":
-      return (
-        <CustomLayout
-          data={data}
-          palette={palette}
-          font={fontConfig}
-          blocks={customInputs.blocks}
-          pageTemplate={customInputs.pageTemplate}
-          sidebarWidth={customInputs.sidebarWidth}
-        />
-      );
-    case "classic":
-    default:
-      return <ClassicLayout data={data} palette={palette} font={fontConfig} />;
-  }
+  return (
+    <CustomLayout
+      data={data}
+      palette={palette}
+      font={fontConfig}
+      blocks={customInputs.blocks}
+      pageTemplate={customInputs.pageTemplate}
+      sidebarWidth={customInputs.sidebarWidth}
+      pageMargin={customInputs.pageMargin}
+      pageSize={customInputs.pageSize}
+    />
+  );
 }

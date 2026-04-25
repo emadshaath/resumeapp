@@ -1,6 +1,6 @@
 import React from "react";
 import { Document, Page, View } from "@react-pdf/renderer";
-import type { PdfColorPalette, PdfFontConfig, ResumeData } from "../../types";
+import type { PdfColorPalette, PdfFontConfig, PdfPageSize, ResumeData } from "../../types";
 import type { PageTemplate, ResumeBlock } from "@/types/database";
 import { createCustomStyles } from "./styles";
 import { renderBlock } from "./blocks";
@@ -12,14 +12,25 @@ export interface CustomLayoutProps {
   blocks: ResumeBlock[];
   pageTemplate: PageTemplate;
   sidebarWidth: number;
+  /** Outer page margin in pixels at default scale (40 = previous default).
+   *  Multiplied through font.spacingScale at render time. */
+  pageMargin: number;
+  /** Paper size — A4 (default) or US Letter. */
+  pageSize: PdfPageSize;
 }
 
 /**
  * Block-driven PDF layout. Takes an arbitrary list of ResumeBlocks and renders
- * them into the page's zones. The header zone always occupies the full page
- * width at the top. Main + sidebar zones are split side-by-side when
- * pageTemplate is "sidebar-left"; otherwise sidebar blocks are appended below
- * main blocks so nothing silently disappears when the user switches templates.
+ * them into the page's zones.
+ *
+ * Two page shapes:
+ *   - single-column: header block at the top (full width), main + sidebar
+ *     blocks stacked below in a single column. (Sidebar-zoned blocks fall
+ *     through here so switching templates never silently drops content.)
+ *   - sidebar-left: the Page itself is a flex row so the coloured sidebar
+ *     extends to full page height, matching the Modern preset. The header
+ *     block lives inside the sidebar (Modern-style: name + headline +
+ *     contact stacked at the top of the sidebar).
  */
 export function CustomLayout({
   data,
@@ -28,8 +39,17 @@ export function CustomLayout({
   blocks,
   pageTemplate,
   sidebarWidth,
+  pageMargin,
+  pageSize,
 }: CustomLayoutProps) {
   const styles = createCustomStyles(palette, font);
+  // Apply spacing scale so the margin slider feels consistent with the
+  // section-spacing slider.
+  const sp = font.spacingScale;
+  const outerPad = pageMargin * sp;
+  // Sidebar uses ~55% of the page margin so the colored area stays visually
+  // distinct from the main column without feeling cramped.
+  const sidebarPad = Math.round(pageMargin * 0.55) * sp;
 
   const sorted = [...blocks].sort((a, b) => a.display_order - b.display_order);
   const headerBlocks = sorted.filter((b) => b.zone === "header");
@@ -39,31 +59,36 @@ export function CustomLayout({
   const ctxMain = { s: styles, data, inSidebar: false };
   const ctxSidebar = { s: styles, data, inSidebar: true };
 
-  const isSidebarTemplate = pageTemplate === "sidebar-left";
+  if (pageTemplate === "sidebar-left") {
+    return (
+      <Document>
+        <Page size={pageSize} style={styles.pageRow}>
+          <View
+            style={[
+              styles.sidebarColFull,
+              { width: sidebarWidth, paddingHorizontal: sidebarPad, paddingVertical: outerPad },
+            ]}
+          >
+            {headerBlocks.map((b) => renderBlock(b, ctxSidebar))}
+            {sidebarBlocks.map((b) => renderBlock(b, ctxSidebar))}
+          </View>
+          <View style={[styles.mainColPad, { paddingHorizontal: outerPad, paddingVertical: outerPad }]}>
+            {mainBlocks.map((b) => renderBlock(b, ctxMain))}
+          </View>
+        </Page>
+      </Document>
+    );
+  }
 
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
-        <View style={styles.pageBody}>
+      <Page size={pageSize} style={styles.page}>
+        <View style={[styles.pageBody, { padding: outerPad }]}>
           {headerBlocks.map((b) => renderBlock(b, ctxMain))}
-
-          {isSidebarTemplate ? (
-            <View style={styles.columns}>
-              <View style={[styles.sidebarCol, { width: sidebarWidth }]}>
-                {sidebarBlocks.map((b) => renderBlock(b, ctxSidebar))}
-              </View>
-              <View style={styles.mainCol}>
-                {mainBlocks.map((b) => renderBlock(b, ctxMain))}
-              </View>
-            </View>
-          ) : (
-            <View>
-              {mainBlocks.map((b) => renderBlock(b, ctxMain))}
-              {/* Fallback: render sidebar-zoned blocks inline so switching
-                  templates never silently drops content. */}
-              {sidebarBlocks.map((b) => renderBlock(b, ctxMain))}
-            </View>
-          )}
+          {mainBlocks.map((b) => renderBlock(b, ctxMain))}
+          {/* Fallback: render sidebar-zoned blocks inline so switching
+              templates never silently drops content. */}
+          {sidebarBlocks.map((b) => renderBlock(b, ctxMain))}
         </View>
       </Page>
     </Document>

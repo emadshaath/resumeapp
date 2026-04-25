@@ -26,6 +26,7 @@ import { AIReviewDrawer } from "@/components/dashboard/ai-review-drawer";
 import { VersionHistoryDrawer } from "@/components/dashboard/version-history-drawer";
 import { LinkedInAnalyzerDrawer } from "@/components/dashboard/linkedin-analyzer-drawer";
 import { sectionTypeToBlockType } from "@/lib/blocks/seed";
+import type { StarterId } from "@/lib/blocks/starters";
 import { BuilderHeader, type BuilderView } from "./builder-header";
 import { SectionList } from "./section-list";
 import { SectionsBottomSheet } from "./sections-bottom-sheet";
@@ -215,6 +216,28 @@ export function ResumeBuilder({
     setData((cur) => ({ ...cur, profile: { ...cur.profile, ...patch } as Profile }));
     await supabase.from("profiles").update(patch).eq("id", userId);
   }, [supabase, userId]);
+
+  // Apply a starter template — replaces the user's resume_blocks with the
+  // starter's arrangement and updates pdf_settings.page_template. Confirmed
+  // by the StylePanel before this fires; we update local state from the
+  // server response so the canvas reflects the new layout immediately.
+  const applyStarterTemplate = useCallback(async (id: StarterId) => {
+    const res = await fetch("/api/resume/starters", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    if (!res.ok) return;
+    const { blocks: nextBlocks, starter } = await res.json();
+    setBlocks(nextBlocks as ResumeBlock[]);
+    setStyle((cur) => ({
+      ...cur,
+      layout: "custom",
+      pageTemplate: (starter?.pageTemplate ?? cur.pageTemplate) as StyleState["pageTemplate"],
+      sidebarWidth: starter?.sidebarWidth ?? cur.sidebarWidth,
+    }));
+    setSelectedBlockId(null);
+  }, []);
 
   // Shared: create a canvas block for a given section if one doesn't already
   // exist. Used both by the auto-add-on-create flow and by the explicit
@@ -458,7 +481,7 @@ export function ResumeBuilder({
           </div>
 
           <div className="flex-1 w-full min-h-0">
-            {centerMode === "design" && style.layout === "custom" ? (
+            {centerMode === "design" ? (
               <BlockCanvas
                 data={data}
                 blocks={blocks}
@@ -471,11 +494,6 @@ export function ResumeBuilder({
                 onReorder={reorderBlocks}
               />
             ) : (
-              // Preview mode — and also the fallback for Design when the user
-              // picked a preset layout (Classic/Modern/Minimal/Executive). The
-              // block canvas is block-driven; the preset layouts aren't, so
-              // there'd be nothing meaningful to edit on them beyond what the
-              // section forms already handle.
               <PdfLivePreview
                 data={data}
                 layout={style.layout}
@@ -484,6 +502,8 @@ export function ResumeBuilder({
                 blocks={blocks}
                 pageTemplate={style.pageTemplate}
                 sidebarWidth={style.sidebarWidth}
+                pageMargin={style.pageMargin}
+                pageSize={style.pageSize}
               />
             )}
           </div>
@@ -518,7 +538,11 @@ export function ResumeBuilder({
               onProfilePatch={patchProfile}
             />
           ) : (
-            <StylePanel value={style} onChange={(p) => setStyle((cur) => ({ ...cur, ...p }))} />
+            <StylePanel
+              value={style}
+              onChange={(p) => setStyle((cur) => ({ ...cur, ...p }))}
+              onApplyStarter={applyStarterTemplate}
+            />
           )}
         </aside>
       </div>

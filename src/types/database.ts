@@ -267,7 +267,7 @@ export interface JobApplicationEvent {
 export interface PdfSettings {
   id: string;
   profile_id: string;
-  layout: "classic" | "modern" | "minimal" | "executive" | "custom";
+  layout: "custom";
   color_theme: "navy" | "teal" | "charcoal";
   show_on_profile: boolean;
   font_family: "Helvetica" | "Times-Roman" | "Courier" | "Inter" | "Merriweather" | "Source Sans Pro";
@@ -276,6 +276,8 @@ export interface PdfSettings {
   spacing_scale: number;
   page_template: "single-column" | "sidebar-left";
   sidebar_width: number;
+  page_margin: number;
+  page_size: "A4" | "LETTER";
   created_at: string;
   updated_at: string;
 }
@@ -355,7 +357,7 @@ export interface VariantData {
 }
 
 export interface PdfSettingsSnapshot {
-  layout: "classic" | "modern" | "minimal" | "executive" | "custom";
+  layout: "custom";
   color_theme: "navy" | "teal" | "charcoal";
   font_family: "Helvetica" | "Times-Roman" | "Courier" | "Inter" | "Merriweather" | "Source Sans Pro";
   font_scale: number;

@@ -431,6 +431,75 @@ function HeaderBlock({ ctx }: { ctx: BlockRenderContext }) {
   const save = (field: keyof Profile) => (v: string) =>
     ctx.saveField({ table: "profiles", id: profile.id, field: String(field), value: v });
 
+  // Sidebar variant: compact, vertical, light-on-dark — name + headline +
+  // contact stacked at the top of the coloured sidebar. Matches the Modern
+  // preset's header.
+  if (ctx.inSidebar) {
+    const sidebarText = ctx.palette.sidebarText;
+    const sidebarHeading = ctx.palette.sidebarHeading;
+    return (
+      <div
+        style={{
+          marginBottom: spacing(ctx, 18),
+          paddingBottom: spacing(ctx, 12),
+          borderBottom: `1px solid ${ctx.palette.primaryLight}`,
+        }}
+      >
+        <div
+          style={{
+            ...fontStyle(ctx, 17),
+            fontWeight: 700,
+            color: sidebarHeading,
+            marginBottom: spacing(ctx, 4),
+            lineHeight: 1.15,
+          }}
+        >
+          <Editable
+            ctx={ctx}
+            value={profile.first_name || ""}
+            onSave={save("first_name")}
+            placeholder="First name"
+          />
+          {" "}
+          <Editable
+            ctx={ctx}
+            value={profile.last_name || ""}
+            onSave={save("last_name")}
+            placeholder="Last name"
+          />
+        </div>
+        <Editable
+          ctx={ctx}
+          value={profile.headline || ""}
+          onSave={save("headline")}
+          placeholder="Professional headline"
+          as="div"
+          multiline
+          style={{
+            ...fontStyle(ctx, 9.5),
+            color: sidebarText,
+            marginBottom: spacing(ctx, 10),
+            lineHeight: ctx.style.fontConfig.lineHeight,
+          }}
+        />
+        <div style={{ display: "flex", flexDirection: "column", gap: spacing(ctx, 3) }}>
+          <ContactField ctx={ctx} hiddenOnOutput={profile.show_email === false} hiddenHint="Email hidden from the resume — toggle in Profile">
+            <Editable ctx={ctx} value={profile.email || ""} onSave={save("email")} placeholder="email@example.com" style={{ ...fontStyle(ctx, 8.5), color: sidebarText }} />
+          </ContactField>
+          <ContactField ctx={ctx} hiddenOnOutput={profile.show_phone === false} hiddenHint="Phone hidden from the resume — toggle in Profile">
+            <Editable ctx={ctx} value={profile.phone_personal || ""} onSave={save("phone_personal")} placeholder="Phone" style={{ ...fontStyle(ctx, 8.5), color: sidebarText }} />
+          </ContactField>
+          <ContactField ctx={ctx} hiddenOnOutput={profile.show_location === false} hiddenHint="Location hidden from the resume — toggle in Profile">
+            <Editable ctx={ctx} value={profile.location || ""} onSave={save("location")} placeholder="Location" style={{ ...fontStyle(ctx, 8.5), color: sidebarText }} />
+          </ContactField>
+          <ContactField ctx={ctx} hiddenOnOutput={profile.show_website === false} hiddenHint="Website hidden from the resume — toggle in Profile">
+            <Editable ctx={ctx} value={profile.website_url || ""} onSave={save("website_url")} placeholder="Website" style={{ ...fontStyle(ctx, 8.5), color: sidebarText }} />
+          </ContactField>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -444,7 +513,12 @@ function HeaderBlock({ ctx }: { ctx: BlockRenderContext }) {
           ...fontStyle(ctx, 24),
           fontWeight: 700,
           color: ctx.palette.heading,
-          marginBottom: spacing(ctx, 4),
+          // Tighten leading on the big name so a long single-line name
+          // doesn't burn ~35px of vertical space, then add explicit
+          // breathing room before the headline so descenders don't kiss
+          // ascenders below.
+          lineHeight: 1.15,
+          marginBottom: spacing(ctx, 10),
         }}
       >
         <Editable

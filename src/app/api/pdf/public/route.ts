@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
 import { fetchResumeBlocks } from "@/lib/blocks/fetch";
 import { renderResumePdf } from "@/lib/pdf/render";
-import type { PdfLayout, PdfColorTheme, PdfSettings, PdfFontConfig, PdfFontFamily } from "@/lib/pdf/types";
+import type { PdfLayout, PdfColorTheme, PdfSettings, PdfFontConfig, PdfFontFamily, PdfPageSize } from "@/lib/pdf/types";
 import { DEFAULT_FONT_CONFIG } from "@/lib/pdf/types";
 import type { PageTemplate } from "@/types/database";
 
@@ -39,7 +39,10 @@ export async function GET(req: NextRequest) {
   const data = await fetchResumeData(supabase, profile.id);
   if (!data) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
-  const layout = settings.layout as PdfLayout;
+  // Always Custom — see migration 00027. Kept as a typed constant rather
+  // than reading settings.layout to make the intent explicit.
+  const layout: PdfLayout = "custom";
+  void settings.layout;
   const colorTheme = settings.color_theme as PdfColorTheme;
   const fontConfig: PdfFontConfig = {
     fontFamily: (settings.font_family as PdfFontFamily) || DEFAULT_FONT_CONFIG.fontFamily,
@@ -53,13 +56,15 @@ export async function GET(req: NextRequest) {
     : [];
   const pageTemplate: PageTemplate = (settings.page_template as PageTemplate) || "single-column";
   const sidebarWidth = settings.sidebar_width ?? 180;
+  const pageMargin = settings.page_margin ?? 40;
+  const pageSize: PdfPageSize = (settings.page_size as PdfPageSize) || "A4";
 
   const pdfBuffer = await renderResumePdf(
     data,
     layout,
     colorTheme,
     fontConfig,
-    { blocks, pageTemplate, sidebarWidth },
+    { blocks, pageTemplate, sidebarWidth, pageMargin, pageSize },
   );
   const fileName = `${profile.first_name}_${profile.last_name}_Resume.pdf`;
 

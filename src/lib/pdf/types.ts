@@ -1,6 +1,22 @@
 import type { Profile, Experience, Education, Skill, Certification, Project, CustomSection, ResumeSection } from "@/types/database";
 
-export type PdfLayout = "classic" | "modern" | "minimal" | "executive" | "custom";
+/**
+ * Always "custom" now — the four pre-existing presets (classic / modern /
+ * minimal / executive) collapsed into starter templates that produce a
+ * Custom-layout block arrangement (see lib/blocks/starters.ts). Type is
+ * a single-element union so old code paths that switch on layout value
+ * fail loudly at typecheck rather than silently rendering nothing.
+ */
+export type PdfLayout = "custom";
+
+/** A4 (210x297mm) or US Letter (8.5"x11"). @react-pdf/renderer accepts both
+ *  as size strings; HTML canvas renders pixel-equivalents at 96dpi. */
+export type PdfPageSize = "A4" | "LETTER";
+
+export const PAGE_SIZES: Record<PdfPageSize, { label: string; description: string; widthPx: number; heightPx: number }> = {
+  A4:     { label: "A4",        description: "210 × 297 mm",   widthPx: 794, heightPx: 1123 },
+  LETTER: { label: "US Letter", description: "8.5 × 11 in",    widthPx: 816, heightPx: 1056 },
+};
 export type PdfColorTheme = "navy" | "teal" | "charcoal";
 
 export type PdfFontFamily =
@@ -153,22 +169,6 @@ export const COLOR_THEMES: Record<PdfColorTheme, { label: string; palette: PdfCo
 };
 
 export const LAYOUT_OPTIONS: Record<PdfLayout, { label: string; description: string }> = {
-  classic: {
-    label: "Classic",
-    description: "Traditional single-column layout with clean section dividers",
-  },
-  modern: {
-    label: "Modern",
-    description: "Two-column design with a colored sidebar for skills and contact",
-  },
-  minimal: {
-    label: "Minimal",
-    description: "Spacious, typography-focused layout with subtle accents",
-  },
-  executive: {
-    label: "Executive",
-    description: "Bold header with structured sections and accent bars",
-  },
   custom: {
     label: "Custom",
     description: "Block-based layout you arrange yourself in the builder",
