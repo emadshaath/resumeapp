@@ -11,6 +11,8 @@ import type { JobSource } from "@/lib/scrape/types";
 import { matchRule, extractScreenerQuestions } from "@/lib/auto-apply/matcher";
 import { draftAnswers } from "@/lib/auto-apply/answer-questions";
 import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
+import { snapshotPdfSettings } from "@/lib/pdf/snapshot";
+import { snapshotResumeBlocks } from "@/lib/blocks/snapshot";
 import { generateTailoredVariant, applyVariantToResume } from "@/lib/tailor";
 import { sanitizeJobDescription } from "@/lib/jobs/sanitize-description";
 import type { Tier, AutoApplyRule } from "@/types/database";
@@ -87,8 +89,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Preload resume once (Claude scoring is expensive; fetch before the loop)
-  const resumeData = await fetchResumeData(supabase, user.id);
+  // Preload resume + freeze PDF styling/blocks once. Every variant created
+  // below shares the same snapshot pair, mirroring the other variant
+  // creation sites (POST /api/variants, smart-fill).
+  const [resumeData, pdfSettingsSnapshot, blocksSnapshot] = await Promise.all([
+    fetchResumeData(supabase, user.id),
+    snapshotPdfSettings(supabase, user.id),
+    snapshotResumeBlocks(supabase, user.id),
+  ]);
   if (!resumeData)
     return NextResponse.json({ error: "Profile data not found" }, { status: 404 });
 
@@ -195,6 +203,8 @@ export async function POST(req: NextRequest) {
             match_score: matchScore,
             job_application_id: newJob.id,
             source: "ai",
+            pdf_settings_snapshot: pdfSettingsSnapshot,
+            blocks_snapshot: blocksSnapshot,
           })
           .select("id")
           .single();

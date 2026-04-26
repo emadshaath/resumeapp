@@ -20,7 +20,7 @@ export async function snapshotPdfSettings(
     .single();
 
   return {
-    layout: (data?.layout as PdfSettingsSnapshot["layout"]) || "classic",
+    layout: (data?.layout as PdfSettingsSnapshot["layout"]) || "custom",
     color_theme: (data?.color_theme as PdfSettingsSnapshot["color_theme"]) || "navy",
     font_family: (data?.font_family as PdfSettingsSnapshot["font_family"]) || DEFAULT_FONT_CONFIG.fontFamily,
     font_scale: data?.font_scale ?? DEFAULT_FONT_CONFIG.fontScale,

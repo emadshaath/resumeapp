@@ -4,9 +4,9 @@ import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
 import { fetchResumeBlocks } from "@/lib/blocks/fetch";
 import { renderResumePdf } from "@/lib/pdf/render";
 import { applyVariantToResume } from "@/lib/tailor";
-import type { PdfLayout, PdfColorTheme, PdfFontFamily, PdfFontConfig, PdfPageSize } from "@/lib/pdf/types";
+import type { PdfLayout, PdfColorTheme, PdfFontFamily, PdfFontConfig, PdfPageSize, ResumeData } from "@/lib/pdf/types";
 import { DEFAULT_FONT_CONFIG, FONT_OPTIONS } from "@/lib/pdf/types";
-import type { VariantData, PdfSettingsSnapshot, PageTemplate } from "@/types/database";
+import type { VariantData, PdfSettingsSnapshot, PageTemplate, ResumeBlock } from "@/types/database";
 
 // Layout query param is accepted for back-compat (migration 00027 collapsed
 // every variant into "custom") but the value is ignored — every render
@@ -27,9 +27,9 @@ function clamp(n: number, min: number, max: number) {
 //   3. User's current pdf_settings row
 //   4. Hard-coded defaults
 //
-// When the effective layout is "custom", the user's current resume_blocks are
-// used to render the PDF. Block arrangement is not yet part of the variant
-// snapshot — see README note in lib/blocks for the v2 plan.
+// When the effective layout is "custom", we render against the variant's
+// frozen blocks_snapshot when present (variant downloads), falling back to
+// the user's live resume_blocks (base resume or legacy variants).
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -56,13 +56,18 @@ export async function GET(req: NextRequest) {
     .eq("profile_id", user.id)
     .single();
 
-  // If this is a variant download, load the variant (incl. its frozen snapshot).
-  type VariantRow = { variant_data: VariantData; pdf_settings_snapshot: PdfSettingsSnapshot | null };
+  // If this is a variant download, load the variant (incl. its frozen snapshots).
+  type VariantRow = {
+    variant_data: VariantData;
+    resolved_resume: ResumeData | null;
+    pdf_settings_snapshot: PdfSettingsSnapshot | null;
+    blocks_snapshot: ResumeBlock[] | null;
+  };
   let variantRow: VariantRow | null = null;
   if (variantId) {
     const { data } = await supabase
       .from("profile_variants")
-      .select("variant_data, pdf_settings_snapshot")
+      .select("variant_data, resolved_resume, pdf_settings_snapshot, blocks_snapshot")
       .eq("id", variantId)
       .eq("profile_id", user.id)
       .single();
@@ -115,16 +120,27 @@ export async function GET(req: NextRequest) {
     ? pageSizeParam
     : ((saved?.page_size as PdfPageSize) || "A4");
 
+  // Block arrangement: variant's frozen snapshot wins; otherwise fall back
+  // to the user's live resume_blocks (base resume + legacy variants).
   const blocks = layout === "custom"
-    ? await fetchResumeBlocks(supabase, user.id)
+    ? (variantRow?.blocks_snapshot ?? await fetchResumeBlocks(supabase, user.id))
     : [];
 
-  let data = await fetchResumeData(supabase, user.id);
-  if (!data) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
-
-  if (variantRow?.variant_data) {
-    data = applyVariantToResume(data, variantRow.variant_data);
+  // Resume content: prefer the variant's frozen resolved_resume so editing
+  // base content later doesn't drift the variant. Fall back to live data +
+  // re-applied variant_data only for legacy variants without resolved_resume.
+  let data: ResumeData | null;
+  if (variantRow) {
+    if (variantRow.resolved_resume) {
+      data = variantRow.resolved_resume;
+    } else {
+      const live = await fetchResumeData(supabase, user.id);
+      data = live ? applyVariantToResume(live, variantRow.variant_data) : null;
+    }
+  } else {
+    data = await fetchResumeData(supabase, user.id);
   }
+  if (!data) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
   const pdfBuffer = await renderResumePdf(
     data,

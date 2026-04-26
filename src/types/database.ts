@@ -376,6 +376,10 @@ export interface ProfileVariant {
   source: "ai" | "manual";
   is_default: boolean;
   pdf_settings_snapshot: PdfSettingsSnapshot | null;
+  /** Frozen resume_blocks arrangement at variant creation time. Migration
+   *  00029. NULL on legacy variants — those fall back to the user's live
+   *  blocks at download time. */
+  blocks_snapshot: ResumeBlock[] | null;
   created_at: string;
   updated_at: string;
 }

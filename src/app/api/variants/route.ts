@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hasFeature, getLimit, getRequiredTier, getEffectiveTier } from "@/lib/stripe/feature-gate";
 import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
 import { snapshotPdfSettings } from "@/lib/pdf/snapshot";
+import { snapshotResumeBlocks } from "@/lib/blocks/snapshot";
 import { applyVariantToResume } from "@/lib/tailor";
 import { captureSnapshot } from "@/lib/snapshots/service";
 import type { Tier, VariantData } from "@/types/database";
@@ -85,11 +86,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Name and variant_data are required" }, { status: 400 });
   }
 
-  // Compute frozen resolved_resume + snapshot the user's current PDF styling.
-  // Both freeze together so the variant is a fully self-contained artifact.
-  const [resumeData, pdfSettingsSnapshot] = await Promise.all([
+  // Compute frozen resolved_resume + snapshot the user's current PDF styling
+  // + snapshot the canvas blocks. All three freeze together so the variant
+  // is a fully self-contained artifact — editing the live canvas later
+  // doesn't change what this variant prints.
+  const [resumeData, pdfSettingsSnapshot, blocksSnapshot] = await Promise.all([
     fetchResumeData(supabase, user.id),
     snapshotPdfSettings(supabase, user.id),
+    snapshotResumeBlocks(supabase, user.id),
   ]);
   const resolvedResume = resumeData
     ? applyVariantToResume(resumeData, variant_data as VariantData)
@@ -106,6 +110,7 @@ export async function POST(req: NextRequest) {
       job_application_id: job_application_id || null,
       source: source || "manual",
       pdf_settings_snapshot: pdfSettingsSnapshot,
+      blocks_snapshot: blocksSnapshot,
     })
     .select()
     .single();
