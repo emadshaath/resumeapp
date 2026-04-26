@@ -119,7 +119,11 @@ export default function JobsPage() {
   }
 
   async function deleteJob(jobId: string) {
-    if (!confirm("Delete this job application?")) return;
+    const target = jobs.find((j) => j.id === jobId);
+    const variantLine = target?.variant_id
+      ? "\n\nA tailored variant is linked to this job. The variant will be kept (not deleted), but it will no longer reference this job. You can delete it manually from Tailored Variants if you no longer need it."
+      : "";
+    if (!confirm(`Delete this job application?${variantLine}`)) return;
     const res = await fetch(`/api/jobs/${jobId}`, { method: "DELETE" });
     if (res.ok) {
       setSelectedJob(null);

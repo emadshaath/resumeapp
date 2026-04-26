@@ -18,12 +18,14 @@ import {
   Clock,
   Eye,
   Layers,
+  AlertCircle,
 } from "lucide-react";
 import type { ProfileVariant } from "@/types/database";
 
 interface VariantWithJob extends Omit<ProfileVariant, "variant_data"> {
   variant_data?: Record<string, unknown>;
   job: { company_name: string; job_title: string } | null;
+  is_stale?: boolean;
 }
 
 export default function VariantsPage() {
@@ -54,7 +56,11 @@ export default function VariantsPage() {
   }
 
   async function deleteVariant(id: string) {
-    if (!confirm("Delete this variant?")) return;
+    const target = variants.find((v) => v.id === id);
+    const jobLine = target?.job
+      ? `\n\nThis variant is linked to "${target.job.job_title} at ${target.job.company_name}". After deletion, Quick Apply for that job will fall back to your default variant — or, if none, your base resume.`
+      : "";
+    if (!confirm(`Delete this variant?${jobLine}\n\nThis cannot be undone.`)) return;
     await fetch(`/api/variants/${id}`, { method: "DELETE" });
     fetchVariants();
   }
@@ -143,9 +149,26 @@ export default function VariantsPage() {
                         </p>
                       )}
                     </div>
-                    {v.is_default && (
-                      <Badge className="shrink-0 text-[10px]">Default</Badge>
-                    )}
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      {v.is_default && (
+                        <Badge
+                          className="text-[10px]"
+                          title="Default variant: used by PDF download and Quick Apply when a job has no variant of its own."
+                        >
+                          Default
+                        </Badge>
+                      )}
+                      {v.is_stale && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-300"
+                          title="Stale: your base resume has been edited since this variant was created. Open the variant and Refresh from base to pick up your changes."
+                        >
+                          <AlertCircle className="h-3 w-3 mr-1" />
+                          Stale
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -185,6 +208,7 @@ export default function VariantsPage() {
                         variant="outline"
                         size="sm"
                         onClick={(e) => { e.stopPropagation(); e.preventDefault(); setDefault(v.id); }}
+                        title="Use this variant for PDF download and Quick Apply whenever the job has no variant of its own."
                       >
                         <Star className="h-3.5 w-3.5 mr-1" />
                         Set Default

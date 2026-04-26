@@ -411,6 +411,9 @@ export default function ProfileEditorPage() {
                 <CardTitle className="text-lg">Accent Colors</CardTitle>
                 <CardDescription>
                   Pick the accent color used across your public profile page and resume PDF. To change layout, see the Profile Layout tab.
+                  <span className="block mt-2 text-xs text-zinc-500">
+                    Color changes here apply live to all your variants. Layout and PDF styling, by contrast, are frozen at the moment a variant is created — so changing layout or fonts only affects new variants, not existing ones.
+                  </span>
                 </CardDescription>
               </CardHeader>
               <CardContent>

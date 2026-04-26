@@ -28,6 +28,8 @@ import {
   Share2,
   Pencil,
   X,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 
 interface PreviewData {
@@ -40,6 +42,7 @@ interface PreviewData {
     created_at: string;
     variant_data: VariantData;
     resolved_resume: ResumeData | null;
+    is_stale?: boolean;
   };
   job: {
     id: string;
@@ -64,6 +67,7 @@ export default function VariantPreviewPage() {
   const [error, setError] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [settingDefault, setSettingDefault] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -93,7 +97,11 @@ export default function VariantPreviewPage() {
   useEffect(() => { fetchPreview(); }, [fetchPreview]);
 
   async function handleDelete() {
-    if (!confirm("Delete this variant? This cannot be undone.")) return;
+    const job = data?.job;
+    const jobLine = job
+      ? `\n\nThis variant is linked to "${job.job_title} at ${job.company_name}". After deletion, Quick Apply for that job will fall back to your default variant — or, if none, your base resume.`
+      : "";
+    if (!confirm(`Delete this variant?${jobLine}\n\nThis cannot be undone.`)) return;
     setDeleting(true);
     const res = await fetch(`/api/variants/${params.id}`, { method: "DELETE" });
     if (res.ok) {
@@ -115,6 +123,24 @@ export default function VariantPreviewPage() {
       await fetchPreview();
     }
     setSavingEdit(false);
+  }
+
+  async function handleRefresh() {
+    if (
+      !confirm(
+        "Refresh this variant from your current base resume?\n\nThis re-applies the AI tailoring to your latest content. Layout and PDF styling stay the same. Hand-edits to the resolved resume content will be replaced."
+      )
+    ) {
+      return;
+    }
+    setRefreshing(true);
+    const res = await fetch(`/api/variants/${params.id}/refresh`, {
+      method: "POST",
+    });
+    if (res.ok) {
+      await fetchPreview();
+    }
+    setRefreshing(false);
   }
 
   async function handleSetDefault() {
@@ -181,9 +207,22 @@ export default function VariantPreviewPage() {
                 </Badge>
               )}
               {variant.is_default && (
-                <Badge className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                <Badge
+                  className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                  title="Default variant: used by PDF download and Quick Apply when a job has no variant of its own."
+                >
                   <Star className="h-3 w-3 mr-1" />
                   Default
+                </Badge>
+              )}
+              {variant.is_stale && (
+                <Badge
+                  variant="outline"
+                  className="text-xs border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-300"
+                  title="Stale: your base resume has been edited since this variant was created."
+                >
+                  <AlertCircle className="h-3 w-3 mr-1" />
+                  Stale
                 </Badge>
               )}
               <span className="text-xs text-zinc-400 flex items-center gap-1">
@@ -210,6 +249,22 @@ export default function VariantPreviewPage() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {variant.is_stale && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                title="Re-apply this variant's AI tailoring to your current base resume content. Layout and PDF styling stay the same."
+              >
+                {refreshing ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                )}
+                Refresh from base
+              </Button>
+            )}
             {job && (
               <>
                 <Button
@@ -257,6 +312,7 @@ export default function VariantPreviewPage() {
                 size="sm"
                 onClick={handleSetDefault}
                 disabled={settingDefault}
+                title="Use this variant for PDF download and Quick Apply whenever the job has no variant of its own."
               >
                 {settingDefault ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />

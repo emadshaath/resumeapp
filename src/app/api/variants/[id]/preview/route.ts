@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { fetchBaseResumeModifiedAt } from "@/lib/variants/staleness";
 
 // GET /api/variants/[id]/preview — Returns frozen resolved_resume + metadata + linked job
 export async function GET(
@@ -38,6 +39,15 @@ export async function GET(
     job = data;
   }
 
+  // Compute staleness against the base resume's most recent content edit so
+  // the variant detail page can surface a "Stale" badge without a separate
+  // fetch round-trip. Compared against updated_at so that refreshed and
+  // hand-edited variants are not marked stale until the base moves again.
+  const baseModifiedAt = await fetchBaseResumeModifiedAt(supabase, user.id);
+  const isStale = baseModifiedAt
+    ? new Date(baseModifiedAt) > new Date(variant.updated_at || variant.created_at)
+    : false;
+
   return NextResponse.json({
     variant: {
       id: variant.id,
@@ -48,7 +58,9 @@ export async function GET(
       created_at: variant.created_at,
       variant_data: variant.variant_data,
       resolved_resume: variant.resolved_resume,
+      is_stale: isStale,
     },
     job,
+    base_modified_at: baseModifiedAt,
   });
 }
