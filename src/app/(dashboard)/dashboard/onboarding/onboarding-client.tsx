@@ -115,7 +115,7 @@ const STEP_INDEX: Record<Step, number> = {
   done: 4,
 };
 
-const STEP_LABELS = ["Upload", "Review", "Theme", "Tour", "Done"] as const;
+const STEP_LABELS = ["Upload", "Review", "Colors", "Tour", "Done"] as const;
 
 export function OnboardingClient({ tier, initialTheme }: OnboardingClientProps) {
   const [step, setStep] = useState<Step>("welcome");
@@ -798,11 +798,11 @@ export function OnboardingClient({ tier, initialTheme }: OnboardingClientProps) 
                 <Palette className="h-6 w-6 text-brand" />
               </div>
               <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
-                Pick a theme for your profile
+                Pick your accent colors
               </h2>
               <p className="text-sm text-zinc-500 max-w-md mx-auto">
-                This sets the accent color for both your dashboard and your public profile page.
-                You can change it anytime in Profile settings.
+                This sets the accent used across your dashboard, public profile page, and resume PDF.
+                You can change it anytime under Profile, and pick a layout under Profile Layout.
               </p>
             </div>
 

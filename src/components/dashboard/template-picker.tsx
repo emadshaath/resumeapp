@@ -113,9 +113,9 @@ export function TemplatePicker({ profile, onUpdate }: TemplatePickerProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Public profile theme</CardTitle>
+          <CardTitle className="text-lg">Profile Layout</CardTitle>
           <CardDescription>
-            Choose how your public profile page is laid out. Your content stays the same — only the visual style changes. For resume PDF styling, use the <a href="/dashboard/sections" className="underline underline-offset-2">Resume Builder</a>.
+            Choose how your public profile page is laid out. Your content stays the same — only the visual style changes. For accent colors, see the Profile tab. For resume PDF styling, use the <a href="/dashboard/sections" className="underline underline-offset-2">Resume Builder</a>.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -172,9 +172,9 @@ export function TemplatePicker({ profile, onUpdate }: TemplatePickerProps) {
       {selectedDef?.supportsCustomAccent && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Accent Colors</CardTitle>
+            <CardTitle className="text-lg">Customize {selectedDef.name} Gradient</CardTitle>
             <CardDescription>
-              Customize the gradient colors that drive {selectedDef.name}&apos;s look. Change these and every button, chip, border, and shadow updates in lockstep.
+              Customize the gradient colors that drive {selectedDef.name}&apos;s look. Change these and every button, chip, border, and shadow updates in lockstep. This overrides the global accent for this layout only.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

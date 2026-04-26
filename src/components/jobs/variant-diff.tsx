@@ -134,6 +134,13 @@ export function VariantDiff({
                   <Badge
                     variant={rew.emphasis === "high" ? "default" : rew.emphasis === "low" ? "secondary" : "outline"}
                     className="text-[10px]"
+                    title={
+                      rew.emphasis === "high"
+                        ? "High emphasis: this experience is rendered prominently — bullets shown in full, top of section."
+                        : rew.emphasis === "low"
+                        ? "Low emphasis: this experience is shown briefly or near the bottom to make room for stronger matches."
+                        : "Normal emphasis: this experience is rendered with default weight on the resume."
+                    }
                   >
                     {rew.emphasis} emphasis
                   </Badge>

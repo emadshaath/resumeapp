@@ -314,8 +314,10 @@ export default function VariantPreviewPage() {
             <Card>
               <CardContent className="p-6">
                 <p className="text-sm text-zinc-500 text-center py-8">
-                  No frozen preview available for this variant. It was created
-                  before frozen snapshots were enabled.
+                  No saved preview is available for this variant. It was created
+                  before we started saving preview copies, so what you download
+                  will reflect your current resume rather than the version saved
+                  at creation time.
                 </p>
               </CardContent>
             </Card>

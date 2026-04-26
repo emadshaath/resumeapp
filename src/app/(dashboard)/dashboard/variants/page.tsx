@@ -139,8 +139,16 @@ export default function VariantsPage() {
                         <span className="text-[10px] text-zinc-400">match</span>
                       </div>
                     )}
-                    <Badge variant="secondary" className="text-[10px] capitalize">
-                      {v.source}
+                    <Badge
+                      variant="secondary"
+                      className="text-[10px]"
+                      title={
+                        v.source === "ai"
+                          ? "AI-generated: created by Smart Tailor for a job. Re-running tailor replaces it."
+                          : "Hand-edited: created or modified manually. Your edits will not be overwritten by re-tailor unless you choose to."
+                      }
+                    >
+                      {v.source === "ai" ? "AI-generated" : "Hand-edited"}
                     </Badge>
                     <span className="text-[10px] text-zinc-400 flex items-center gap-1">
                       <Clock className="h-3 w-3" />

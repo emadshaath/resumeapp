@@ -187,8 +187,8 @@ export default function ProfileEditorPage() {
       <Tabs defaultValue={defaultTab}>
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="theme">Profile Theme</TabsTrigger>
-          <TabsTrigger value="apply">Application Preferences</TabsTrigger>
+          <TabsTrigger value="theme">Profile Layout</TabsTrigger>
+          <TabsTrigger value="apply">Autofill Defaults</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -408,9 +408,9 @@ export default function ProfileEditorPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Profile Theme</CardTitle>
+                <CardTitle className="text-lg">Accent Colors</CardTitle>
                 <CardDescription>
-                  Choose a color theme for your public profile page.
+                  Pick the accent color used across your public profile page and resume PDF. To change layout, see the Profile Layout tab.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -561,10 +561,10 @@ function ApplicationPreferencesTab({
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <ClipboardList className="h-5 w-5" />
-            Application Preferences
+            Autofill Defaults (Chrome extension)
           </CardTitle>
           <CardDescription>
-            Pre-fill common job application questions. These are stored securely and only used to auto-fill forms via the Chrome extension. All fields are optional.
+            Pre-fill common job application questions. These are stored securely and only used by the Chrome extension to auto-fill external application forms — they do not appear on your public profile or resume. All fields are optional.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">

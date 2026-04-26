@@ -32,7 +32,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-type NavItem = { name: string; href: string; icon: LucideIcon };
+type NavItem = { name: string; href: string; icon: LucideIcon; description?: string };
 type NavGroup = { label: string; icon: LucideIcon; items: NavItem[] };
 type NavEntry = NavItem | NavGroup;
 
@@ -62,7 +62,12 @@ const navigation: NavEntry[] = [
     ],
   },
   { name: "Job Tracker", href: "/dashboard/jobs", icon: Briefcase },
-  { name: "Smart Variants", href: "/dashboard/variants", icon: Wand2 },
+  {
+    name: "Tailored Variants",
+    href: "/dashboard/variants",
+    icon: Wand2,
+    description: "AI versions per job",
+  },
   { name: "Peer Review", href: "/dashboard/reviews", icon: ClipboardCheck },
   {
     label: "Insights",
@@ -241,7 +246,7 @@ function SidebarContent({ onNavigate, collapsed }: { onNavigate?: () => void; co
                 key={entry.name}
                 href={entry.href}
                 onClick={onNavigate}
-                title={entry.name}
+                title={entry.description ? `${entry.name} — ${entry.description}` : entry.name}
                 className={cn(
                   "flex items-center justify-center rounded-md p-2 transition-colors",
                   isActive
@@ -260,14 +265,22 @@ function SidebarContent({ onNavigate, collapsed }: { onNavigate?: () => void; co
               href={entry.href}
               onClick={onNavigate}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors",
+                entry.description ? "py-1.5" : "py-2",
                 isActive
                   ? "bg-sidebar-bg-active text-sidebar-text-active"
                   : "text-sidebar-text hover:bg-sidebar-bg-hover hover:text-sidebar-text-active"
               )}
             >
               <entry.icon className="h-4 w-4 shrink-0" />
-              {entry.name}
+              {entry.description ? (
+                <span className="flex flex-col leading-tight">
+                  <span>{entry.name}</span>
+                  <span className="text-[11px] font-normal opacity-60">{entry.description}</span>
+                </span>
+              ) : (
+                entry.name
+              )}
             </Link>
           );
         })}
