@@ -68,6 +68,14 @@ export default function VariantPreviewPage() {
   const [editing, setEditing] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
 
+  // Open in edit mode if the URL hash is "#edit" (used by the post-tailor
+  // panel's "Edit Variant" CTA in the Job Tracker drawer).
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash === "#edit") {
+      setEditing(true);
+    }
+  }, []);
+
   const fetchPreview = useCallback(async () => {
     setLoading(true);
     const res = await fetch(`/api/variants/${params.id}/preview`);
@@ -203,16 +211,27 @@ export default function VariantPreviewPage() {
 
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
             {job && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  router.push(`/dashboard/jobs/${job.id}/apply`)
-                }
-              >
-                <Briefcase className="h-3.5 w-3.5 mr-1" />
-                Quick Apply
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push(`/dashboard/jobs?job=${job.id}`)}
+                  title="Open this job in the Job Tracker"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+                  View Job
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    router.push(`/dashboard/jobs/${job.id}/apply`)
+                  }
+                >
+                  <Briefcase className="h-3.5 w-3.5 mr-1" />
+                  Quick Apply
+                </Button>
+              </>
             )}
             <a
               href={`/api/autofill/resume.pdf?variant=${variant.id}`}

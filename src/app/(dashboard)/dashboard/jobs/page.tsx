@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,8 @@ import {
   Download,
   Eye,
   RefreshCw,
+  Pencil,
+  Star,
 } from "lucide-react";
 import { VariantDiff } from "@/components/jobs/variant-diff";
 import { JobDescriptionDisplay } from "@/components/jobs/job-description-display";
@@ -60,6 +63,7 @@ function daysSince(date: string) {
 
 export default function JobsPage() {
   const supabase = createClient();
+  const searchParams = useSearchParams();
   const [jobs, setJobs] = useState<JobApplication[]>([]);
   const [pipeline, setPipeline] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -84,6 +88,18 @@ export default function JobsPage() {
   useEffect(() => {
     fetchJobs();
   }, [fetchJobs]);
+
+  // Deep-link support: ?job=<id> opens that job's drawer once jobs are loaded.
+  // Used by the variant detail page's "View Job" button so users can hop back
+  // to the source job without losing context.
+  useEffect(() => {
+    const target = searchParams.get("job");
+    if (!target || jobs.length === 0) return;
+    const match = jobs.find((j) => j.id === target);
+    if (match && (!selectedJob || selectedJob.id !== match.id)) {
+      setSelectedJob(match);
+    }
+  }, [searchParams, jobs, selectedJob]);
 
   const totalApplied = (pipeline["applied"] || 0) + (pipeline["screening"] || 0) +
     (pipeline["interview"] || 0) + (pipeline["offer"] || 0) + (pipeline["accepted"] || 0);
@@ -315,7 +331,15 @@ function JobCard({
       <CardContent className="p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium truncate">{job.job_title}</p>
+            <p className="text-sm font-medium truncate flex items-center gap-1.5">
+              {job.variant_id && (
+                <Sparkles
+                  className="h-3 w-3 text-brand shrink-0"
+                  aria-label="Has a tailored variant"
+                />
+              )}
+              <span className="truncate">{job.job_title}</span>
+            </p>
             <div className="flex items-center gap-1 mt-0.5">
               <Building2 className="h-3 w-3 text-zinc-400 shrink-0" />
               <p className="text-xs text-zinc-500 truncate">{job.company_name}</p>
@@ -400,7 +424,17 @@ function ListView({
                       <span className="font-medium truncate max-w-[150px]">{job.company_name}</span>
                     </div>
                   </td>
-                  <td className="p-3 truncate max-w-[200px]">{job.job_title}</td>
+                  <td className="p-3 truncate max-w-[200px]">
+                    <span className="inline-flex items-center gap-1.5">
+                      {job.variant_id && (
+                        <Sparkles
+                          className="h-3 w-3 text-brand shrink-0"
+                          aria-label="Has a tailored variant"
+                        />
+                      )}
+                      <span className="truncate">{job.job_title}</span>
+                    </span>
+                  </td>
                   <td className="p-3 hidden sm:table-cell">
                     <Badge
                       variant="secondary"
@@ -786,6 +820,14 @@ function JobDetailDrawer({
     name: string;
     match_score: number | null;
   } | null>(null);
+  // Surfaces the post-tailor "what next?" panel after the user accepts a
+  // freshly-generated variant. Cleared when the user navigates away or
+  // dismisses the panel.
+  const [justSavedVariant, setJustSavedVariant] = useState<{
+    id: string;
+    isDefault: boolean;
+    settingDefault: boolean;
+  } | null>(null);
 
   useEffect(() => {
     fetch(`/api/jobs/${job.id}`)
@@ -849,8 +891,41 @@ function JobDetailDrawer({
     });
     setSavingVariant(false);
     if (res.ok) {
+      const data = await res.json();
       setTailorResult(null);
+      if (data?.variant?.id) {
+        setJustSavedVariant({
+          id: data.variant.id,
+          isDefault: !!data.variant.is_default,
+          settingDefault: false,
+        });
+        // Populate the linked-variant card immediately so dismissing the
+        // success panel doesn't drop the user back to the empty Smart Tailor
+        // pitch — the parent fetchJobs would refresh selectedJob's
+        // variant_id eventually, but the local prop stays stale.
+        setLinkedVariant({
+          id: data.variant.id,
+          name: data.variant.name,
+          match_score: data.variant.match_score ?? null,
+        });
+      }
       onUpdate();
+    }
+  }
+
+  async function setVariantDefault() {
+    if (!justSavedVariant) return;
+    setJustSavedVariant({ ...justSavedVariant, settingDefault: true });
+    const res = await fetch(`/api/variants/${justSavedVariant.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_default: true }),
+    });
+    if (res.ok) {
+      setJustSavedVariant({ ...justSavedVariant, isDefault: true, settingDefault: false });
+      onUpdate();
+    } else {
+      setJustSavedVariant({ ...justSavedVariant, settingDefault: false });
     }
   }
 
@@ -959,6 +1034,63 @@ function JobDetailDrawer({
             </div>
           )}
 
+          {/* Post-tailor "what next?" panel — shown right after a variant
+              is saved so the user has clear next-step CTAs. */}
+          {justSavedVariant && (
+            <div className="border border-emerald-300 dark:border-emerald-800 rounded-lg p-4 bg-emerald-50 dark:bg-emerald-950/40">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2">
+                  <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold">Variant saved and linked to this job</p>
+                    <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
+                      Pick where to go next. You can always come back here from Tailored Variants.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setJustSavedVariant(null)}
+                  className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 shrink-0"
+                  aria-label="Dismiss"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                <a href={`/dashboard/variants/${justSavedVariant.id}`}>
+                  <Button variant="default" size="sm">
+                    <Eye className="h-3.5 w-3.5 mr-1" />
+                    Preview Variant
+                  </Button>
+                </a>
+                <a href={`/dashboard/variants/${justSavedVariant.id}#edit`}>
+                  <Button variant="outline" size="sm">
+                    <Pencil className="h-3.5 w-3.5 mr-1" />
+                    Edit Variant
+                  </Button>
+                </a>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={setVariantDefault}
+                  disabled={justSavedVariant.isDefault || justSavedVariant.settingDefault}
+                  title={
+                    justSavedVariant.isDefault
+                      ? "This variant is already your default — used for PDF downloads and Quick Apply when no other variant is selected."
+                      : "Use this variant by default for PDF downloads and Quick Apply when no other variant is selected."
+                  }
+                >
+                  {justSavedVariant.settingDefault ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                  ) : (
+                    <Star className="h-3.5 w-3.5 mr-1" />
+                  )}
+                  {justSavedVariant.isDefault ? "Default set" : "Set as default"}
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Smart Tailor / Variant Card */}
           {linkedVariant && !tailorResult ? (
             <div className="border border-brand rounded-lg p-4 bg-brand-subtle/30">
@@ -1031,8 +1163,8 @@ function JobDetailDrawer({
                 <div className="text-center">
                   <Sparkles className="h-6 w-6 text-brand mx-auto mb-2" />
                   <p className="text-sm font-medium mb-1">Smart Tailor</p>
-                  <p className="text-xs text-zinc-500 mb-3">
-                    AI will optimize your resume for this specific role
+                  <p className="text-xs text-zinc-500 mb-3 max-w-sm mx-auto">
+                    AI rewrites your headline, reorders skills, and rephrases experience bullets to match this job. You can review and edit every change before saving — nothing touches your base resume. Re-running Smart Tailor replaces the previous variant for this job.
                   </p>
                   {tailorError && (
                     <p className="text-xs text-red-500 mb-2">{tailorError}</p>

@@ -43,11 +43,24 @@ function isGroup(entry: NavEntry): entry is NavGroup {
 const navigation: NavEntry[] = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   {
-    label: "Resume",
+    label: "Resume Hub",
     icon: Layers,
     items: [
       { name: "Profile", href: "/dashboard/profile", icon: User },
       { name: "Resume Builder", href: "/dashboard/sections", icon: Layers },
+      {
+        name: "Tailored Variants",
+        href: "/dashboard/variants",
+        icon: Wand2,
+        description: "AI versions per job",
+      },
+    ],
+  },
+  {
+    label: "Job Applications",
+    icon: Briefcase,
+    items: [
+      { name: "Job Tracker", href: "/dashboard/jobs", icon: Briefcase },
     ],
   },
   {
@@ -61,18 +74,11 @@ const navigation: NavEntry[] = [
       { name: "Custom Domain", href: "/dashboard/communication?tab=domain", icon: Globe },
     ],
   },
-  { name: "Job Tracker", href: "/dashboard/jobs", icon: Briefcase },
   {
-    name: "Tailored Variants",
-    href: "/dashboard/variants",
-    icon: Wand2,
-    description: "AI versions per job",
-  },
-  { name: "Peer Review", href: "/dashboard/reviews", icon: ClipboardCheck },
-  {
-    label: "Insights",
+    label: "Reviews & Insights",
     icon: BarChart3,
     items: [
+      { name: "Peer Review", href: "/dashboard/reviews", icon: ClipboardCheck },
       { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
       { name: "SEO", href: "/dashboard/seo", icon: Search },
     ],
@@ -217,6 +223,7 @@ function SidebarContent({ onNavigate, collapsed }: { onNavigate?: () => void; co
                           key={item.name}
                           href={item.href}
                           onClick={onNavigate}
+                          title={item.description ? `${item.name} — ${item.description}` : undefined}
                           className={cn(
                             "flex items-center gap-3 rounded-md px-3 py-1.5 text-sm transition-colors",
                             isActive
@@ -225,7 +232,14 @@ function SidebarContent({ onNavigate, collapsed }: { onNavigate?: () => void; co
                           )}
                         >
                           <item.icon className="h-3.5 w-3.5 shrink-0" />
-                          {item.name}
+                          {item.description ? (
+                            <span className="flex flex-col leading-tight">
+                              <span>{item.name}</span>
+                              <span className="text-[10px] font-normal opacity-60">{item.description}</span>
+                            </span>
+                          ) : (
+                            item.name
+                          )}
                         </Link>
                       );
                     })}

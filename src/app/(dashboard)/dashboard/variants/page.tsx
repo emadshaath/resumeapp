@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 import {
   Sparkles,
   Trash2,
@@ -16,6 +17,7 @@ import {
   ExternalLink,
   Clock,
   Eye,
+  Layers,
 } from "lucide-react";
 import type { ProfileVariant } from "@/types/database";
 
@@ -93,21 +95,36 @@ export default function VariantsPage() {
         </div>
       ) : variants.length === 0 ? (
         <Card>
-          <CardContent className="p-8 text-center">
-            <Sparkles className="h-8 w-8 text-zinc-300 mx-auto mb-3" />
-            <p className="text-sm font-medium">No variants yet</p>
-            <p className="text-xs text-zinc-500 mt-1">
-              Go to the Job Tracker, open a job, and click "Tailor for this Job" to create your first variant.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-4"
-              onClick={() => window.location.href = "/dashboard/jobs"}
-            >
-              <Briefcase className="h-4 w-4 mr-1" />
-              Go to Job Tracker
-            </Button>
+          <CardContent className="p-8">
+            <div className="text-center mb-6">
+              <Sparkles className="h-8 w-8 text-zinc-300 mx-auto mb-3" />
+              <p className="text-sm font-medium">No variants yet</p>
+              <p className="text-xs text-zinc-500 mt-1 max-w-md mx-auto">
+                Tailored Variants are AI-generated copies of your resume, optimized per job. They start from your base resume — so set that up first.
+              </p>
+            </div>
+            <ol className="mx-auto max-w-md space-y-3 text-sm">
+              <li className="flex items-start gap-3">
+                <span className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800 text-xs font-semibold">1</span>
+                <div className="flex-1">
+                  <Link href="/dashboard/sections" className="font-medium hover:underline inline-flex items-center gap-1">
+                    <Layers className="h-3.5 w-3.5" />
+                    Build your base resume
+                  </Link>
+                  <p className="text-xs text-zinc-500 mt-0.5">Add sections in Resume Builder. Variants snapshot from this.</p>
+                </div>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800 text-xs font-semibold">2</span>
+                <div className="flex-1">
+                  <Link href="/dashboard/jobs" className="font-medium hover:underline inline-flex items-center gap-1">
+                    <Briefcase className="h-3.5 w-3.5" />
+                    Add a job and tailor it
+                  </Link>
+                  <p className="text-xs text-zinc-500 mt-0.5">Open a job in Job Tracker and click &ldquo;Tailor for this Job&rdquo; to create your first variant.</p>
+                </div>
+              </li>
+            </ol>
           </CardContent>
         </Card>
       ) : (
