@@ -29,8 +29,18 @@ import {
   ChevronDown,
   ChevronsLeft,
   ChevronsRight,
+  Eye,
+  EyeOff,
   type LucideIcon,
 } from "lucide-react";
+
+/** Cross-component event that the Public Profile page dispatches after a
+ *  successful visibility toggle. The sidebar listens for it so the Live
+ *  indicator updates instantly without a hard refresh — the existing
+ *  pathname-keyed fetch only re-runs on navigation, which doesn't happen
+ *  while the user is on the same page flipping the switch. */
+export const VISIBILITY_CHANGED_EVENT = "rp:visibility-changed";
+export type VisibilityChangedDetail = { isPublished: boolean };
 
 type NavItem = {
   name: string;
@@ -158,6 +168,21 @@ function SidebarContent({ onNavigate, collapsed }: { onNavigate?: () => void; co
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
+  // Listen for in-page visibility toggles from /dashboard/public-profile.
+  // pathname doesn't change when the user flips the switch, so the
+  // pathname-keyed fetch above can't catch it. The page dispatches a
+  // CustomEvent on success and we update local state synchronously.
+  useEffect(() => {
+    function handler(e: Event) {
+      const detail = (e as CustomEvent<VisibilityChangedDetail>).detail;
+      if (typeof detail?.isPublished === "boolean") {
+        setIsPublished(detail.isPublished);
+      }
+    }
+    window.addEventListener(VISIBILITY_CHANGED_EVENT, handler);
+    return () => window.removeEventListener(VISIBILITY_CHANGED_EVENT, handler);
+  }, []);
+
   // On mount: restore stored state + auto-expand active groups
   useEffect(() => {
     const stored = new Set(getStoredExpanded());
@@ -280,13 +305,21 @@ function SidebarContent({ onNavigate, collapsed }: { onNavigate?: () => void; co
                           )}
                           {item.liveStatus && isPublished !== null && (
                             <span
-                              className={cn(
-                                "h-1.5 w-1.5 rounded-full shrink-0",
-                                isPublished ? "bg-emerald-500" : "bg-zinc-400"
-                              )}
-                              title={isPublished ? "Live" : "Draft"}
+                              className="shrink-0 inline-flex"
+                              title={
+                                isPublished
+                                  ? "Live — your public profile is visible"
+                                  : "Draft — your public profile is not visible"
+                              }
                               aria-label={isPublished ? "Live" : "Draft"}
-                            />
+                              role="img"
+                            >
+                              {isPublished ? (
+                                <Eye className="h-3.5 w-3.5 text-emerald-500" aria-hidden="true" />
+                              ) : (
+                                <EyeOff className="h-3.5 w-3.5 text-zinc-400" aria-hidden="true" />
+                              )}
+                            </span>
                           )}
                         </Link>
                       );
