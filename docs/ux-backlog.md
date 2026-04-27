@@ -219,7 +219,7 @@ Prioritized fix list synthesized from three reviews. Items are grouped into thre
 - **Impact**: L
 - **Category**: IA
 
-### 23. Disambiguate "Publish Profile" toggle
+### 23. Disambiguate "Publish Profile" toggle  *(subsumed by #27)*
 - **Problem**: A single toggle is conflated with multiple publish concepts (public page, share link, search visibility).
 - **Proposed fix**: Replace the single toggle with explicit toggles: "Public page on /p/[slug]," "Searchable," each with a one-line description.
 - **Affected files**:
@@ -227,6 +227,7 @@ Prioritized fix list synthesized from three reviews. Items are grouped into thre
 - **Effort**: M
 - **Impact**: M
 - **Category**: New UI + Copy
+- **Status**: Folded into #27 — the dedicated visibility surface naturally hosts both toggles as separate rows; implementing #27 satisfies #23.
 
 ### 24. Note theme-vs-styling freeze behavior in Profile
 - **Problem**: profile_theme is live (changes propagate to all variants) while pdf_settings is frozen at variant creation. Users cannot predict which visual changes propagate.
@@ -246,6 +247,34 @@ Prioritized fix list synthesized from three reviews. Items are grouped into thre
 - **Effort**: S
 - **Impact**: M
 - **Category**: Copy + New UI
+
+### 27. Move profile visibility to a dedicated Public Profile page
+- **Problem**: The publish toggle currently lives at the bottom of the Profile tab (`profile/page.tsx` lines 469–489), buried as the 5th card after Photo, Basic Info, Accent Colors, and Profile URL. Multiple distinct frictions stack:
+  1. **Toggle is gated behind a form Save** — `is_published` is bundled into the `handleSave` payload (line 149), so flipping the switch alone does nothing until the user clicks "Save changes" at line 492. Wrong affordance for a binary live/draft action; shares its error surface with slug-validation failures.
+  2. **"Profile" is overloaded** — same tab edits private contact data AND configures whether a public website exists. Header copy "Update your personal information and profile settings" gives no signal that this page also hosts the one-click public-launch switch.
+  3. **Quick Start sends users to `/dashboard/profile`** but lands them at the *top* of a long form — they have to scroll past every personal-info field to reach the publish step.
+  4. **Sidebar shows no Live/Draft indicator** — visibility state is invisible from navigation; users must click into Profile or Overview to know whether their site is live.
+  5. **`/dashboard/settings` is empty of visibility controls** — users with SaaS muscle memory check Settings first ("make my site public") and find only Account and Billing.
+- **Proposed fix**: Create a new `/dashboard/public-profile` route, sibling to Profile under the Resume Hub sidebar group. The page hosts everything that's *only* about the public site:
+  - **Visibility row** (page hero): instant-toggle Switch wired to a standalone PATCH (not a form Save). Subsumes #23 by splitting into two explicit rows: "Public page on /p/[slug]" and "Searchable" (the second only enabled when the first is on).
+  - **Profile URL** card: slug field with "Copy" and "Open ↗" actions.
+  - **Profile Layout** card: the existing TemplatePicker, moved here. Add note: "Layout for your public page only. Resume PDF styling lives in Resume Builder."
+  - **Sidebar Live/Draft dot** on the new Public Profile entry — green when published, grey when draft. Reflects state at a glance from anywhere.
+
+  **Accent Colors stays on Profile** — it applies to both the public page AND the resume PDF (the description copy from Phase 1 #4 already names both surfaces). Moving it under "Public Profile" would re-create the mislabeling Phase 1 just fixed.
+
+  Update Quick Start step in `dashboard/page.tsx` line 156 to deep-link to `/dashboard/public-profile`. Add a redirect from `/dashboard/profile?tab=theme` (legacy template-picker tab) to the new route.
+- **Affected files**:
+  - New: `src/app/(dashboard)/dashboard/public-profile/page.tsx`
+  - `src/app/(dashboard)/dashboard/profile/page.tsx` — remove the Publish card (lines 469–489), the Profile URL card (lines 448–467), the legacy `?tab=theme` TabsContent rendering the TemplatePicker, and the `is_published` field from `handleSave`. Profile keeps Photo, Basic Info, Accent Colors, and the Autofill Defaults tab.
+  - `src/components/dashboard/sidebar.tsx` — add Public Profile entry in Resume Hub between Profile and Resume Builder; add Live/Draft dot rendering.
+  - `src/app/(dashboard)/dashboard/page.tsx` — update Quick Start step (line 156) to deep-link to `/dashboard/public-profile`; consider adding a "Public Profile" status tile alongside the existing Live/Draft badge.
+  - `src/components/dashboard/template-picker.tsx` — minor copy clarification ("Layout applies to public page only").
+- **Effort**: M (1–1.5 days; new route, sidebar IA tweak, Profile-tab refactor, instant-PATCH for the toggle, redirect for legacy `?tab=theme`).
+- **Impact**: H (closes a top-cited friction surfaced during the persona retest; introduces glanceable visibility state in the sidebar).
+- **Category**: IA + New UI + Copy
+- **Subsumes**: #23 (single-toggle disambiguation is delivered as part of the new visibility row).
+- **Migration concerns**: Bookmarks pointing at `/dashboard/profile` keep working for personal-info edits. Deep links to `/dashboard/profile?tab=theme` need to redirect to `/dashboard/public-profile` to preserve any external links to the template picker.
 
 ## Tier 4 — New features (beyond UX cleanup)
 

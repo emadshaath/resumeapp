@@ -74,15 +74,16 @@ Phasing rationale: copy and terminology fixes ship first because they are cheap,
 
 ## Phase 5 — Polish
 
-**Goal**: tighten the rough edges users hit daily but rarely call out.
+**Goal**: tighten the rough edges users hit daily but rarely call out, and fix one IA mistake the persona retest surfaced (publish setting buried under Profile).
 
-**Estimated duration**: ~3-5 days.
+**Estimated duration**: ~3–5 days.
 
-**Exit criteria**: no save-state ambiguity, no passive stat cards, no overloaded toggles.
+**Exit criteria**: no save-state ambiguity, no passive stat cards, visibility state glanceable from the sidebar.
 
 - [ ] **#18** Persistent "Saved at HH:MM" state in Variant Editor and Resume Designer — variants and Resume Builder
 - [ ] **#22** Convert Dashboard "Sections" stat card into a Resume Builder CTA — Dashboard landing
-- [ ] **#23** Disambiguate "Publish Profile" toggle into explicit "Public page" / "Searchable" toggles — `profile/page.tsx`
+- [ ] **#27** Move profile visibility to a dedicated `/dashboard/public-profile` page — visibility toggle (instant PATCH, not gated by form), slug, and Profile Layout. Sidebar gains Live/Draft dot. Subsumes #23. Accent Colors stays on Profile because it applies to both the public page and the resume PDF.
+- [ ] ~~**#23** Disambiguate "Publish Profile" toggle~~ — *folded into #27; the dedicated visibility surface hosts the split toggles.*
 
 ---
 
