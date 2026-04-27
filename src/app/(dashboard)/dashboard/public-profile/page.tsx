@@ -10,6 +10,10 @@ import { Switch } from "@/components/ui/switch";
 import { TemplatePicker } from "@/components/dashboard/template-picker";
 import { createClient } from "@/lib/supabase/client";
 import { isValidSlug, slugify } from "@/lib/utils";
+import {
+  VISIBILITY_CHANGED_EVENT,
+  type VisibilityChangedDetail,
+} from "@/components/dashboard/sidebar";
 import type { Profile } from "@/types/database";
 import {
   Loader2,
@@ -83,6 +87,15 @@ export default function PublicProfilePage() {
     }
     setProfile({ ...profile, is_published: next });
     setVisibilityMessage(next ? "Profile is now live." : "Profile saved as draft.");
+    // Notify the sidebar (and any other listeners) so the Live indicator
+    // updates without waiting for a navigation. pathname doesn't change
+    // when the user flips the switch on this page, so the sidebar's
+    // pathname-keyed fetch can't catch it on its own.
+    window.dispatchEvent(
+      new CustomEvent<VisibilityChangedDetail>(VISIBILITY_CHANGED_EVENT, {
+        detail: { isPublished: next },
+      })
+    );
     // Auto-clear the confirmation copy after a few seconds — the badge
     // itself remains as the persistent state indicator.
     setTimeout(() => setVisibilityMessage(null), 3500);
