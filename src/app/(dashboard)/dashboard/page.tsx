@@ -102,14 +102,22 @@ export default async function DashboardPage() {
         </Link>
 
         <Link href="/dashboard/sections">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer group">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Sections</CardTitle>
+              <CardTitle className="text-sm font-medium">Resume Builder</CardTitle>
               <Layers className="h-4 w-4 text-brand" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{sectionCount || 0}</div>
-              <p className="text-xs text-zinc-500 mt-1">Resume sections added</p>
+              <p className="text-xs text-zinc-500 mt-1">
+                {sectionCount && sectionCount > 0
+                  ? `Section${sectionCount === 1 ? "" : "s"} on your resume`
+                  : "No sections yet"}
+              </p>
+              <p className="text-xs font-medium text-brand mt-2 inline-flex items-center gap-1 group-hover:gap-1.5 transition-all">
+                Manage sections
+                <span aria-hidden>&rarr;</span>
+              </p>
             </CardContent>
           </Card>
         </Link>
@@ -153,7 +161,7 @@ export default async function DashboardPage() {
             {[
               { done: !!profile.headline, label: "Add a professional headline", href: "/dashboard/profile" },
               { done: (sectionCount || 0) > 0, label: "Add at least one resume section", href: "/dashboard/sections" },
-              { done: profile.is_published, label: "Publish your profile", href: "/dashboard/profile" },
+              { done: profile.is_published, label: "Publish your profile", href: "/dashboard/public-profile" },
             ].map((step) => (
               <Link
                 key={step.label}

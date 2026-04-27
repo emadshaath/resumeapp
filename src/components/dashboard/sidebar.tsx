@@ -32,7 +32,15 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-type NavItem = { name: string; href: string; icon: LucideIcon; description?: string };
+type NavItem = {
+  name: string;
+  href: string;
+  icon: LucideIcon;
+  description?: string;
+  /** When true, the sidebar fetches the user's profile.is_published and
+   *  renders a Live/Draft dot next to this item. */
+  liveStatus?: boolean;
+};
 type NavGroup = { label: string; icon: LucideIcon; items: NavItem[] };
 type NavEntry = NavItem | NavGroup;
 
@@ -47,6 +55,12 @@ const navigation: NavEntry[] = [
     icon: Layers,
     items: [
       { name: "Profile", href: "/dashboard/profile", icon: User },
+      {
+        name: "Public Profile",
+        href: "/dashboard/public-profile",
+        icon: Globe,
+        liveStatus: true,
+      },
       { name: "Resume Builder", href: "/dashboard/sections", icon: Layers },
       {
         name: "Tailored Variants",
@@ -119,6 +133,30 @@ function SidebarContent({ onNavigate, collapsed }: { onNavigate?: () => void; co
 
   // Start empty to match server render, then hydrate from localStorage
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  // Profile publish state — drives the Live/Draft dot on the Public
+  // Profile entry. Null until first fetch resolves so we don't render a
+  // misleading Draft dot during page load.
+  const [isPublished, setIsPublished] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("is_published")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (data) setIsPublished(!!data.is_published);
+    })();
+    return () => { cancelled = true; };
+    // Re-fetch when the user navigates back to /dashboard/public-profile
+    // (where they may have toggled the switch). Cheap query.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   // On mount: restore stored state + auto-expand active groups
   useEffect(() => {
@@ -233,12 +271,22 @@ function SidebarContent({ onNavigate, collapsed }: { onNavigate?: () => void; co
                         >
                           <item.icon className="h-3.5 w-3.5 shrink-0" />
                           {item.description ? (
-                            <span className="flex flex-col leading-tight">
+                            <span className="flex flex-col leading-tight flex-1">
                               <span>{item.name}</span>
                               <span className="text-[10px] font-normal opacity-60">{item.description}</span>
                             </span>
                           ) : (
-                            item.name
+                            <span className="flex-1">{item.name}</span>
+                          )}
+                          {item.liveStatus && isPublished !== null && (
+                            <span
+                              className={cn(
+                                "h-1.5 w-1.5 rounded-full shrink-0",
+                                isPublished ? "bg-emerald-500" : "bg-zinc-400"
+                              )}
+                              title={isPublished ? "Live" : "Draft"}
+                              aria-label={isPublished ? "Live" : "Draft"}
+                            />
                           )}
                         </Link>
                       );

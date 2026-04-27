@@ -73,6 +73,12 @@ export default function VariantPreviewPage() {
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
+  // Persistent save signals for the variant editor. lastSavedAt and
+  // saveError outlive the editor's mount lifecycle (the editor unmounts
+  // when the user clicks Save, so showing "Saved" inside it would never
+  // be seen). Rendered next to the variant title.
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Open in edit mode if the URL hash is "#edit" (used by the post-tailor
   // panel's "Edit Variant" CTA in the Job Tracker drawer).
@@ -115,16 +121,30 @@ export default function VariantPreviewPage() {
 
   async function handleSaveEdit(updated: ResumeData) {
     setSavingEdit(true);
-    const res = await fetch(`/api/variants/${params.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resolved_resume: updated }),
-    });
-    if (res.ok) {
-      setEditing(false);
-      await fetchPreview();
+    setSaveError(null);
+    try {
+      const res = await fetch(`/api/variants/${params.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resolved_resume: updated }),
+      });
+      if (res.ok) {
+        setLastSavedAt(new Date());
+        setEditing(false);
+        await fetchPreview();
+      } else {
+        let detail = `Save failed (${res.status})`;
+        try {
+          const data = await res.json();
+          if (data?.error) detail = data.error;
+        } catch { /* ignore non-JSON errors */ }
+        setSaveError(detail);
+      }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSavingEdit(false);
     }
-    setSavingEdit(false);
   }
 
   async function handleClone() {
@@ -212,9 +232,16 @@ export default function VariantPreviewPage() {
 
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold tracking-tight">
-              {variant.name}
-            </h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-bold tracking-tight">
+                {variant.name}
+              </h1>
+              <SaveIndicator
+                savingEdit={savingEdit}
+                lastSavedAt={lastSavedAt}
+                saveError={saveError}
+              />
+            </div>
             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
               {variant.match_score && (
                 <Badge variant="accent" className="text-xs">
@@ -451,6 +478,53 @@ export default function VariantPreviewPage() {
       />
     </div>
   );
+}
+
+// Persistent save status rendered next to the variant title. Replaces the
+// vanishing "Unsaved changes" badge that used to live inside the editor —
+// because the editor unmounts after a successful save (setEditing(false)),
+// any indicator that lived there would never be visible. Stays put until
+// the user navigates away or saves again, so refreshes of the page keep
+// the most recent in-session save time.
+function SaveIndicator({
+  savingEdit,
+  lastSavedAt,
+  saveError,
+}: {
+  savingEdit: boolean;
+  lastSavedAt: Date | null;
+  saveError: string | null;
+}) {
+  if (savingEdit) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-zinc-500">
+        <Loader2 className="h-3 w-3 animate-spin" /> Saving...
+      </span>
+    );
+  }
+  if (saveError) {
+    return (
+      <Badge
+        variant="secondary"
+        className="gap-1 border border-red-300 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+        title={saveError}
+      >
+        <AlertCircle className="h-3 w-3" /> Save failed
+      </Badge>
+    );
+  }
+  if (lastSavedAt) {
+    const time = lastSavedAt.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    return (
+      <Badge variant="secondary" className="gap-1 text-[10px]" title={`Last saved at ${time}`}>
+        Saved {time}
+      </Badge>
+    );
+  }
+  return null;
 }
 
 /* ─── What Changed Tab ─── */

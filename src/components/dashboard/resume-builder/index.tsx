@@ -121,9 +121,12 @@ export function ResumeBuilder({
   const [view, setView] = useState<BuilderView>("design");
   const [sectionsOpen, setSectionsOpen] = useState(false);
 
-  // Style save indicator
+  // Style save indicator. lastSavedAt persists (no auto-clear) so users
+  // always know whether their last edit landed; saveError surfaces a
+  // retry affordance and clears the moment they edit again.
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
 
   const initialFingerprint = useMemo(
@@ -132,11 +135,11 @@ export function ResumeBuilder({
   );
   const dirty = styleFingerprint(style) !== initialFingerprint;
 
+  // Clear stale errors when the user makes a new edit so the retry
+  // affordance gets out of the way.
   useEffect(() => {
-    if (!saved) return;
-    const t = setTimeout(() => setSaved(false), 2000);
-    return () => clearTimeout(t);
-  }, [saved]);
+    if (dirty && saveError) setSaveError(null);
+  }, [dirty, saveError]);
 
   // Wrapper over setSelectedBlockId that also flips the mobile view to
   // "style" so the block's properties become visible without the user
@@ -384,13 +387,28 @@ export function ResumeBuilder({
 
   async function handleSaveStyle() {
     setSaving(true);
-    const res = await fetch("/api/pdf/settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(styleStateToSavePayload(style)),
-    });
-    setSaving(false);
-    if (res.ok) setSaved(true);
+    setSaveError(null);
+    try {
+      const res = await fetch("/api/pdf/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(styleStateToSavePayload(style)),
+      });
+      if (res.ok) {
+        setLastSavedAt(new Date());
+      } else {
+        let detail = `Save failed (${res.status})`;
+        try {
+          const data = await res.json();
+          if (data?.error) detail = data.error;
+        } catch { /* ignore non-JSON error bodies */ }
+        setSaveError(detail);
+      }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleDownload() {
@@ -412,7 +430,8 @@ export function ResumeBuilder({
     <div className="flex h-screen flex-col bg-zinc-50 dark:bg-zinc-950">
       <BuilderHeader
         saving={saving}
-        saved={saved}
+        lastSavedAt={lastSavedAt}
+        saveError={saveError}
         dirty={dirty}
         onSave={handleSaveStyle}
         downloading={downloading}
