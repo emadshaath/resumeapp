@@ -23,6 +23,8 @@ import {
   Loader2,
   CheckCircle2,
   Eye,
+  Sparkles,
+  FileText,
 } from "lucide-react";
 import type { JobApplication } from "@/types/database";
 
@@ -82,6 +84,7 @@ export default function QuickApplyPage({ params }: { params: Promise<{ id: strin
   const router = useRouter();
   const [job, setJob] = useState<JobApplication | null>(null);
   const [fields, setFields] = useState<AutofillFields | null>(null);
+  const [variantName, setVariantName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [marking, setMarking] = useState(false);
   const [marked, setMarked] = useState(false);
@@ -90,17 +93,22 @@ export default function QuickApplyPage({ params }: { params: Promise<{ id: strin
     // First fetch job details (which may include variant_id)
     fetch(`/api/jobs/${id}`)
       .then((r) => r.json())
-      .then((jobData) => {
+      .then(async (jobData) => {
         setJob(jobData.job);
-        // Use the variant-aware autofill if a variant is linked
-        const variantParam = jobData.job?.variant_id
-          ? `?variant=${jobData.job.variant_id}`
-          : "";
-        return fetch(`/api/autofill/profile${variantParam}`);
-      })
-      .then((r) => r.json())
-      .then((profileData) => {
+        const variantId = jobData.job?.variant_id;
+        // Use the variant-aware autofill if a variant is linked, and pull
+        // the variant's name in parallel so the source indicator can show
+        // exactly which variant is driving the autofill.
+        const [profileRes, variantRes] = await Promise.all([
+          fetch(`/api/autofill/profile${variantId ? `?variant=${variantId}` : ""}`),
+          variantId ? fetch(`/api/variants/${variantId}`) : Promise.resolve(null),
+        ]);
+        const profileData = await profileRes.json();
         setFields(profileData.fields);
+        if (variantRes) {
+          const variantData = await variantRes.json();
+          if (variantData?.variant?.name) setVariantName(variantData.variant.name);
+        }
         setLoading(false);
       });
   }, [id]);
@@ -187,6 +195,36 @@ export default function QuickApplyPage({ params }: { params: Promise<{ id: strin
           </div>
         </CardContent>
       </Card>
+
+      {/* Autofill source indicator — tells the user whether these fields
+          come from a tailored variant or the base resume, since they look
+          identical in the UI but produce different application content. */}
+      {job.variant_id ? (
+        <div className="flex items-start gap-2 rounded-lg border border-brand/30 bg-brand-subtle/40 p-3 text-xs">
+          <Sparkles className="h-3.5 w-3.5 text-brand shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-zinc-800 dark:text-zinc-200">
+              Autofilling from tailored variant
+              {variantName ? <span className="font-semibold"> &ldquo;{variantName}&rdquo;</span> : ""}.
+            </p>
+            <p className="text-zinc-500 mt-0.5">
+              Headline, skills order, and resume PDF reflect the AI tailoring for this job.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-start gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 p-3 text-xs">
+          <FileText className="h-3.5 w-3.5 text-zinc-500 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-zinc-800 dark:text-zinc-200">
+              Autofilling from your base resume.
+            </p>
+            <p className="text-zinc-500 mt-0.5">
+              Open this job from the Job Tracker and click &ldquo;Tailor for this Job&rdquo; to autofill from a variant instead.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Quick copy fields */}
       <Card>

@@ -31,6 +31,10 @@ import {
   ChevronUp,
   Palette,
   Lock,
+  Layers,
+  User,
+  Wand2,
+  ArrowDown,
 } from "lucide-react";
 
 interface ParsedProfile {
@@ -115,7 +119,7 @@ const STEP_INDEX: Record<Step, number> = {
   done: 4,
 };
 
-const STEP_LABELS = ["Upload", "Review", "Theme", "Tour", "Done"] as const;
+const STEP_LABELS = ["Upload", "Review", "Colors", "Tour", "Done"] as const;
 
 export function OnboardingClient({ tier, initialTheme }: OnboardingClientProps) {
   const [step, setStep] = useState<Step>("welcome");
@@ -798,11 +802,11 @@ export function OnboardingClient({ tier, initialTheme }: OnboardingClientProps) 
                 <Palette className="h-6 w-6 text-brand" />
               </div>
               <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
-                Pick a theme for your profile
+                Pick your accent colors
               </h2>
               <p className="text-sm text-zinc-500 max-w-md mx-auto">
-                This sets the accent color for both your dashboard and your public profile page.
-                You can change it anytime in Profile settings.
+                This sets the accent used across your dashboard, public profile page, and resume PDF.
+                You can change it anytime under Profile, and pick a layout under Profile Layout.
               </p>
             </div>
 
@@ -859,12 +863,61 @@ export function OnboardingClient({ tier, initialTheme }: OnboardingClientProps) 
                 <Sparkles className="h-6 w-6 text-brand" />
               </div>
               <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
-                Here&apos;s what you can do next
+                How rezm.ai fits together
               </h2>
               <p className="text-sm text-zinc-500 max-w-md mx-auto">
-                A quick look at two features that make applying easier.
+                Your resume flows through four surfaces. Each one builds on the last — knowing the order makes everything click.
               </p>
             </div>
+
+            {/* Pipeline diagram — the "ohh, NOW I get it" moment */}
+            <Card className="bg-gradient-to-br from-brand/5 to-transparent">
+              <CardContent className="p-4 sm:p-5">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-1 items-stretch text-center">
+                  <PipelineStage icon={User} title="Profile" subtitle="Your data" />
+                  <PipelineArrow />
+                  <PipelineStage icon={Layers} title="Resume Builder" subtitle="Sections + layout" />
+                  <PipelineArrow />
+                  <PipelineStage icon={Wand2} title="Tailored Variants" subtitle="AI per-job copies" />
+                  <PipelineArrow />
+                  <PipelineStage icon={Briefcase} title="Job Tracker" subtitle="Apply &amp; track" />
+                </div>
+                <p className="text-[11px] text-zinc-500 text-center mt-3 leading-relaxed">
+                  Profile holds your details. Resume Builder turns them into a styled document. Tailored Variants are AI copies for specific jobs. Job Tracker keeps the pipeline organized — Quick Apply autofills using the variant linked to each job.
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Resume Builder card — the foundation step the tour previously skipped */}
+            <Card>
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand/10">
+                    <Layers className="h-5 w-5 text-brand" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold text-sm">Resume Builder</h3>
+                      <Badge variant="success" className="text-[10px]">Start here</Badge>
+                    </div>
+                    <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
+                      Your base resume lives here. Drag sections to reorder, edit content inline, and tweak styling. Everything downstream — your public profile, PDFs, and Tailored Variants — starts from this one document.
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <span className="text-[10px] rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5">
+                        Drag-and-drop sections
+                      </span>
+                      <span className="text-[10px] rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5">
+                        Live PDF preview
+                      </span>
+                      <span className="text-[10px] rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5">
+                        Edits cascade to new variants
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Job Tracker card */}
             <Card>
@@ -915,7 +968,7 @@ export function OnboardingClient({ tier, initialTheme }: OnboardingClientProps) 
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-semibold text-sm">Resume Variants</h3>
+                      <h3 className="font-semibold text-sm">Tailored Variants</h3>
                       {variantsUnlocked ? (
                         <Badge variant="success" className="text-[10px]">Unlocked</Badge>
                       ) : (
@@ -1076,6 +1129,37 @@ function PasteForm({
           Please paste at least 50 characters of resume content.
         </p>
       )}
+    </div>
+  );
+}
+
+function PipelineStage({
+  icon: Icon,
+  title,
+  subtitle,
+}: {
+  icon: typeof Layers;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <div className="flex flex-row sm:flex-col items-center justify-start sm:justify-center gap-2 sm:gap-1.5 py-1">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand/10">
+        <Icon className="h-4 w-4 text-brand" />
+      </div>
+      <div className="text-left sm:text-center">
+        <div className="text-xs font-semibold leading-tight">{title}</div>
+        <div className="text-[10px] text-zinc-500 leading-tight">{subtitle}</div>
+      </div>
+    </div>
+  );
+}
+
+function PipelineArrow() {
+  return (
+    <div className="flex items-center justify-center text-zinc-400">
+      <ArrowRight className="h-4 w-4 hidden sm:block" />
+      <ArrowDown className="h-4 w-4 sm:hidden" />
     </div>
   );
 }

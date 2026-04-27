@@ -68,8 +68,8 @@ export function BlockProperties({
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} aria-label="Back to style">
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1">
-          <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Block</div>
+        <div className="flex-1" title="A block is a layout slot on your resume canvas — one section displayed on the page.">
+          <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Block (layout slot)</div>
           <div className="text-sm font-semibold capitalize">{block.type}</div>
         </div>
       </div>

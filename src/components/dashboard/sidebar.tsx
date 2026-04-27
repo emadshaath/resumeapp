@@ -32,7 +32,15 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-type NavItem = { name: string; href: string; icon: LucideIcon };
+type NavItem = {
+  name: string;
+  href: string;
+  icon: LucideIcon;
+  description?: string;
+  /** When true, the sidebar fetches the user's profile.is_published and
+   *  renders a Live/Draft dot next to this item. */
+  liveStatus?: boolean;
+};
 type NavGroup = { label: string; icon: LucideIcon; items: NavItem[] };
 type NavEntry = NavItem | NavGroup;
 
@@ -43,11 +51,30 @@ function isGroup(entry: NavEntry): entry is NavGroup {
 const navigation: NavEntry[] = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   {
-    label: "Resume",
+    label: "Resume Hub",
     icon: Layers,
     items: [
       { name: "Profile", href: "/dashboard/profile", icon: User },
+      {
+        name: "Public Profile",
+        href: "/dashboard/public-profile",
+        icon: Globe,
+        liveStatus: true,
+      },
       { name: "Resume Builder", href: "/dashboard/sections", icon: Layers },
+      {
+        name: "Tailored Variants",
+        href: "/dashboard/variants",
+        icon: Wand2,
+        description: "AI versions per job",
+      },
+    ],
+  },
+  {
+    label: "Job Applications",
+    icon: Briefcase,
+    items: [
+      { name: "Job Tracker", href: "/dashboard/jobs", icon: Briefcase },
     ],
   },
   {
@@ -61,13 +88,11 @@ const navigation: NavEntry[] = [
       { name: "Custom Domain", href: "/dashboard/communication?tab=domain", icon: Globe },
     ],
   },
-  { name: "Job Tracker", href: "/dashboard/jobs", icon: Briefcase },
-  { name: "Smart Variants", href: "/dashboard/variants", icon: Wand2 },
-  { name: "Peer Review", href: "/dashboard/reviews", icon: ClipboardCheck },
   {
-    label: "Insights",
+    label: "Reviews & Insights",
     icon: BarChart3,
     items: [
+      { name: "Peer Review", href: "/dashboard/reviews", icon: ClipboardCheck },
       { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
       { name: "SEO", href: "/dashboard/seo", icon: Search },
     ],
@@ -108,6 +133,30 @@ function SidebarContent({ onNavigate, collapsed }: { onNavigate?: () => void; co
 
   // Start empty to match server render, then hydrate from localStorage
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  // Profile publish state — drives the Live/Draft dot on the Public
+  // Profile entry. Null until first fetch resolves so we don't render a
+  // misleading Draft dot during page load.
+  const [isPublished, setIsPublished] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("is_published")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (data) setIsPublished(!!data.is_published);
+    })();
+    return () => { cancelled = true; };
+    // Re-fetch when the user navigates back to /dashboard/public-profile
+    // (where they may have toggled the switch). Cheap query.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   // On mount: restore stored state + auto-expand active groups
   useEffect(() => {
@@ -212,6 +261,7 @@ function SidebarContent({ onNavigate, collapsed }: { onNavigate?: () => void; co
                           key={item.name}
                           href={item.href}
                           onClick={onNavigate}
+                          title={item.description ? `${item.name} — ${item.description}` : undefined}
                           className={cn(
                             "flex items-center gap-3 rounded-md px-3 py-1.5 text-sm transition-colors",
                             isActive
@@ -220,7 +270,24 @@ function SidebarContent({ onNavigate, collapsed }: { onNavigate?: () => void; co
                           )}
                         >
                           <item.icon className="h-3.5 w-3.5 shrink-0" />
-                          {item.name}
+                          {item.description ? (
+                            <span className="flex flex-col leading-tight flex-1">
+                              <span>{item.name}</span>
+                              <span className="text-[10px] font-normal opacity-60">{item.description}</span>
+                            </span>
+                          ) : (
+                            <span className="flex-1">{item.name}</span>
+                          )}
+                          {item.liveStatus && isPublished !== null && (
+                            <span
+                              className={cn(
+                                "h-1.5 w-1.5 rounded-full shrink-0",
+                                isPublished ? "bg-emerald-500" : "bg-zinc-400"
+                              )}
+                              title={isPublished ? "Live" : "Draft"}
+                              aria-label={isPublished ? "Live" : "Draft"}
+                            />
+                          )}
                         </Link>
                       );
                     })}
@@ -241,7 +308,7 @@ function SidebarContent({ onNavigate, collapsed }: { onNavigate?: () => void; co
                 key={entry.name}
                 href={entry.href}
                 onClick={onNavigate}
-                title={entry.name}
+                title={entry.description ? `${entry.name} — ${entry.description}` : entry.name}
                 className={cn(
                   "flex items-center justify-center rounded-md p-2 transition-colors",
                   isActive
@@ -260,14 +327,22 @@ function SidebarContent({ onNavigate, collapsed }: { onNavigate?: () => void; co
               href={entry.href}
               onClick={onNavigate}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors",
+                entry.description ? "py-1.5" : "py-2",
                 isActive
                   ? "bg-sidebar-bg-active text-sidebar-text-active"
                   : "text-sidebar-text hover:bg-sidebar-bg-hover hover:text-sidebar-text-active"
               )}
             >
               <entry.icon className="h-4 w-4 shrink-0" />
-              {entry.name}
+              {entry.description ? (
+                <span className="flex flex-col leading-tight">
+                  <span>{entry.name}</span>
+                  <span className="text-[11px] font-normal opacity-60">{entry.description}</span>
+                </span>
+              ) : (
+                entry.name
+              )}
             </Link>
           );
         })}

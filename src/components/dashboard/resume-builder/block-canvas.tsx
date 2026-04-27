@@ -240,7 +240,7 @@ export function BlockCanvas({
                 ))}
               </SortableContext>
               {mainBlocks.length === 0 && sidebarBlocks.length === 0 && (
-                <EmptyZoneHint label="No blocks yet — add a section or tap the layout icon next to one in the section list to drop it here." />
+                <EmptyZoneHint label="No blocks yet. A block is a layout slot on your resume — one section, like Experience or Skills, displayed on the page. Add a section or tap the layout icon next to one in the section list to drop it here." />
               )}
             </div>
           </div>

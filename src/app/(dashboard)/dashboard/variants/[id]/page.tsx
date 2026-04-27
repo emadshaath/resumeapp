@@ -28,6 +28,9 @@ import {
   Share2,
   Pencil,
   X,
+  AlertCircle,
+  RefreshCw,
+  Copy,
 } from "lucide-react";
 
 interface PreviewData {
@@ -40,6 +43,7 @@ interface PreviewData {
     created_at: string;
     variant_data: VariantData;
     resolved_resume: ResumeData | null;
+    is_stale?: boolean;
   };
   job: {
     id: string;
@@ -64,9 +68,25 @@ export default function VariantPreviewPage() {
   const [error, setError] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [settingDefault, setSettingDefault] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [cloning, setCloning] = useState(false);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
+  // Persistent save signals for the variant editor. lastSavedAt and
+  // saveError outlive the editor's mount lifecycle (the editor unmounts
+  // when the user clicks Save, so showing "Saved" inside it would never
+  // be seen). Rendered next to the variant title.
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Open in edit mode if the URL hash is "#edit" (used by the post-tailor
+  // panel's "Edit Variant" CTA in the Job Tracker drawer).
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash === "#edit") {
+      setEditing(true);
+    }
+  }, []);
 
   const fetchPreview = useCallback(async () => {
     setLoading(true);
@@ -85,7 +105,11 @@ export default function VariantPreviewPage() {
   useEffect(() => { fetchPreview(); }, [fetchPreview]);
 
   async function handleDelete() {
-    if (!confirm("Delete this variant? This cannot be undone.")) return;
+    const job = data?.job;
+    const jobLine = job
+      ? `\n\nThis variant is linked to "${job.job_title} at ${job.company_name}". After deletion, Quick Apply for that job will fall back to your default variant — or, if none, your base resume.`
+      : "";
+    if (!confirm(`Delete this variant?${jobLine}\n\nThis cannot be undone.`)) return;
     setDeleting(true);
     const res = await fetch(`/api/variants/${params.id}`, { method: "DELETE" });
     if (res.ok) {
@@ -97,16 +121,62 @@ export default function VariantPreviewPage() {
 
   async function handleSaveEdit(updated: ResumeData) {
     setSavingEdit(true);
-    const res = await fetch(`/api/variants/${params.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resolved_resume: updated }),
+    setSaveError(null);
+    try {
+      const res = await fetch(`/api/variants/${params.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resolved_resume: updated }),
+      });
+      if (res.ok) {
+        setLastSavedAt(new Date());
+        setEditing(false);
+        await fetchPreview();
+      } else {
+        let detail = `Save failed (${res.status})`;
+        try {
+          const data = await res.json();
+          if (data?.error) detail = data.error;
+        } catch { /* ignore non-JSON errors */ }
+        setSaveError(detail);
+      }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function handleClone() {
+    setCloning(true);
+    const res = await fetch(`/api/variants/${params.id}/clone`, {
+      method: "POST",
     });
     if (res.ok) {
-      setEditing(false);
+      const data = await res.json();
+      if (data?.variant?.id) {
+        router.push(`/dashboard/variants/${data.variant.id}`);
+      }
+    }
+    setCloning(false);
+  }
+
+  async function handleRefresh() {
+    if (
+      !confirm(
+        "Refresh this variant from your current base resume?\n\nThis re-applies the AI tailoring to your latest content. Layout and PDF styling stay the same. Hand-edits to the resolved resume content will be replaced."
+      )
+    ) {
+      return;
+    }
+    setRefreshing(true);
+    const res = await fetch(`/api/variants/${params.id}/refresh`, {
+      method: "POST",
+    });
+    if (res.ok) {
       await fetchPreview();
     }
-    setSavingEdit(false);
+    setRefreshing(false);
   }
 
   async function handleSetDefault() {
@@ -162,9 +232,16 @@ export default function VariantPreviewPage() {
 
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold tracking-tight">
-              {variant.name}
-            </h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-bold tracking-tight">
+                {variant.name}
+              </h1>
+              <SaveIndicator
+                savingEdit={savingEdit}
+                lastSavedAt={lastSavedAt}
+                saveError={saveError}
+              />
+            </div>
             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
               {variant.match_score && (
                 <Badge variant="accent" className="text-xs">
@@ -173,9 +250,22 @@ export default function VariantPreviewPage() {
                 </Badge>
               )}
               {variant.is_default && (
-                <Badge className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                <Badge
+                  className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                  title="Default variant: used by PDF download and Quick Apply when a job has no variant of its own."
+                >
                   <Star className="h-3 w-3 mr-1" />
                   Default
+                </Badge>
+              )}
+              {variant.is_stale && (
+                <Badge
+                  variant="outline"
+                  className="text-xs border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-300"
+                  title="Stale: your base resume has been edited since this variant was created."
+                >
+                  <AlertCircle className="h-3 w-3 mr-1" />
+                  Stale
                 </Badge>
               )}
               <span className="text-xs text-zinc-400 flex items-center gap-1">
@@ -202,17 +292,44 @@ export default function VariantPreviewPage() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
-            {job && (
+            {variant.is_stale && (
               <Button
-                variant="outline"
+                variant="default"
                 size="sm"
-                onClick={() =>
-                  router.push(`/dashboard/jobs/${job.id}/apply`)
-                }
+                onClick={handleRefresh}
+                disabled={refreshing}
+                title="Re-apply this variant's AI tailoring to your current base resume content. Layout and PDF styling stay the same."
               >
-                <Briefcase className="h-3.5 w-3.5 mr-1" />
-                Quick Apply
+                {refreshing ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                )}
+                Refresh from base
               </Button>
+            )}
+            {job && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push(`/dashboard/jobs?job=${job.id}`)}
+                  title="Open this job in the Job Tracker"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+                  View Job
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    router.push(`/dashboard/jobs/${job.id}/apply`)
+                  }
+                >
+                  <Briefcase className="h-3.5 w-3.5 mr-1" />
+                  Quick Apply
+                </Button>
+              </>
             )}
             <a
               href={`/api/autofill/resume.pdf?variant=${variant.id}`}
@@ -238,6 +355,7 @@ export default function VariantPreviewPage() {
                 size="sm"
                 onClick={handleSetDefault}
                 disabled={settingDefault}
+                title="Use this variant for PDF download and Quick Apply whenever the job has no variant of its own."
               >
                 {settingDefault ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -249,6 +367,20 @@ export default function VariantPreviewPage() {
                 )}
               </Button>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClone}
+              disabled={cloning}
+              title="Duplicate this variant. The copy starts unlinked from any job and is hand-edited from there."
+            >
+              {cloning ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+              ) : (
+                <Copy className="h-3.5 w-3.5 mr-1" />
+              )}
+              Clone
+            </Button>
             <Button
               variant="destructive"
               size="sm"
@@ -314,8 +446,10 @@ export default function VariantPreviewPage() {
             <Card>
               <CardContent className="p-6">
                 <p className="text-sm text-zinc-500 text-center py-8">
-                  No frozen preview available for this variant. It was created
-                  before frozen snapshots were enabled.
+                  No saved preview is available for this variant. It was created
+                  before we started saving preview copies, so what you download
+                  will reflect your current resume rather than the version saved
+                  at creation time.
                 </p>
               </CardContent>
             </Card>
@@ -344,6 +478,53 @@ export default function VariantPreviewPage() {
       />
     </div>
   );
+}
+
+// Persistent save status rendered next to the variant title. Replaces the
+// vanishing "Unsaved changes" badge that used to live inside the editor —
+// because the editor unmounts after a successful save (setEditing(false)),
+// any indicator that lived there would never be visible. Stays put until
+// the user navigates away or saves again, so refreshes of the page keep
+// the most recent in-session save time.
+function SaveIndicator({
+  savingEdit,
+  lastSavedAt,
+  saveError,
+}: {
+  savingEdit: boolean;
+  lastSavedAt: Date | null;
+  saveError: string | null;
+}) {
+  if (savingEdit) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-zinc-500">
+        <Loader2 className="h-3 w-3 animate-spin" /> Saving...
+      </span>
+    );
+  }
+  if (saveError) {
+    return (
+      <Badge
+        variant="secondary"
+        className="gap-1 border border-red-300 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+        title={saveError}
+      >
+        <AlertCircle className="h-3 w-3" /> Save failed
+      </Badge>
+    );
+  }
+  if (lastSavedAt) {
+    const time = lastSavedAt.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    return (
+      <Badge variant="secondary" className="gap-1 text-[10px]" title={`Last saved at ${time}`}>
+        Saved {time}
+      </Badge>
+    );
+  }
+  return null;
 }
 
 /* ─── What Changed Tab ─── */

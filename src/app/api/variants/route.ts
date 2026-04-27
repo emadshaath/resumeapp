@@ -6,9 +6,10 @@ import { snapshotPdfSettings } from "@/lib/pdf/snapshot";
 import { snapshotResumeBlocks } from "@/lib/blocks/snapshot";
 import { applyVariantToResume } from "@/lib/tailor";
 import { captureSnapshot } from "@/lib/snapshots/service";
+import { fetchBaseResumeModifiedAt } from "@/lib/variants/staleness";
 import type { Tier, VariantData } from "@/types/database";
 
-// GET /api/variants — List user's variants 
+// GET /api/variants — List user's variants
 export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -38,12 +39,22 @@ export async function GET() {
     }
   }
 
+  // Compute the latest modification time across the base resume content
+  // tables. Used to flag variants whose snapshots are out of sync with the
+  // user's current base resume. Layout and styling tables are excluded
+  // because variants freeze those independently in blocks_snapshot and
+  // pdf_settings_snapshot — only content drift matters.
+  const baseModifiedAt = await fetchBaseResumeModifiedAt(supabase, user.id);
+
   const enriched = (variants || []).map((v) => ({
     ...v,
     job: v.job_application_id ? jobMap[v.job_application_id] || null : null,
+    is_stale: baseModifiedAt
+      ? new Date(baseModifiedAt) > new Date(v.updated_at || v.created_at)
+      : false,
   }));
 
-  return NextResponse.json({ variants: enriched });
+  return NextResponse.json({ variants: enriched, base_modified_at: baseModifiedAt });
 }
 
 // POST /api/variants — Save a variant (after generation or manual creation)

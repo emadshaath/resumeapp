@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,21 +10,25 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { isValidSlug, slugify } from "@/lib/utils";
 import { THEMES, THEME_CSS_VARS } from "@/lib/themes";
-import { Camera, Trash2, Loader2, ClipboardList } from "lucide-react";
-import { TemplatePicker } from "@/components/dashboard/template-picker";
+import { Camera, Trash2, Loader2, ClipboardList, Globe } from "lucide-react";
 import type { Profile } from "@/types/database";
 
 export default function ProfileEditorPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  // "templates" kept as a legacy alias for old bookmarks; canonical value is "theme".
-  const defaultTab =
-    tabParam === "apply" ? "apply"
-    : tabParam === "theme" || tabParam === "templates" ? "theme"
-    : "profile";
+  const defaultTab = tabParam === "apply" ? "apply" : "profile";
+
+  // Legacy redirect: ?tab=theme and ?tab=templates used to land on the
+  // Profile Layout tab here. That tab moved to /dashboard/public-profile
+  // (backlog #27). Forward old bookmarks so they don't 404 into the
+  // wrong surface.
+  useEffect(() => {
+    if (tabParam === "theme" || tabParam === "templates") {
+      router.replace("/dashboard/public-profile");
+    }
+  }, [tabParam, router]);
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,7 +37,6 @@ export default function ProfileEditorPage() {
   const [success, setSuccess] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
   // Lazy init: without this, a fresh client on every render re-fires the load
   // effect and an in-flight refetch overwrites keystrokes the user just typed.
   const [supabase] = useState(() => createClient());
@@ -117,25 +121,15 @@ export default function ProfileEditorPage() {
     setError(null);
     setSuccess(false);
 
-    // Normalize slug at submit time — typing leaves it raw so selection/caret
-    // behave correctly; slugify only runs on blur and here.
-    const normalizedSlug = slugify(profile.slug);
-    if (normalizedSlug !== profile.slug) {
-      patchProfile({ slug: normalizedSlug });
-    }
-
-    if (!isValidSlug(normalizedSlug)) {
-      setError("Invalid profile URL. Use 3-63 lowercase letters, numbers, and hyphens.");
-      setSaving(false);
-      return;
-    }
-
+    // Slug, is_published, and profile_template are NOT included here —
+    // they are managed on /dashboard/public-profile. profile_theme stays
+    // because Accent Colors lives on this page (it applies to both the
+    // public site and the resume PDF).
     const { error: updateError } = await supabase
       .from("profiles")
       .update({
         first_name: profile.first_name,
         last_name: profile.last_name,
-        slug: normalizedSlug,
         headline: profile.headline,
         email: profile.email,
         phone_personal: profile.phone_personal,
@@ -146,7 +140,6 @@ export default function ProfileEditorPage() {
         location: profile.location,
         website_url: profile.website_url,
         linkedin_url: profile.linkedin_url,
-        is_published: profile.is_published,
         profile_theme: profile.profile_theme,
       })
       .eq("id", profile.id);
@@ -154,11 +147,9 @@ export default function ProfileEditorPage() {
     if (updateError) {
       console.error("[profile save]", updateError);
       const friendly =
-        updateError.code === "23505"
-          ? "This profile URL is already taken."
-          : updateError.code === "PGRST204" || updateError.code === "42703"
-            ? `Database is out of date — column "${updateError.message.match(/'([^']+)'/)?.[1] ?? "unknown"}" doesn't exist. Run migrations 00024 and 00025.`
-            : updateError.message;
+        updateError.code === "PGRST204" || updateError.code === "42703"
+          ? `Database is out of date — column "${updateError.message.match(/'([^']+)'/)?.[1] ?? "unknown"}" doesn't exist. Run migrations 00024 and 00025.`
+          : updateError.message;
       setError(friendly);
     } else {
       setSuccess(true);
@@ -187,8 +178,7 @@ export default function ProfileEditorPage() {
       <Tabs defaultValue={defaultTab}>
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="theme">Profile Theme</TabsTrigger>
-          <TabsTrigger value="apply">Application Preferences</TabsTrigger>
+          <TabsTrigger value="apply">Autofill Defaults</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -408,9 +398,12 @@ export default function ProfileEditorPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Profile Theme</CardTitle>
+                <CardTitle className="text-lg">Accent Colors</CardTitle>
                 <CardDescription>
-                  Choose a color theme for your public profile page.
+                  Pick the accent color used across your public profile page and resume PDF. To change layout, see the Profile Layout tab.
+                  <span className="block mt-2 text-xs text-zinc-500">
+                    Color changes here apply live to all your variants. Layout and PDF styling, by contrast, are frozen at the moment a variant is created — so changing layout or fonts only affects new variants, not existing ones.
+                  </span>
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -442,47 +435,20 @@ export default function ProfileEditorPage() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Profile URL</CardTitle>
-                <CardDescription>
-                  This is the subdomain where your profile will be publicly accessible.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={profile.slug}
-                    onChange={(e) => patchProfile({ slug: e.target.value })}
-                    onBlur={(e) => patchProfile({ slug: slugify(e.target.value) })}
-                    required
-                    className="max-w-xs font-mono"
-                  />
-                  <span className="text-sm text-zinc-500">.rezm.ai</span>
+            <Card className="border-dashed">
+              <CardContent className="p-4 flex items-start gap-3 text-sm">
+                <Globe className="h-4 w-4 text-brand shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium">Visibility, URL, and layout moved</p>
+                  <p className="text-zinc-500 mt-0.5">
+                    Manage whether your profile is live, change your URL, and pick a layout in{" "}
+                    <Link href="/dashboard/public-profile" className="underline underline-offset-2">
+                      Public Profile
+                    </Link>
+                    .
+                  </p>
                 </div>
               </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg">Publish Profile</CardTitle>
-                    <CardDescription>
-                      Make your profile visible to the public.
-                    </CardDescription>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge variant={profile.is_published ? "success" : "secondary"}>
-                      {profile.is_published ? "Live" : "Draft"}
-                    </Badge>
-                    <Switch
-                      checked={profile.is_published}
-                      onCheckedChange={(checked) => patchProfile({ is_published: checked })}
-                    />
-                  </div>
-                </div>
-              </CardHeader>
             </Card>
 
             <div className="flex justify-end">
@@ -491,10 +457,6 @@ export default function ProfileEditorPage() {
               </Button>
             </div>
           </form>
-        </TabsContent>
-
-        <TabsContent value="theme">
-          <TemplatePicker profile={profile} onUpdate={patchProfile} />
         </TabsContent>
 
         <TabsContent value="apply">
@@ -561,10 +523,10 @@ function ApplicationPreferencesTab({
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <ClipboardList className="h-5 w-5" />
-            Application Preferences
+            Autofill Defaults (Chrome extension)
           </CardTitle>
           <CardDescription>
-            Pre-fill common job application questions. These are stored securely and only used to auto-fill forms via the Chrome extension. All fields are optional.
+            Pre-fill common job application questions. These are stored securely and only used by the Chrome extension to auto-fill external application forms — they do not appear on your public profile or resume. All fields are optional.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">

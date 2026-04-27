@@ -13,6 +13,7 @@ import {
   Wand2,
   Eye,
   SlidersHorizontal,
+  AlertTriangle,
 } from "lucide-react";
 
 export type BuilderView = "design" | "style";
@@ -20,7 +21,13 @@ export type BuilderView = "design" | "style";
 interface BuilderHeaderProps {
   // Style/save state
   saving: boolean;
-  saved: boolean;
+  /** Timestamp of the most recent successful style save. Null until first
+   *  save in this session. Persists (no auto-clear) so users always know
+   *  whether their last edit landed. */
+  lastSavedAt: Date | null;
+  /** Plain-text error from the last save attempt, if any. Cleared the
+   *  moment the user makes a new edit. */
+  saveError: string | null;
   dirty: boolean;
   onSave: () => void;
 
@@ -46,7 +53,8 @@ interface BuilderHeaderProps {
  */
 export function BuilderHeader({
   saving,
-  saved,
+  lastSavedAt,
+  saveError,
   dirty,
   onSave,
   downloading,
@@ -58,6 +66,9 @@ export function BuilderHeader({
   onOpenLinkedIn,
   onOpenHistory,
 }: BuilderHeaderProps) {
+  const savedTime = lastSavedAt
+    ? lastSavedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : null;
   return (
     <header className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950 sm:px-4">
       <div className="flex items-center gap-2">
@@ -98,19 +109,28 @@ export function BuilderHeader({
 
       <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-800" />
 
-      {/* Save status + Save + Download */}
-      {saved && (
-        <Badge variant="secondary" className="gap-1">
-          <Check className="h-3 w-3" /> Saved
+      {/* Save status + Save + Download. Status renders in priority order:
+          error > dirty > saved-at. Persists (no timeout) so users always
+          know whether their last edit landed. */}
+      {saveError ? (
+        <Badge
+          variant="secondary"
+          className="gap-1 border border-red-300 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          title={saveError}
+        >
+          <AlertTriangle className="h-3 w-3" /> Save failed
         </Badge>
-      )}
-      {!saved && dirty && (
+      ) : dirty ? (
         <span className="hidden text-xs text-zinc-500 sm:inline">Unsaved style changes</span>
-      )}
-      <Button size="sm" variant="outline" onClick={onSave} disabled={saving || !dirty}>
+      ) : savedTime ? (
+        <Badge variant="secondary" className="gap-1" title={`Last saved at ${savedTime}`}>
+          <Check className="h-3 w-3" /> Saved {savedTime}
+        </Badge>
+      ) : null}
+      <Button size="sm" variant="outline" onClick={onSave} disabled={saving || (!dirty && !saveError)}>
         {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1" /> : null}
-        <span className="hidden sm:inline">Save style</span>
-        <span className="sm:hidden">Save</span>
+        <span className="hidden sm:inline">{saveError ? "Retry save" : "Save style"}</span>
+        <span className="sm:hidden">{saveError ? "Retry" : "Save"}</span>
       </Button>
       <Button size="sm" onClick={onDownload} disabled={downloading}>
         {downloading ? (
