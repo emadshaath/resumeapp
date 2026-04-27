@@ -86,6 +86,18 @@ Phasing rationale: copy and terminology fixes ship first because they are cheap,
 
 ---
 
+## Phase 6 — Beyond UX (new features)
+
+**Goal**: close real product gaps surfaced after the core UX cleanup. Items here are no longer about clarity — they add capability that the workflow currently does not have.
+
+**Estimated duration**: per-item, sized in the backlog. Schedule based on demand.
+
+**Exit criteria**: each item ships with a migration, API, UI, and prompt design tested end-to-end.
+
+- [ ] **#26** AI cover letter generation per job — `src/app/api/cover-letters/`, `src/lib/cover-letter/`, JobDetailDrawer button, Quick Apply tile, Profile voice-sample field, new `cover_letter_drafts` table
+
+---
+
 ## Cross-phase notes
 
 - **Sequencing**: Phase 1 must land before Phase 3 help text references new terms ("Accent Colors," "AI-generated"). Phase 2 sidebar changes must land before Phase 3 reciprocal navigation lands at the new locations.

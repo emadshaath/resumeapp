@@ -246,3 +246,33 @@ Prioritized fix list synthesized from three reviews. Items are grouped into thre
 - **Effort**: S
 - **Impact**: M
 - **Category**: Copy + New UI
+
+## Tier 4 — New features (beyond UX cleanup)
+
+### 26. AI cover letter generation per job
+- **Problem**: There is no cover letter feature. Engineers applying to mission-driven companies, career switchers, and high-priority targets need a per-job cover letter that sounds genuine — not a generic AI-written paragraph. Current users either skip cover letters entirely or write them in a separate tool, defeating the integrated workflow that variants and Quick Apply established. AI-written full-letter drafts are easy to spot ("thrilled to apply", "unique blend of skills", "leverage synergies") so the feature has to be designed around AI structuring + human voice, not AI prose generation.
+- **Proposed fix**: Reuse the Smart Tailor infrastructure for letters but with a different output shape:
+  - New `cover_letter_drafts` table linked to `job_application_id` and optionally `variant_id` — fields: `id`, `profile_id`, `job_application_id`, `variant_id`, `bullet_points` (JSONB array of AI-suggested talking points), `body` (user's edited markdown), `created_at`, `updated_at`.
+  - New `voice_sample` (text) column on `profiles` — captured once during onboarding or in Profile settings, used to seed the AI's tone-matching.
+  - New `POST /api/cover-letters/generate` endpoint that takes `{ job_id, variant_id? }`, calls Claude with the variant's resolved resume + the job description + the user's voice sample, and returns 3-5 specific talking points (not prose).
+  - New "Generate Cover Letter" button in the JobDetailDrawer alongside Smart Tailor; opens an editor modal with the AI bullet points plus a markdown text area for the user to compose the actual letter from those points.
+  - "Copy Cover Letter" tile on the Quick Apply page next to email/phone/skills.
+  - Optional: a "Voice Sample" prompt step in onboarding asking the user to paste 200 words of their own writing (a Slack message, a journal entry, anything).
+- **Affected files**:
+  - New: `src/app/api/cover-letters/generate/route.ts`
+  - New: `src/app/api/cover-letters/[id]/route.ts` (GET, PUT, DELETE)
+  - New: `src/lib/cover-letter/index.ts` (mirrors `src/lib/tailor/index.ts`)
+  - New: `src/components/jobs/cover-letter-editor.tsx`
+  - Modify: `src/types/database.ts` (CoverLetterDraft interface, profiles.voice_sample)
+  - Modify: `src/app/(dashboard)/dashboard/jobs/page.tsx` (JobDetailDrawer button)
+  - Modify: `src/app/(dashboard)/dashboard/jobs/[id]/apply/page.tsx` (Copy tile)
+  - Modify: `src/app/(dashboard)/dashboard/profile/page.tsx` (voice sample field)
+  - Migration: `cover_letter_drafts` table + `profiles.voice_sample` column
+- **Effort**: L (1-2 weeks; non-trivial schema, API, UI, prompt design)
+- **Impact**: H (closes a real gap; differentiates from generic AI-letter tools by anchoring on user's actual resume + voice + variant)
+- **Category**: New feature (Data model + API + AI + New UI)
+- **Design constraints**:
+  - AI returns talking points, not prose, so the user always writes the final letter.
+  - Voice sample is one-time setup; the AI references it for tone, not content.
+  - The editor explicitly displays "These are talking points, not a finished letter — write in your own voice using the points above."
+  - Letter draft is keyed per job, optionally seeded from the linked variant. Re-tailor on the variant does not silently overwrite the letter (letters are independent artifacts).
