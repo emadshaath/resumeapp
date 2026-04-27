@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,7 @@ function daysSince(date: string) {
 
 export default function JobsPage() {
   const supabase = createClient();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [jobs, setJobs] = useState<JobApplication[]>([]);
   const [pipeline, setPipeline] = useState<Record<string, number>>({});
@@ -89,17 +90,34 @@ export default function JobsPage() {
     fetchJobs();
   }, [fetchJobs]);
 
-  // Deep-link support: ?job=<id> opens that job's drawer once jobs are loaded.
-  // Used by the variant detail page's "View Job" button so users can hop back
-  // to the source job without losing context.
+  // Deep-link support: ?job=<id> opens that job's drawer once jobs are
+  // loaded. Used by the variant detail page's "View Job" link.
+  // selectedJob is intentionally NOT in the dependency array — closing
+  // the drawer (setSelectedJob(null)) would otherwise re-fire this effect
+  // and re-open the drawer in an infinite loop. closeDrawer() below clears
+  // the ?job= param so the URL stays in sync with the actual state.
   useEffect(() => {
     const target = searchParams.get("job");
     if (!target || jobs.length === 0) return;
     const match = jobs.find((j) => j.id === target);
-    if (match && (!selectedJob || selectedJob.id !== match.id)) {
+    if (match) {
       setSelectedJob(match);
     }
-  }, [searchParams, jobs, selectedJob]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, jobs]);
+
+  // Clears both the local drawer state AND the ?job= URL param so the
+  // deep-link effect won't re-open the drawer on the next render. Used by
+  // every dismissal path (close button, delete, status change).
+  const closeDrawer = useCallback(() => {
+    setSelectedJob(null);
+    if (searchParams.get("job")) {
+      const next = new URLSearchParams(searchParams.toString());
+      next.delete("job");
+      const query = next.toString();
+      router.replace(query ? `/dashboard/jobs?${query}` : "/dashboard/jobs");
+    }
+  }, [router, searchParams]);
 
   const totalApplied = (pipeline["applied"] || 0) + (pipeline["screening"] || 0) +
     (pipeline["interview"] || 0) + (pipeline["offer"] || 0) + (pipeline["accepted"] || 0);
@@ -126,7 +144,7 @@ export default function JobsPage() {
     if (!confirm(`Delete this job application?${variantLine}`)) return;
     const res = await fetch(`/api/jobs/${jobId}`, { method: "DELETE" });
     if (res.ok) {
-      setSelectedJob(null);
+      closeDrawer();
       fetchJobs();
     }
   }
@@ -253,10 +271,10 @@ export default function JobsPage() {
       {selectedJob && (
         <JobDetailDrawer
           job={selectedJob}
-          onClose={() => setSelectedJob(null)}
+          onClose={closeDrawer}
           onStatusChange={(status) => {
             updateJobStatus(selectedJob.id, status);
-            setSelectedJob(null);
+            closeDrawer();
           }}
           onDelete={() => deleteJob(selectedJob.id)}
           onUpdate={fetchJobs}
