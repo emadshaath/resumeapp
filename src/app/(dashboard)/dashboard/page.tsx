@@ -8,6 +8,9 @@ import {
   AlertCircle,
   Clock,
   CalendarClock,
+  ArrowRight,
+  Sparkles,
+  MessageSquare,
 } from "lucide-react";
 import {
   RefreshVariantButton,
@@ -55,6 +58,22 @@ function daysAgo(timestamp: string): number {
   return Math.floor(ms / (1000 * 60 * 60 * 24));
 }
 
+// Compact relative timestamps for the activity feed. Server-rendered, so
+// "now" is the request time — close enough for a list that refreshes on
+// every navigation. Skips the "in the future" branch since every
+// timestamp here is historical by construction.
+function formatRelativeTime(timestamp: string): string {
+  const ms = Date.now() - new Date(timestamp).getTime();
+  const minutes = Math.floor(ms / (1000 * 60));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 14) return `${days}d ago`;
+  return new Date(timestamp).toLocaleDateString();
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -96,8 +115,21 @@ export default async function DashboardPage() {
     redirect("/dashboard");
   }
 
+  // Window for the Recent Activity feed. Anything older than this is
+  // forgotten — a 3-week-old status change isn't activity, it's history.
+  const ACTIVITY_DAYS = 14;
+  const activitySince = new Date(
+    Date.now() - ACTIVITY_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
+
   // Parallel fetch — none of these depend on each other.
-  const [sectionResult, jobsResult, variantsResult, baseModifiedAt] = await Promise.all([
+  const [
+    sectionResult,
+    jobsResult,
+    variantsResult,
+    baseModifiedAt,
+    commentsResult,
+  ] = await Promise.all([
     supabase
       .from("resume_sections")
       .select("*", { count: "exact", head: true })
@@ -112,11 +144,34 @@ export default async function DashboardPage() {
       .select("id, name, job_application_id, is_default, updated_at, created_at")
       .eq("profile_id", user.id),
     fetchBaseResumeModifiedAt(supabase, user.id),
+    supabase
+      .from("review_comments")
+      .select("id, comment_text, reviewer_name, created_at")
+      .eq("profile_id", user.id)
+      .gte("created_at", activitySince)
+      .order("created_at", { ascending: false })
+      .limit(10),
   ]);
 
   const sectionCount = sectionResult.count || 0;
   const jobs = jobsResult.data || [];
   const variants = variantsResult.data || [];
+  const recentComments = commentsResult.data || [];
+
+  // Job-status events depend on the jobs[] list (we need the IDs first to
+  // scope the query), so it's a second-stage fetch. Cheap — single index
+  // hit on job_application_id IN (...).
+  const jobIds = jobs.map((j) => j.id);
+  const eventsResult = jobIds.length > 0
+    ? await supabase
+        .from("job_application_events")
+        .select("id, job_application_id, from_status, to_status, created_at")
+        .in("job_application_id", jobIds)
+        .gte("created_at", activitySince)
+        .order("created_at", { ascending: false })
+        .limit(15)
+    : { data: [] as { id: string; job_application_id: string; from_status: string | null; to_status: string; created_at: string }[] };
+  const recentEvents = eventsResult.data || [];
 
   // Pipeline counts — single pass over jobs so we don't need a separate
   // aggregate query.
@@ -229,6 +284,60 @@ export default async function DashboardPage() {
       job_title: j.job_title,
     }));
 
+  // ── Recent Activity feed ───────────────────────────────────────────────
+  // Union of three sources (status changes, variant creations, reviewer
+  // comments), sorted by timestamp desc, capped at 5. Hidden entirely when
+  // fewer than 3 events surface — empty activity is depressing, not
+  // informative. The first JobApplicationEvent for a brand-new job (its
+  // initial "Job added" creation event) is intentionally suppressed: the
+  // creation is already implicit in the user adding the job, and showing
+  // it doubles up with the kanban Saved column.
+  type ActivityItem = {
+    timestamp: string;
+    kind: "status" | "variant" | "comment";
+    text: string;
+    href: string;
+  };
+
+  const jobById = new Map(jobs.map((j) => [j.id, j]));
+  const activityItems: ActivityItem[] = [];
+
+  for (const ev of recentEvents) {
+    if (!ev.from_status) continue; // initial creation, skip
+    const job = jobById.get(ev.job_application_id);
+    if (!job) continue;
+    activityItems.push({
+      timestamp: ev.created_at,
+      kind: "status",
+      text: `${job.company_name} moved to ${ev.to_status}`,
+      href: `/dashboard/jobs?job=${job.id}`,
+    });
+  }
+
+  for (const variant of variants) {
+    if (variant.created_at < activitySince) continue;
+    activityItems.push({
+      timestamp: variant.created_at,
+      kind: "variant",
+      text: `Variant "${variant.name}" created`,
+      href: `/dashboard/variants/${variant.id}`,
+    });
+  }
+
+  for (const comment of recentComments) {
+    const reviewer = comment.reviewer_name || "Anonymous reviewer";
+    activityItems.push({
+      timestamp: comment.created_at,
+      kind: "comment",
+      text: `${reviewer} left a review comment`,
+      href: "/dashboard/reviews",
+    });
+  }
+
+  activityItems.sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
+  const activityDisplayed = activityItems.slice(0, 5);
+  const showActivity = activityItems.length >= 3;
+
   // ── Quick Start visibility ─────────────────────────────────────────────
   // Auto-hide once all three steps are complete; returning users should
   // not see this card at all.
@@ -329,6 +438,42 @@ export default async function DashboardPage() {
       {/* Apply faster — hidden entirely when there are no qualifying
           jobs (per the agent's guidance: empty panels are noise). */}
       <ApplyFasterCard jobs={applyFasterJobs} />
+
+      {/* Recent activity — answers "what changed since I was last here?"
+          Hidden when fewer than 3 events surface in the last 14 days;
+          empty activity is depressing, not informative. */}
+      {showActivity && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Recent activity</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {activityDisplayed.map((item, i) => (
+              <Link
+                key={`${item.kind}-${i}-${item.timestamp}`}
+                href={item.href}
+                className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
+              >
+                <span className="flex items-center gap-2 min-w-0 flex-1">
+                  {item.kind === "status" && (
+                    <ArrowRight className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+                  )}
+                  {item.kind === "variant" && (
+                    <Sparkles className="h-3.5 w-3.5 text-brand shrink-0" />
+                  )}
+                  {item.kind === "comment" && (
+                    <MessageSquare className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+                  )}
+                  <span className="truncate">{item.text}</span>
+                </span>
+                <span className="text-xs text-zinc-400 shrink-0">
+                  {formatRelativeTime(item.timestamp)}
+                </span>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quick Start — only rendered while at least one step is incomplete.
           Returning users with everything checked off never see this card. */}
