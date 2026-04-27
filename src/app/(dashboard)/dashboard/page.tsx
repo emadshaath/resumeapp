@@ -2,11 +2,58 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { User, Layers, Sparkles, BarChart3, ExternalLink } from "lucide-react";
+import { fetchBaseResumeModifiedAt } from "@/lib/variants/staleness";
+import {
+  AlertCircle,
+  Clock,
+  CalendarClock,
+} from "lucide-react";
+import {
+  RefreshVariantButton,
+  MoveToNextButton,
+  MarkFollowedUpButton,
+  ApplyFasterCard,
+} from "./dashboard-actions";
 
 export const metadata = { title: "Dashboard" };
+
+// Job statuses we treat as "active" for staleness gating. Variants linked to
+// jobs in terminal states (accepted/rejected/withdrawn) don't need refresh
+// nudges since the user isn't applying with them anymore.
+const ACTIVE_JOB_STATUSES = new Set([
+  "saved",
+  "applied",
+  "screening",
+  "interview",
+  "offer",
+]);
+
+// Pipeline columns we render in the strip, in the order they flow.
+const PIPELINE_COLUMNS = [
+  { key: "saved", label: "Saved" },
+  { key: "applied", label: "Applied" },
+  { key: "screening", label: "Screening" },
+  { key: "interview", label: "Interview" },
+  { key: "offer", label: "Offer" },
+] as const;
+
+// Forward transitions used by "Move to next" CTAs in Needs Your Attention.
+// Mirrors the kanban's getNextStatus rules.
+const NEXT_STATUS: Record<string, { status: string; label: string }> = {
+  saved: { status: "applied", label: "Applied" },
+  applied: { status: "screening", label: "Screening" },
+  screening: { status: "interview", label: "Interview" },
+  interview: { status: "offer", label: "Offer" },
+};
+
+// Days a job can sit in screening/interview before it shows up as a cold lead.
+const COLD_DAYS_THRESHOLD = 7;
+
+function daysAgo(timestamp: string): number {
+  const ms = Date.now() - new Date(timestamp).getTime();
+  return Math.floor(ms / (1000 * 60 * 60 * 24));
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -18,11 +65,6 @@ export default async function DashboardPage() {
     .select("*")
     .eq("id", user.id)
     .single();
-
-  const { count: sectionCount } = await supabase
-    .from("resume_sections")
-    .select("*", { count: "exact", head: true })
-    .eq("profile_id", user.id);
 
   if (profile && !profile.onboarding_completed) {
     redirect("/dashboard/onboarding");
@@ -51,142 +93,391 @@ export default async function DashboardPage() {
       );
     }
 
-    // Redirect to reload with the new profile
     redirect("/dashboard");
   }
 
-  const profileUrl = `${process.env.NEXT_PUBLIC_APP_URL}/p/${profile.slug}`;
+  // Parallel fetch — none of these depend on each other.
+  const [sectionResult, jobsResult, variantsResult, baseModifiedAt] = await Promise.all([
+    supabase
+      .from("resume_sections")
+      .select("*", { count: "exact", head: true })
+      .eq("profile_id", user.id),
+    supabase
+      .from("job_applications")
+      .select("id, company_name, job_title, status, variant_id, updated_at, follow_up_date")
+      .eq("profile_id", user.id)
+      .order("updated_at", { ascending: false }),
+    supabase
+      .from("profile_variants")
+      .select("id, name, job_application_id, is_default, updated_at, created_at")
+      .eq("profile_id", user.id),
+    fetchBaseResumeModifiedAt(supabase, user.id),
+  ]);
+
+  const sectionCount = sectionResult.count || 0;
+  const jobs = jobsResult.data || [];
+  const variants = variantsResult.data || [];
+
+  // Pipeline counts — single pass over jobs so we don't need a separate
+  // aggregate query.
+  const pipeline: Record<string, number> = {};
+  for (const job of jobs) pipeline[job.status] = (pipeline[job.status] || 0) + 1;
+
+  // Active applications headline number for the welcome banner.
+  const activeCount = jobs.filter((j) => ACTIVE_JOB_STATUSES.has(j.status)).length;
+
+  // ── Needs your attention rows ──────────────────────────────────────────
+  // Computed server-side so the page hydrates already in the right state.
+  // Three sources:
+  //   1. Stale variants whose linked job is still active
+  //   2. Cold screenings/interviews (no movement in 7+ days)
+  //   3. Follow-ups due today or earlier
+  type AttentionRow =
+    | {
+        kind: "stale-variant";
+        variantId: string;
+        variantName: string;
+        jobTitle: string;
+        company: string;
+        jobStatus: string;
+      }
+    | {
+        kind: "cold-job";
+        jobId: string;
+        jobTitle: string;
+        company: string;
+        jobStatus: string;
+        daysIdle: number;
+      }
+    | {
+        kind: "follow-up";
+        jobId: string;
+        jobTitle: string;
+        company: string;
+        followUpDate: string;
+      };
+
+  const attentionRows: AttentionRow[] = [];
+
+  // (1) Stale variants linked to active jobs.
+  if (baseModifiedAt) {
+    const baseTime = new Date(baseModifiedAt).getTime();
+    const jobById = new Map(jobs.map((j) => [j.id, j]));
+    for (const variant of variants) {
+      const variantTime = new Date(
+        variant.updated_at || variant.created_at
+      ).getTime();
+      if (variantTime >= baseTime) continue;
+      if (!variant.job_application_id) continue;
+      const job = jobById.get(variant.job_application_id);
+      if (!job || !ACTIVE_JOB_STATUSES.has(job.status)) continue;
+      attentionRows.push({
+        kind: "stale-variant",
+        variantId: variant.id,
+        variantName: variant.name,
+        jobTitle: job.job_title,
+        company: job.company_name,
+        jobStatus: job.status,
+      });
+    }
+  }
+
+  // (2) Cold screenings/interviews.
+  for (const job of jobs) {
+    if (job.status !== "screening" && job.status !== "interview") continue;
+    const idle = daysAgo(job.updated_at);
+    if (idle < COLD_DAYS_THRESHOLD) continue;
+    attentionRows.push({
+      kind: "cold-job",
+      jobId: job.id,
+      jobTitle: job.job_title,
+      company: job.company_name,
+      jobStatus: job.status,
+      daysIdle: idle,
+    });
+  }
+
+  // (3) Follow-ups due today or earlier.
+  const today = new Date().toISOString().slice(0, 10);
+  for (const job of jobs) {
+    if (!job.follow_up_date) continue;
+    if (job.follow_up_date > today) continue;
+    if (!ACTIVE_JOB_STATUSES.has(job.status)) continue;
+    attentionRows.push({
+      kind: "follow-up",
+      jobId: job.id,
+      jobTitle: job.job_title,
+      company: job.company_name,
+      followUpDate: job.follow_up_date,
+    });
+  }
+
+  // Cap the panel to keep the surface scannable.
+  const attentionDisplayed = attentionRows.slice(0, 5);
+  const attentionOverflow = attentionRows.length - attentionDisplayed.length;
+
+  // ── Apply Faster: jobs with no variant yet ─────────────────────────────
+  const applyFasterJobs = jobs
+    .filter(
+      (j) =>
+        (j.status === "saved" || j.status === "applied") && !j.variant_id
+    )
+    .slice(0, 3)
+    .map((j) => ({
+      id: j.id,
+      company_name: j.company_name,
+      job_title: j.job_title,
+    }));
+
+  // ── Quick Start visibility ─────────────────────────────────────────────
+  // Auto-hide once all three steps are complete; returning users should
+  // not see this card at all.
+  const quickStartSteps = [
+    { done: !!profile.headline, label: "Add a professional headline", href: "/dashboard/profile" },
+    { done: sectionCount > 0, label: "Add at least one resume section", href: "/dashboard/sections" },
+    { done: profile.is_published, label: "Publish your profile", href: "/dashboard/public-profile" },
+  ];
+  const quickStartIncomplete = quickStartSteps.some((s) => !s.done);
+
+  // Welcome banner subline — dynamic if the user has any activity, generic
+  // fallback otherwise. Suppresses noise on day-1 accounts.
+  const welcomeSubline =
+    activeCount > 0
+      ? `${activeCount} active application${activeCount === 1 ? "" : "s"}` +
+        (attentionRows.length > 0
+          ? ` · ${attentionRows.length} need${attentionRows.length === 1 ? "s" : ""} attention`
+          : "")
+      : "Welcome to your job-hunt dashboard.";
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Welcome back, {profile.first_name}
-          </h1>
-          <p className="text-zinc-500 mt-1">
-            Manage your professional profile and resume sections.
+    <div className="space-y-6">
+      {/* Welcome banner — name + dynamic state, no duplicate publish chrome.
+          The Live/Draft indicator and "View profile" button moved to the
+          sidebar (Eye/EyeOff icon) and the dedicated Public Profile page. */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">
+          Welcome back, {profile.first_name}
+        </h1>
+        <p className="text-zinc-500 mt-1">{welcomeSubline}</p>
+      </div>
+
+      {/* Pipeline strip — replaces the four passive stat tiles with one
+          row of decision-relevant numbers. Each segment links to its
+          kanban column so users can drill in directly. */}
+      {jobs.length > 0 && (
+        <Card>
+          <CardContent className="p-3 sm:p-4">
+            <div className="grid grid-cols-5 gap-2 sm:gap-4">
+              {PIPELINE_COLUMNS.map((col) => {
+                const count = pipeline[col.key] || 0;
+                return (
+                  <Link
+                    key={col.key}
+                    href="/dashboard/jobs"
+                    className={`block rounded-md px-2 py-2 text-center transition-colors ${
+                      count > 0
+                        ? "hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                        : "opacity-50"
+                    }`}
+                  >
+                    <div className="text-2xl font-bold">{count}</div>
+                    <div className="text-[10px] uppercase tracking-wide text-zinc-500 mt-0.5">
+                      {col.label}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Needs your attention — converged action queue. Empty state is a
+          single line so the absence of items reads as a positive signal,
+          not a void. */}
+      {attentionRows.length > 0 ? (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-500" />
+              Needs your attention
+              <Badge variant="secondary" className="text-[10px]">
+                {attentionRows.length}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {attentionDisplayed.map((row, i) => (
+              <AttentionRowView key={`${row.kind}-${i}`} row={row} />
+            ))}
+            {attentionOverflow > 0 && (
+              <p className="text-xs text-zinc-500 pt-1">
+                +{attentionOverflow} more —{" "}
+                <Link href="/dashboard/jobs" className="underline">
+                  see all
+                </Link>
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      ) : jobs.length > 0 ? (
+        <p className="text-sm text-zinc-500 px-1">
+          Nothing needs your attention. Nice work.
+        </p>
+      ) : null}
+
+      {/* Apply faster — hidden entirely when there are no qualifying
+          jobs (per the agent's guidance: empty panels are noise). */}
+      <ApplyFasterCard jobs={applyFasterJobs} />
+
+      {/* Quick Start — only rendered while at least one step is incomplete.
+          Returning users with everything checked off never see this card. */}
+      {quickStartIncomplete && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Quick Start</CardTitle>
+            <CardDescription>Complete these steps to launch your profile</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {quickStartSteps.map((step) => (
+                <Link
+                  key={step.label}
+                  href={step.href}
+                  className="flex items-center gap-3 rounded-md border border-zinc-200 px-4 py-3 text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900 transition-colors"
+                >
+                  <div
+                    className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${
+                      step.done
+                        ? "border-green-500 bg-green-500"
+                        : "border-zinc-300 dark:border-zinc-600"
+                    }`}
+                  >
+                    {step.done && (
+                      <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className={step.done ? "text-zinc-400 line-through" : ""}>{step.label}</span>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── Attention row renderer ───────────────────────────────────────────────
+// Inline component so the page stays one file. Each row carries its own
+// inline CTA from dashboard-actions.tsx — clicking it resolves the row
+// and (via router.refresh in the client component) shrinks the panel.
+function AttentionRowView({
+  row,
+}: {
+  row:
+    | {
+        kind: "stale-variant";
+        variantId: string;
+        variantName: string;
+        jobTitle: string;
+        company: string;
+        jobStatus: string;
+      }
+    | {
+        kind: "cold-job";
+        jobId: string;
+        jobTitle: string;
+        company: string;
+        jobStatus: string;
+        daysIdle: number;
+      }
+    | {
+        kind: "follow-up";
+        jobId: string;
+        jobTitle: string;
+        company: string;
+        followUpDate: string;
+      };
+}) {
+  if (row.kind === "stale-variant") {
+    return (
+      <div className="flex items-start justify-between gap-3 rounded-md border border-zinc-100 dark:border-zinc-800/60 px-3 py-2.5">
+        <div className="flex items-start gap-2 min-w-0 flex-1">
+          <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-sm">
+              <span className="font-medium">&ldquo;{row.variantName}&rdquo;</span>{" "}
+              variant is out of sync with your base resume
+            </p>
+            <p className="text-xs text-zinc-500 mt-0.5 truncate">
+              Linked job in {row.jobStatus} · {row.jobTitle} at {row.company}
+            </p>
+          </div>
+        </div>
+        <RefreshVariantButton variantId={row.variantId} />
+      </div>
+    );
+  }
+
+  if (row.kind === "cold-job") {
+    const next = NEXT_STATUS[row.jobStatus];
+    return (
+      <div className="flex items-start justify-between gap-3 rounded-md border border-zinc-100 dark:border-zinc-800/60 px-3 py-2.5">
+        <div className="flex items-start gap-2 min-w-0 flex-1">
+          <Clock className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-sm">
+              <span className="font-medium">{row.company}</span> {row.jobStatus}{" "}
+              — no movement in {row.daysIdle} days
+            </p>
+            <p className="text-xs text-zinc-500 mt-0.5 truncate">
+              {row.jobTitle}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {next && (
+            <MoveToNextButton
+              jobId={row.jobId}
+              nextStatus={next.status}
+              nextLabel={next.label}
+            />
+          )}
+          <Link href={`/dashboard/jobs?job=${row.jobId}`}>
+            <span className="text-xs text-zinc-500 hover:text-zinc-900 underline underline-offset-2">
+              Open
+            </span>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // follow-up
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-md border border-zinc-100 dark:border-zinc-800/60 px-3 py-2.5">
+      <div className="flex items-start gap-2 min-w-0 flex-1">
+        <CalendarClock className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+        <div className="min-w-0">
+          <p className="text-sm">
+            <span className="font-medium">{row.company}</span> follow-up due
+          </p>
+          <p className="text-xs text-zinc-500 mt-0.5 truncate">
+            {row.jobTitle} · scheduled for {row.followUpDate}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Badge variant={profile.is_published ? "success" : "secondary"}>
-            {profile.is_published ? "Published" : "Draft"}
-          </Badge>
-          {profile.is_published && (
-            <Link href={profileUrl} target="_blank">
-              <Button variant="outline" size="sm">
-                <ExternalLink className="h-4 w-4 mr-1" />
-                View profile
-              </Button>
-            </Link>
-          )}
-        </div>
       </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Link href="/dashboard/profile">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Profile</CardTitle>
-              <User className="h-4 w-4 text-brand" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {profile.headline ? "Complete" : "Incomplete"}
-              </div>
-              <p className="text-xs text-zinc-500 mt-1">
-                {profile.headline || "Add your headline"}
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/dashboard/sections">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer group">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Resume Builder</CardTitle>
-              <Layers className="h-4 w-4 text-brand" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{sectionCount || 0}</div>
-              <p className="text-xs text-zinc-500 mt-1">
-                {sectionCount && sectionCount > 0
-                  ? `Section${sectionCount === 1 ? "" : "s"} on your resume`
-                  : "No sections yet"}
-              </p>
-              <p className="text-xs font-medium text-brand mt-2 inline-flex items-center gap-1 group-hover:gap-1.5 transition-all">
-                Manage sections
-                <span aria-hidden>&rarr;</span>
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/dashboard/sections?open=review">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">AI Review</CardTitle>
-              <Sparkles className="h-4 w-4 text-brand" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">Ready</div>
-              <p className="text-xs text-zinc-500 mt-1">Get AI recommendations</p>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/dashboard/analytics">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Visitors</CardTitle>
-              <BarChart3 className="h-4 w-4 text-brand" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">--</div>
-              <p className="text-xs text-zinc-500 mt-1">
-                {profile.is_published ? "View analytics" : "Publish to start tracking"}
-              </p>
-            </CardContent>
-          </Card>
+      <div className="flex items-center gap-2 shrink-0">
+        <MarkFollowedUpButton jobId={row.jobId} />
+        <Link href={`/dashboard/jobs?job=${row.jobId}`}>
+          <span className="text-xs text-zinc-500 hover:text-zinc-900 underline underline-offset-2">
+            Open
+          </span>
         </Link>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Start</CardTitle>
-          <CardDescription>Complete these steps to launch your profile</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {[
-              { done: !!profile.headline, label: "Add a professional headline", href: "/dashboard/profile" },
-              { done: (sectionCount || 0) > 0, label: "Add at least one resume section", href: "/dashboard/sections" },
-              { done: profile.is_published, label: "Publish your profile", href: "/dashboard/public-profile" },
-            ].map((step) => (
-              <Link
-                key={step.label}
-                href={step.href}
-                className="flex items-center gap-3 rounded-md border border-zinc-200 px-4 py-3 text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900 transition-colors"
-              >
-                <div
-                  className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${
-                    step.done
-                      ? "border-green-500 bg-green-500"
-                      : "border-zinc-300 dark:border-zinc-600"
-                  }`}
-                >
-                  {step.done && (
-                    <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </div>
-                <span className={step.done ? "text-zinc-400 line-through" : ""}>{step.label}</span>
-              </Link>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
