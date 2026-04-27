@@ -19,6 +19,10 @@ import {
   Eye,
   Layers,
   AlertCircle,
+  Copy,
+  GitCompare,
+  X,
+  Check,
 } from "lucide-react";
 import type { ProfileVariant } from "@/types/database";
 
@@ -31,6 +35,8 @@ interface VariantWithJob extends Omit<ProfileVariant, "variant_data"> {
 export default function VariantsPage() {
   const [variants, setVariants] = useState<VariantWithJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [cloning, setCloning] = useState<string | null>(null);
 
   const fetchVariants = useCallback(async () => {
     setLoading(true);
@@ -53,6 +59,24 @@ export default function VariantsPage() {
       body: JSON.stringify({ is_default: true }),
     });
     fetchVariants();
+  }
+
+  async function cloneVariant(id: string) {
+    setCloning(id);
+    const res = await fetch(`/api/variants/${id}/clone`, { method: "POST" });
+    if (res.ok) {
+      await fetchVariants();
+    }
+    setCloning(null);
+  }
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   async function deleteVariant(id: string) {
@@ -94,6 +118,40 @@ export default function VariantsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Compare action bar — appears when the user multi-selects from the
+          card checkboxes. Capped at two for v1 since side-by-side rendering
+          is the only mode the compare page supports. */}
+      {selected.size > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-brand bg-brand-subtle/40 p-3">
+          <div className="flex items-center gap-2 text-sm">
+            <GitCompare className="h-4 w-4 text-brand shrink-0" />
+            <span>
+              {selected.size} selected
+              {selected.size > 2 && " (compare uses the first two)"}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelected(new Set())}
+            >
+              <X className="h-3.5 w-3.5 mr-1" />
+              Clear
+            </Button>
+            <Link
+              href={`/dashboard/variants/compare?ids=${Array.from(selected).slice(0, 2).join(",")}`}
+              className={selected.size < 2 ? "pointer-events-none opacity-50" : ""}
+            >
+              <Button size="sm" disabled={selected.size < 2}>
+                <GitCompare className="h-3.5 w-3.5 mr-1" />
+                Compare
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
@@ -137,9 +195,25 @@ export default function VariantsPage() {
         <div className="grid gap-4 md:grid-cols-2">
           {variants.map((v) => (
             <a key={v.id} href={`/dashboard/variants/${v.id}`} className="block group">
-              <Card className={`transition-shadow group-hover:shadow-md ${v.is_default ? "border-brand" : ""}`}>
+              <Card
+                className={`transition-shadow group-hover:shadow-md ${v.is_default ? "border-brand" : ""} ${
+                  selected.has(v.id) ? "ring-2 ring-brand" : ""
+                }`}
+              >
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between gap-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); toggleSelected(v.id); }}
+                      className={`mt-0.5 h-4 w-4 shrink-0 rounded border flex items-center justify-center transition-colors ${
+                        selected.has(v.id)
+                          ? "bg-brand border-brand text-white"
+                          : "border-zinc-300 dark:border-zinc-700 hover:border-brand"
+                      }`}
+                      aria-label={selected.has(v.id) ? "Deselect variant" : "Select variant for compare"}
+                      title="Select to compare with another variant"
+                    >
+                      {selected.has(v.id) && <Check className="h-3 w-3" />}
+                    </button>
                     <div className="min-w-0 flex-1">
                       <CardTitle className="text-sm truncate">{v.name}</CardTitle>
                       {v.job && (
@@ -222,6 +296,19 @@ export default function VariantsPage() {
                         </Button>
                       </a>
                     )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); cloneVariant(v.id); }}
+                      disabled={cloning === v.id}
+                      title="Duplicate this variant. The copy starts unlinked from any job and is hand-edited from there."
+                    >
+                      {cloning === v.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"

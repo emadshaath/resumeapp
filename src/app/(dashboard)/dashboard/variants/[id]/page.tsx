@@ -30,6 +30,7 @@ import {
   X,
   AlertCircle,
   RefreshCw,
+  Copy,
 } from "lucide-react";
 
 interface PreviewData {
@@ -68,6 +69,7 @@ export default function VariantPreviewPage() {
   const [deleting, setDeleting] = useState(false);
   const [settingDefault, setSettingDefault] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [cloning, setCloning] = useState(false);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -123,6 +125,20 @@ export default function VariantPreviewPage() {
       await fetchPreview();
     }
     setSavingEdit(false);
+  }
+
+  async function handleClone() {
+    setCloning(true);
+    const res = await fetch(`/api/variants/${params.id}/clone`, {
+      method: "POST",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.variant?.id) {
+        router.push(`/dashboard/variants/${data.variant.id}`);
+      }
+    }
+    setCloning(false);
   }
 
   async function handleRefresh() {
@@ -324,6 +340,20 @@ export default function VariantPreviewPage() {
                 )}
               </Button>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClone}
+              disabled={cloning}
+              title="Duplicate this variant. The copy starts unlinked from any job and is hand-edited from there."
+            >
+              {cloning ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+              ) : (
+                <Copy className="h-3.5 w-3.5 mr-1" />
+              )}
+              Clone
+            </Button>
             <Button
               variant="destructive"
               size="sm"
