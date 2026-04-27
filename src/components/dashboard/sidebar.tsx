@@ -304,19 +304,22 @@ function SidebarContent({ onNavigate, collapsed }: { onNavigate?: () => void; co
                             <span className="flex-1">{item.name}</span>
                           )}
                           {item.liveStatus && isPublished !== null && (
-                            isPublished ? (
-                              <Eye
-                                className="h-3.5 w-3.5 shrink-0 text-emerald-500"
-                                title="Live — your public profile is visible"
-                                aria-label="Live"
-                              />
-                            ) : (
-                              <EyeOff
-                                className="h-3.5 w-3.5 shrink-0 text-zinc-400"
-                                title="Draft — your public profile is not visible"
-                                aria-label="Draft"
-                              />
-                            )
+                            <span
+                              className="shrink-0 inline-flex"
+                              title={
+                                isPublished
+                                  ? "Live — your public profile is visible"
+                                  : "Draft — your public profile is not visible"
+                              }
+                              aria-label={isPublished ? "Live" : "Draft"}
+                              role="img"
+                            >
+                              {isPublished ? (
+                                <Eye className="h-3.5 w-3.5 text-emerald-500" aria-hidden="true" />
+                              ) : (
+                                <EyeOff className="h-3.5 w-3.5 text-zinc-400" aria-hidden="true" />
+                              )}
+                            </span>
                           )}
                         </Link>
                       );
