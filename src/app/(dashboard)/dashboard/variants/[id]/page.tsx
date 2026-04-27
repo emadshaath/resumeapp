@@ -10,6 +10,12 @@ import { ResumePreview } from "@/components/variants/resume-preview";
 import { VariantEditor } from "@/components/variants/variant-editor";
 import { JobDescriptionDisplay } from "@/components/jobs/job-description-display";
 import { CreateReviewLinkDialog } from "@/components/dashboard/create-review-link-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { ResumeData } from "@/lib/pdf/types";
 import type { VariantData } from "@/types/database";
 import {
@@ -31,6 +37,7 @@ import {
   AlertCircle,
   RefreshCw,
   Copy,
+  MoreHorizontal,
 } from "lucide-react";
 
 interface PreviewData {
@@ -231,7 +238,7 @@ export default function VariantPreviewPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-bold tracking-tight">
                 {variant.name}
@@ -291,7 +298,14 @@ export default function VariantPreviewPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          {/* Action layout: primary verbs inline (Refresh / Quick Apply /
+              PDF), housekeeping in an overflow menu (View Job / Share for
+              Review / Set Default / Clone), Delete pinned at the end as a
+              destructive icon — kept out of the overflow per UX convention
+              for irreversible actions. The "more" menu encodes priority
+              honestly so the title doesn't get squeezed into a single
+              vertical column when 8 buttons compete for the row. */}
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
             {variant.is_stale && (
               <Button
                 variant="default"
@@ -309,27 +323,14 @@ export default function VariantPreviewPage() {
               </Button>
             )}
             {job && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => router.push(`/dashboard/jobs?job=${job.id}`)}
-                  title="Open this job in the Job Tracker"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5 mr-1" />
-                  View Job
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    router.push(`/dashboard/jobs/${job.id}/apply`)
-                  }
-                >
-                  <Briefcase className="h-3.5 w-3.5 mr-1" />
-                  Quick Apply
-                </Button>
-              </>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/dashboard/jobs/${job.id}/apply`)}
+              >
+                <Briefcase className="h-3.5 w-3.5 mr-1" />
+                Quick Apply
+              </Button>
             )}
             <a
               href={`/api/autofill/resume.pdf?variant=${variant.id}`}
@@ -341,51 +342,55 @@ export default function VariantPreviewPage() {
                 PDF
               </Button>
             </a>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setReviewDialogOpen(true)}
-            >
-              <Share2 className="h-3.5 w-3.5 mr-1" />
-              Share for Review
-            </Button>
-            {!variant.is_default && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSetDefault}
-                disabled={settingDefault}
-                title="Use this variant for PDF download and Quick Apply whenever the job has no variant of its own."
-              >
-                {settingDefault ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <>
-                    <Star className="h-3.5 w-3.5 mr-1" />
-                    Set Default
-                  </>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" aria-label="More variant actions" title="More actions">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {job && (
+                  <DropdownMenuItem
+                    onSelect={() => router.push(`/dashboard/jobs?job=${job.id}`)}
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    View Job
+                  </DropdownMenuItem>
                 )}
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClone}
-              disabled={cloning}
-              title="Duplicate this variant. The copy starts unlinked from any job and is hand-edited from there."
-            >
-              {cloning ? (
-                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-              ) : (
-                <Copy className="h-3.5 w-3.5 mr-1" />
-              )}
-              Clone
-            </Button>
+                <DropdownMenuItem onSelect={() => setReviewDialogOpen(true)}>
+                  <Share2 className="h-3.5 w-3.5" />
+                  Share for Review
+                </DropdownMenuItem>
+                {!variant.is_default && (
+                  <DropdownMenuItem
+                    onSelect={handleSetDefault}
+                    disabled={settingDefault}
+                  >
+                    {settingDefault ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Star className="h-3.5 w-3.5" />
+                    )}
+                    Set as default
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onSelect={handleClone} disabled={cloning}>
+                  {cloning ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                  Clone variant
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               variant="destructive"
               size="sm"
               onClick={handleDelete}
               disabled={deleting}
+              aria-label="Delete variant"
+              title="Delete variant"
             >
               {deleting ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
