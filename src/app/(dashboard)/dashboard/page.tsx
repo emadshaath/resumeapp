@@ -11,6 +11,9 @@ import {
   ArrowRight,
   Sparkles,
   MessageSquare,
+  FileText,
+  ShieldCheck,
+  ChevronDown,
 } from "lucide-react";
 import {
   RefreshVariantButton,
@@ -121,6 +124,11 @@ export default async function DashboardPage() {
   const activitySince = new Date(
     Date.now() - ACTIVITY_DAYS * 24 * 60 * 60 * 1000
   ).toISOString();
+  // The "This Week" strip needs delta comparisons, so we fetch both the
+  // current and prior 7-day windows. Activity-feed window covers both.
+  const weekStart = new Date(
+    Date.now() - 7 * 24 * 60 * 60 * 1000
+  ).toISOString();
 
   // Parallel fetch — none of these depend on each other.
   const [
@@ -129,6 +137,7 @@ export default async function DashboardPage() {
     variantsResult,
     baseModifiedAt,
     commentsResult,
+    pageViewsResult,
   ] = await Promise.all([
     supabase
       .from("resume_sections")
@@ -151,12 +160,20 @@ export default async function DashboardPage() {
       .gte("created_at", activitySince)
       .order("created_at", { ascending: false })
       .limit(10),
+    // Just viewed_at — we count rows in JS to compute current vs prior
+    // week. Fetching IDs would double the row size; we don't need them.
+    supabase
+      .from("page_views")
+      .select("viewed_at")
+      .eq("profile_id", user.id)
+      .gte("viewed_at", activitySince),
   ]);
 
   const sectionCount = sectionResult.count || 0;
   const jobs = jobsResult.data || [];
   const variants = variantsResult.data || [];
   const recentComments = commentsResult.data || [];
+  const pageViewRows = pageViewsResult.data || [];
 
   // Job-status events depend on the jobs[] list (we need the IDs first to
   // scope the query), so it's a second-stage fetch. Cheap — single index
@@ -338,6 +355,108 @@ export default async function DashboardPage() {
   const activityDisplayed = activityItems.slice(0, 5);
   const showActivity = activityItems.length >= 3;
 
+  // ── This Week numbers ──────────────────────────────────────────────────
+  // Vanity-but-motivating snapshot. Four numbers, each with a delta vs the
+  // prior 7-day window. Hidden when all four are zero AND all four prior
+  // values are also zero — quiet weeks should stay quiet, not announce a
+  // run of nothing.
+  type WeekTile = {
+    label: string;
+    current: number;
+    delta: number; // current - prior
+  };
+
+  // Status events: count transitions where to_status matches, scoped to
+  // current vs prior week. Skips initial "Job added" creations
+  // (from_status null) so that adding a Saved job doesn't inflate the
+  // "Applied" count.
+  function countEvents(
+    statuses: Set<string>,
+    sinceISO: string,
+    untilISO: string
+  ): number {
+    let n = 0;
+    for (const ev of recentEvents) {
+      if (!ev.from_status) continue;
+      if (!statuses.has(ev.to_status)) continue;
+      if (ev.created_at < sinceISO) continue;
+      if (ev.created_at >= untilISO) continue;
+      n++;
+    }
+    return n;
+  }
+
+  const nowISO = new Date().toISOString();
+  const APPLIED = new Set(["applied"]);
+  const INTERVIEWS = new Set(["screening", "interview"]);
+
+  const appliedThisWeek = countEvents(APPLIED, weekStart, nowISO);
+  const appliedPriorWeek = countEvents(APPLIED, activitySince, weekStart);
+  const interviewsThisWeek = countEvents(INTERVIEWS, weekStart, nowISO);
+  const interviewsPriorWeek = countEvents(INTERVIEWS, activitySince, weekStart);
+
+  const variantsThisWeek = variants.filter(
+    (v) => v.created_at >= weekStart
+  ).length;
+  const variantsPriorWeek = variants.filter(
+    (v) => v.created_at >= activitySince && v.created_at < weekStart
+  ).length;
+
+  const viewsThisWeek = pageViewRows.filter(
+    (r) => r.viewed_at >= weekStart
+  ).length;
+  const viewsPriorWeek = pageViewRows.filter(
+    (r) => r.viewed_at >= activitySince && r.viewed_at < weekStart
+  ).length;
+
+  const weekTiles: WeekTile[] = [
+    { label: "Applied", current: appliedThisWeek, delta: appliedThisWeek - appliedPriorWeek },
+    { label: "Interviews", current: interviewsThisWeek, delta: interviewsThisWeek - interviewsPriorWeek },
+    { label: "Variants", current: variantsThisWeek, delta: variantsThisWeek - variantsPriorWeek },
+    { label: "Profile views", current: viewsThisWeek, delta: viewsThisWeek - viewsPriorWeek },
+  ];
+  const showWeekTiles = weekTiles.some((t) => t.current > 0 || t.delta !== 0);
+
+  // ── Default variant ────────────────────────────────────────────────────
+  // The variant the user uses when no per-job tailoring exists. Shows the
+  // active default + the date it was last edited so the user can spot a
+  // dusty default before sending it out. If no default is set, prompt the
+  // user to pick one (single-CTA empty state, only when they actually have
+  // variants).
+  const defaultVariant = variants.find((v) => v.is_default) || null;
+
+  // ── Upcoming follow-ups (next 7 days, look-ahead) ──────────────────────
+  // Distinct from the "due today / overdue" rows in Needs Your Attention —
+  // those nag, these forecast. Capped at 3.
+  const sevenDaysOut = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const upcomingFollowUps = jobs
+    .filter(
+      (j) =>
+        j.follow_up_date &&
+        j.follow_up_date > todayDate &&
+        j.follow_up_date <= sevenDaysOut &&
+        ACTIVE_JOB_STATUSES.has(j.status)
+    )
+    .sort((a, b) => (a.follow_up_date! < b.follow_up_date! ? -1 : 1))
+    .slice(0, 3);
+
+  // ── Resume Health checks ───────────────────────────────────────────────
+  // Diagnostic snapshot at the bottom of the page, collapsed by default
+  // since it's not action-driving for users who already shipped their
+  // profile. Each row is a single boolean; we don't grade severity.
+  const healthChecks: { label: string; done: boolean; href: string }[] = [
+    { label: "Profile published", done: profile.is_published, href: "/dashboard/public-profile" },
+    { label: "Headline set", done: !!profile.headline, href: "/dashboard/profile" },
+    { label: "Profile photo uploaded", done: !!profile.avatar_url, href: "/dashboard/profile" },
+    { label: "LinkedIn URL added", done: !!profile.linkedin_url, href: "/dashboard/profile" },
+    { label: "At least one resume section", done: sectionCount > 0, href: "/dashboard/sections" },
+    { label: "Default variant chosen", done: !!defaultVariant, href: "/dashboard/variants" },
+  ];
+  const healthScore = healthChecks.filter((c) => c.done).length;
+
   // ── Quick Start visibility ─────────────────────────────────────────────
   // Auto-hide once all three steps are complete; returning users should
   // not see this card at all.
@@ -401,6 +520,46 @@ export default async function DashboardPage() {
         </Card>
       )}
 
+      {/* This week — vanity but motivating. Four small tiles in a single
+          horizontal strip. Hidden entirely when nothing happened in
+          either window — quiet weeks should stay quiet. */}
+      {showWeekTiles && (
+        <Card>
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="text-xs uppercase tracking-wide text-zinc-500 font-medium">
+                This week
+              </h2>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {weekTiles.map((tile) => (
+                <div
+                  key={tile.label}
+                  className="rounded-md px-2 py-2"
+                >
+                  <div className="text-2xl font-bold">{tile.current}</div>
+                  <div className="text-[11px] text-zinc-500 mt-0.5 flex items-center gap-1.5">
+                    <span>{tile.label}</span>
+                    {tile.delta !== 0 && (
+                      <span
+                        className={
+                          tile.delta > 0
+                            ? "text-green-600 dark:text-green-400"
+                            : "text-zinc-400"
+                        }
+                      >
+                        {tile.delta > 0 ? "↑" : "↓"}
+                        {Math.abs(tile.delta)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Needs your attention — converged action queue. Empty state is a
           single line so the absence of items reads as a positive signal,
           not a void. */}
@@ -439,6 +598,92 @@ export default async function DashboardPage() {
           jobs (per the agent's guidance: empty panels are noise). */}
       <ApplyFasterCard jobs={applyFasterJobs} />
 
+      {/* Default variant — utility card for the resume the user sends out
+          when there's no per-job tailoring. Stays present whenever the
+          user has at least one variant; renders an "unset" state if no
+          default is chosen so the prompt to pick one is the only CTA. */}
+      {variants.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="h-4 w-4 text-zinc-500" />
+              Default variant
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {defaultVariant ? (
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {defaultVariant.name}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Last edited{" "}
+                    {formatRelativeTime(
+                      defaultVariant.updated_at || defaultVariant.created_at
+                    )}
+                  </p>
+                </div>
+                <Link
+                  href={`/dashboard/variants/${defaultVariant.id}`}
+                  className="shrink-0 text-sm underline underline-offset-2 hover:text-zinc-900"
+                >
+                  Open
+                </Link>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm text-zinc-500">
+                  No default variant set. Pick one to make tailoring faster.
+                </p>
+                <Link
+                  href="/dashboard/variants"
+                  className="shrink-0 text-sm underline underline-offset-2 hover:text-zinc-900"
+                >
+                  Choose
+                </Link>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Upcoming follow-ups — forecast view, distinct from the "due today"
+          rows in Needs Your Attention. Looks at the next 7 days only;
+          anything farther out lives in the kanban / job drawer. Hidden
+          when zero. */}
+      {upcomingFollowUps.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-zinc-500" />
+              Upcoming follow-ups
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {upcomingFollowUps.map((job) => (
+              <Link
+                key={job.id}
+                href={`/dashboard/jobs?job=${job.id}`}
+                className="flex items-center justify-between gap-3 rounded-md border border-zinc-100 dark:border-zinc-800/60 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {job.company_name}
+                  </p>
+                  <p className="text-xs text-zinc-500 truncate">
+                    {job.job_title}
+                  </p>
+                </div>
+                <span className="text-xs text-zinc-500 shrink-0">
+                  {job.follow_up_date}
+                </span>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Recent activity — answers "what changed since I was last here?"
           Hidden when fewer than 3 events surface in the last 14 days;
           empty activity is depressing, not informative. */}
@@ -474,6 +719,53 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Resume Health — diagnostic snapshot collapsed by default. Lives
+          at the bottom because it's reference, not action: most returning
+          users won't open it, and that's correct. Native <details> is
+          enough; we're not animating the disclosure. */}
+      <details className="group rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 [&_summary::-webkit-details-marker]:hidden">
+        <summary className="flex items-center justify-between cursor-pointer list-none p-4 select-none">
+          <span className="text-sm font-medium flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-zinc-500" />
+            Resume health
+            <span className="text-xs text-zinc-500 font-normal">
+              {healthScore}/{healthChecks.length} checks passing
+            </span>
+          </span>
+          <ChevronDown className="h-4 w-4 text-zinc-400 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="px-4 pb-4 space-y-1.5">
+          {healthChecks.map((check) => (
+            <Link
+              key={check.label}
+              href={check.href}
+              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
+            >
+              <div
+                className={`h-4 w-4 rounded-full border flex items-center justify-center shrink-0 ${
+                  check.done
+                    ? "border-green-500 bg-green-500"
+                    : "border-zinc-300 dark:border-zinc-600"
+                }`}
+              >
+                {check.done && (
+                  <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </div>
+              <span
+                className={
+                  check.done ? "text-zinc-500" : "text-zinc-900 dark:text-zinc-100"
+                }
+              >
+                {check.label}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </details>
 
       {/* Quick Start — only rendered while at least one step is incomplete.
           Returning users with everything checked off never see this card. */}
