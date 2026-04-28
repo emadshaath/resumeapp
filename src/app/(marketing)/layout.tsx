@@ -65,8 +65,11 @@ export default function MarketingLayout({
               </nav>
             </div>
           </div>
-          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-6 text-center text-sm text-zinc-500">
-            &copy; {new Date().getFullYear()} rezm.ai. All rights reserved.
+          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-6 flex flex-col md:flex-row items-center justify-between gap-3 text-sm text-zinc-500">
+            <span>&copy; {new Date().getFullYear()} rezm.ai. All rights reserved.</span>
+            <nav aria-label="Legal links" className="flex items-center gap-4">
+              <Link href="/privacy" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Privacy</Link>
+            </nav>
           </div>
         </div>
       </footer>
