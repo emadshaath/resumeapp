@@ -654,16 +654,28 @@ function normalizeJobUrl(raw) {
   }
 }
 
+function urlsMatch(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  return normalizeJobUrl(a) === normalizeJobUrl(b);
+}
+
 async function findJobByUrl(url) {
   try {
     const res = await apiFetch(`/api/jobs?job_url=${encodeURIComponent(url)}`);
     if (!res.ok) return null;
     const data = await res.json();
     const jobs = (data && data.jobs) || [];
-    if (jobs.length === 0) return null;
-    if (jobs.length === 1) return jobs[0];
+    // Defense-in-depth: the server's ?job_url= filter may not yet be
+    // deployed on every environment, in which case it silently ignores
+    // the param and returns the user's whole job list. Always re-filter
+    // on the client so we never present an unrelated row as "this job
+    // is already tracked" on a page it doesn't belong to.
+    const matches = jobs.filter((j) => urlsMatch(j.job_url, url));
+    if (matches.length === 0) return null;
+    if (matches.length === 1) return matches[0];
     // Prefer rows that already have a variant attached, then most recent.
-    const sorted = [...jobs].sort((a, b) => {
+    const sorted = [...matches].sort((a, b) => {
       const variantBias = (b.variant_id ? 1 : 0) - (a.variant_id ? 1 : 0);
       if (variantBias !== 0) return variantBias;
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
