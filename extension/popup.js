@@ -86,6 +86,7 @@ async function handleFill() {
   const resultDiv = document.getElementById("result");
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner"></div> Filling...';
+  clearFillUI();
 
   try {
     // Get current tab URL to find matching job variant
@@ -115,12 +116,13 @@ async function handleFill() {
       console.warn("Could not fetch PDF for auto-attach:", e);
     }
 
-    // Send to content script
-    chrome.tabs.sendMessage(tab.id, {
+    // Send to content script and capture the structured fill report
+    const fillResult = await sendFillMessage(tab.id, {
       type: "EXECUTE_FILL",
       fields,
       pdfBlob,
     });
+    renderFilledFields(fillResult.filledFields);
 
     resultDiv.innerHTML = `<div class="result success">Form filled! Review and submit.</div>
       <button class="btn btn-accent" id="ai-answer-btn" style="margin-top:8px;">
@@ -242,6 +244,7 @@ async function handleSmartFill() {
   const resultDiv = document.getElementById("result");
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner"></div> Analyzing job...';
+  clearFillUI();
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -301,11 +304,12 @@ async function handleSmartFill() {
 
     // Step 4: Fill the form with tailored fields + PDF
     btn.innerHTML = '<div class="spinner"></div> Filling form...';
-    chrome.tabs.sendMessage(tab.id, {
+    const fillResult = await sendFillMessage(tab.id, {
       type: "EXECUTE_FILL",
       fields: smartData.fields,
       pdfBlob,
     });
+    renderFilledFields(fillResult.filledFields);
 
     const score = smartData.match_score ? ` (${smartData.match_score}% match)` : "";
     const reused = smartData.reused ? " (reused existing)" : "";
@@ -388,4 +392,62 @@ async function apiFetch(path, options = {}) {
       Authorization: `Bearer ${tokenData.token}`,
     },
   });
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+// Wrap chrome.tabs.sendMessage so we can await the structured response
+// from content.js. Resolves to a default empty result on errors so callers
+// can treat the fill UI uniformly.
+function sendFillMessage(tabId, payload) {
+  return new Promise((resolve) => {
+    try {
+      chrome.tabs.sendMessage(tabId, payload, (response) => {
+        if (chrome.runtime.lastError || !response) {
+          resolve({ success: false, filled: 0, filledFields: [] });
+        } else {
+          resolve(response);
+        }
+      });
+    } catch (e) {
+      resolve({ success: false, filled: 0, filledFields: [] });
+    }
+  });
+}
+
+// Reset the per-fill panels so a re-click doesn't show stale data while
+// the next request is in flight.
+function clearFillUI() {
+  const fields = document.getElementById("filled-fields");
+  const list = document.getElementById("filled-fields-list");
+  if (fields) fields.hidden = true;
+  if (list) list.innerHTML = "";
+}
+
+function renderFilledFields(filledFields) {
+  const panel = document.getElementById("filled-fields");
+  const list = document.getElementById("filled-fields-list");
+  const count = document.getElementById("filled-count");
+  if (!panel || !list || !count) return;
+  if (!Array.isArray(filledFields) || filledFields.length === 0) {
+    panel.hidden = true;
+    return;
+  }
+  count.textContent = filledFields.length;
+  list.innerHTML = filledFields
+    .map(
+      (f) => `
+        <div class="field-row">
+          <span class="label">${escapeHtml(f.label || "field")}</span>
+          <span class="type">${escapeHtml(f.type || "")}</span>
+          <span class="value">${escapeHtml(f.value || "")}</span>
+        </div>
+      `
+    )
+    .join("");
+  panel.hidden = false;
 }
