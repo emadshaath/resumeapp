@@ -106,11 +106,12 @@ async function handleFill() {
 
     // Fetch the PDF as a blob to pass to content script (cross-origin safe)
     let pdfBlob = null;
+    let pdfBuffer = null;
     try {
       const pdfRes = await apiFetch(resume_pdf_url);
       if (pdfRes.ok) {
-        const buffer = await pdfRes.arrayBuffer();
-        pdfBlob = Array.from(new Uint8Array(buffer));
+        pdfBuffer = await pdfRes.arrayBuffer();
+        pdfBlob = Array.from(new Uint8Array(pdfBuffer));
       }
     } catch (e) {
       console.warn("Could not fetch PDF for auto-attach:", e);
@@ -123,6 +124,7 @@ async function handleFill() {
       pdfBlob,
     });
     renderFilledFields(fillResult.filledFields);
+    renderPdfPreview(pdfBuffer);
 
     resultDiv.innerHTML = `<div class="result success">Form filled! Review and submit.</div>
       <button class="btn btn-accent" id="ai-answer-btn" style="margin-top:8px;">
@@ -292,11 +294,12 @@ async function handleSmartFill() {
     // Step 3: Fetch the tailored PDF as blob
     btn.innerHTML = '<div class="spinner"></div> Preparing tailored PDF...';
     let pdfBlob = null;
+    let pdfBuffer = null;
     try {
       const pdfRes = await apiFetch(smartData.resume_pdf_url);
       if (pdfRes.ok) {
-        const buffer = await pdfRes.arrayBuffer();
-        pdfBlob = Array.from(new Uint8Array(buffer));
+        pdfBuffer = await pdfRes.arrayBuffer();
+        pdfBlob = Array.from(new Uint8Array(pdfBuffer));
       }
     } catch (e) {
       console.warn("Could not fetch tailored PDF:", e);
@@ -310,6 +313,7 @@ async function handleSmartFill() {
       pdfBlob,
     });
     renderFilledFields(fillResult.filledFields);
+    renderPdfPreview(pdfBuffer);
 
     const score = smartData.match_score ? ` (${smartData.match_score}% match)` : "";
     const reused = smartData.reused ? " (reused existing)" : "";
@@ -426,6 +430,59 @@ function clearFillUI() {
   const list = document.getElementById("filled-fields-list");
   if (fields) fields.hidden = true;
   if (list) list.innerHTML = "";
+  clearPdfPreview();
+}
+
+// Track the active object URL so we can revoke it before creating the next
+// one — keeps memory clean when the user runs Auto-Fill repeatedly.
+let currentPdfBlobUrl = null;
+const PDF_INLINE_MAX_BYTES = 6_000_000;
+
+function clearPdfPreview() {
+  const panel = document.getElementById("pdf-preview");
+  const frame = document.getElementById("pdf-frame");
+  const fallback = document.getElementById("pdf-fallback");
+  const openBtn = document.getElementById("open-pdf-btn");
+  if (panel) panel.hidden = true;
+  if (frame) frame.removeAttribute("src");
+  if (fallback) fallback.hidden = true;
+  if (openBtn) openBtn.onclick = null;
+  if (currentPdfBlobUrl) {
+    URL.revokeObjectURL(currentPdfBlobUrl);
+    currentPdfBlobUrl = null;
+  }
+}
+
+// Build a blob URL from the fetched PDF bytes and show it in the popup.
+// Inline iframe rendering is skipped for very large files (the popup is
+// ~380px wide and Chrome can choke on big PDFs), but the Open-in-tab
+// button is always wired up.
+function renderPdfPreview(buffer) {
+  const panel = document.getElementById("pdf-preview");
+  const frame = document.getElementById("pdf-frame");
+  const fallback = document.getElementById("pdf-fallback");
+  const openBtn = document.getElementById("open-pdf-btn");
+  if (!panel || !frame || !openBtn) return;
+  if (!buffer || !buffer.byteLength) {
+    clearPdfPreview();
+    return;
+  }
+  const blob = new Blob([buffer], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  if (currentPdfBlobUrl) URL.revokeObjectURL(currentPdfBlobUrl);
+  currentPdfBlobUrl = url;
+
+  if (buffer.byteLength <= PDF_INLINE_MAX_BYTES) {
+    frame.src = url;
+    frame.hidden = false;
+    if (fallback) fallback.hidden = true;
+  } else {
+    frame.removeAttribute("src");
+    frame.hidden = true;
+    if (fallback) fallback.hidden = false;
+  }
+  openBtn.onclick = () => window.open(url, "_blank");
+  panel.hidden = false;
 }
 
 function renderFilledFields(filledFields) {
