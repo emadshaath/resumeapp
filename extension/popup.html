@@ -38,6 +38,15 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     .divider { height: 1px; background: #e5e7eb; margin: 12px 0; }
 
+    /* Apply Mode active pill */
+    .apply-mode-pill { display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 12px; border-radius: 8px; background: linear-gradient(135deg, #ecfdf5, #f0f9ff); border: 1px solid #6ee7b7; font-size: 12px; color: #064e3b; }
+    .apply-mode-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 0 4px rgba(16,185,129,0.2); flex-shrink: 0; }
+    .apply-mode-pill .body { flex: 1; min-width: 0; }
+    .apply-mode-pill .title { font-weight: 700; font-size: 12px; color: #064e3b; }
+    .apply-mode-pill .meta { font-size: 11px; opacity: 0.85; }
+    .apply-mode-pill button { background: transparent; color: #064e3b; border: 1px solid rgba(6,78,59,0.3); padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; flex-shrink: 0; }
+    .apply-mode-pill button:hover { background: rgba(6,78,59,0.08); }
+
     /* Existing-job banner */
     .banner { border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 12px; border: 1px solid; }
     .banner.saved { background: #fefce8; border-color: #fde68a; color: #713f12; }
@@ -86,6 +95,7 @@
 
   <div class="content">
     <div id="status-section"></div>
+    <div id="apply-mode-pill" hidden></div>
     <div id="job-banner" hidden></div>
     <div id="action-section"></div>
 

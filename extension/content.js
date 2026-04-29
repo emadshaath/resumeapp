@@ -133,6 +133,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const filled = applyAIAnswers(message.answers);
     sendResponse({ success: true, filled });
   }
+  if (message.type === "APPLY_MODE_START") {
+    // Idempotent — initApplyMode's attach helpers all guard against
+    // double-binding. Forces the observer to attach right away even when
+    // the wizard opens inline without a navigation (Apple, modal flows).
+    initApplyMode().catch(() => {});
+    sendResponse({ success: true });
+  }
+  if (message.type === "APPLY_MODE_STOP") {
+    stopApplyMode("popup-stopped");
+    sendResponse({ success: true });
+  }
 });
 
 // ─── Main fill logic ───

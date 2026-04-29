@@ -58,6 +58,33 @@ function clearApplyMode(tabId) {
   });
 }
 
+// Tell the active content script to (re)attach Apply Mode now — needed
+// when the wizard opens inline and there is no navigation event to
+// re-trigger the content script's bootstrap path.
+function startApplyModeOnTab(tabId) {
+  return new Promise((resolve) => {
+    try {
+      chrome.tabs.sendMessage(tabId, { type: "APPLY_MODE_START" }, () => {
+        // chrome.runtime.lastError can fire on pages where the content
+        // script isn't injected (chrome:// URLs, store, etc.) — ignore.
+        resolve();
+      });
+    } catch {
+      resolve();
+    }
+  });
+}
+
+function stopApplyModeOnTab(tabId) {
+  return new Promise((resolve) => {
+    try {
+      chrome.tabs.sendMessage(tabId, { type: "APPLY_MODE_STOP" }, () => resolve());
+    } catch {
+      resolve();
+    }
+  });
+}
+
 function safeOrigin(url) {
   try {
     return new URL(url).origin;
@@ -85,6 +112,7 @@ function showDisconnected() {
     chrome.tabs.create({ url: `${API_BASE}/extension/auth` });
   });
   clearJobBanner();
+  clearApplyModePill();
   clearFillUI();
   window.__existingJob = null;
 }
@@ -134,13 +162,64 @@ async function loadJobBanner() {
     if (!pageUrl || !pageUrl.startsWith("http")) {
       window.__existingJob = null;
       clearJobBanner();
+      clearApplyModePill();
       return;
     }
-    const existing = await lookupExistingJob(pageUrl);
+    // Apply Mode pill + existing-job banner are independent — kick both
+    // off in parallel.
+    const [applyMode, existing] = await Promise.all([
+      tab?.id ? getApplyMode(tab.id) : Promise.resolve(null),
+      lookupExistingJob(pageUrl),
+    ]);
     window.__existingJob = existing;
     renderJobBanner(existing);
+    renderApplyModePill(applyMode, tab?.id);
   } catch (e) {
     console.warn("[rezm.ai] job banner lookup failed:", e);
+  }
+}
+
+function clearApplyModePill() {
+  const el = document.getElementById("apply-mode-pill");
+  if (!el) return;
+  el.hidden = true;
+  el.innerHTML = "";
+}
+
+function renderApplyModePill(state, tabId) {
+  const el = document.getElementById("apply-mode-pill");
+  if (!el) return;
+  if (!state || !state.fields) {
+    clearApplyModePill();
+    return;
+  }
+  const title = state.jobTitle || "this job";
+  const company = state.companyName ? ` · ${state.companyName}` : "";
+  const fillCount = state.fillCount || 0;
+  const totalFilled = state.totalFilled || 0;
+  const meta = `${fillCount} fill${fillCount === 1 ? "" : "s"}${
+    totalFilled ? ` · ${totalFilled} field${totalFilled === 1 ? "" : "s"}` : ""
+  }`;
+
+  el.hidden = false;
+  el.innerHTML = `
+    <div class="dot"></div>
+    <div class="body">
+      <div class="title">Apply Mode active</div>
+      <div class="meta">${escapeHtml(title)}${escapeHtml(company)} · ${escapeHtml(meta)}</div>
+    </div>
+    <button id="apply-mode-stop-btn" type="button">Stop</button>
+  `;
+  const stop = document.getElementById("apply-mode-stop-btn");
+  if (stop) {
+    stop.addEventListener("click", async () => {
+      stop.disabled = true;
+      if (tabId) {
+        await stopApplyModeOnTab(tabId);
+        await clearApplyMode(tabId);
+      }
+      clearApplyModePill();
+    });
   }
 }
 
@@ -227,8 +306,11 @@ async function handleFill() {
           })(),
         urlOrigin: safeOrigin(pageUrl),
         startedAt: Date.now(),
+        lastFillAt: Date.now(),
         fillCount: 1,
+        totalFilled: fillResult?.filled || 0,
       });
+      await startApplyModeOnTab(tab.id);
     }
 
     resultDiv.innerHTML = `<div class="result success">Form filled! Review and submit.</div>
@@ -436,8 +518,11 @@ async function handleSmartFill() {
         companyName: jobDetails.company_name || null,
         urlOrigin: safeOrigin(tab.url),
         startedAt: Date.now(),
+        lastFillAt: Date.now(),
         fillCount: 1,
+        totalFilled: fillResult?.filled || 0,
       });
+      await startApplyModeOnTab(tab.id);
     }
 
     const detailParts = [];
