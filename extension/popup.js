@@ -27,6 +27,45 @@ function getToken() {
   });
 }
 
+// Apply Mode persists the resolved profile + variant for a single tab so
+// the content script can keep filling fields as the user moves through a
+// multi-step wizard. Only metadata + URLs are stored — the PDF is
+// re-fetched from resume_pdf_url on each step.
+function setApplyMode(tabId, data) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(
+      { type: "SET_APPLY_MODE", tabId, data },
+      (resp) => resolve(resp || { success: false })
+    );
+  });
+}
+
+function getApplyMode(tabId) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(
+      { type: "GET_APPLY_MODE", tabId },
+      (resp) => resolve(resp || null)
+    );
+  });
+}
+
+function clearApplyMode(tabId) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(
+      { type: "CLEAR_APPLY_MODE", tabId },
+      (resp) => resolve(resp || { success: false })
+    );
+  });
+}
+
+function safeOrigin(url) {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
 function showDisconnected() {
   statusSection.innerHTML = `
     <div class="status disconnected">
@@ -167,6 +206,30 @@ async function handleFill() {
     });
     renderFilledFields(fillResult.filledFields);
     renderPdfPreview(pdfBuffer);
+
+    // Stash for Apply Mode so the content script can refill subsequent
+    // wizard steps without another popup click.
+    if (tab?.id) {
+      await setApplyMode(tab.id, {
+        fields,
+        resume_pdf_url,
+        variantId: matchingJob?.variant_id || null,
+        jobApplicationId: matchingJob?.id || null,
+        jobTitle: matchingJob?.job_title || tab.title || null,
+        companyName:
+          matchingJob?.company_name ||
+          (() => {
+            try {
+              return new URL(pageUrl).hostname.replace("www.", "").split(".")[0];
+            } catch {
+              return null;
+            }
+          })(),
+        urlOrigin: safeOrigin(pageUrl),
+        startedAt: Date.now(),
+        fillCount: 1,
+      });
+    }
 
     resultDiv.innerHTML = `<div class="result success">Form filled! Review and submit.</div>
       <button class="btn btn-accent" id="ai-answer-btn" style="margin-top:8px;">
@@ -360,6 +423,22 @@ async function handleSmartFill() {
     });
     renderFilledFields(fillResult.filledFields);
     renderPdfPreview(pdfBuffer);
+
+    // Stash for Apply Mode (Smart Tailor variant) so the content script
+    // can keep filling subsequent wizard steps with the tailored fields.
+    if (tab?.id) {
+      await setApplyMode(tab.id, {
+        fields: smartData.fields,
+        resume_pdf_url: smartData.resume_pdf_url,
+        variantId: smartData.variant_id || null,
+        jobApplicationId: smartData.job_application_id || null,
+        jobTitle: jobDetails.job_title || tab.title || null,
+        companyName: jobDetails.company_name || null,
+        urlOrigin: safeOrigin(tab.url),
+        startedAt: Date.now(),
+        fillCount: 1,
+      });
+    }
 
     const detailParts = [];
     if (smartData.reused) detailParts.push("Reused existing variant");
