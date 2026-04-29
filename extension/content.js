@@ -1289,6 +1289,7 @@ async function initApplyMode() {
 
   applyModeState = state;
   attachApplyModeObserver();
+  renderApplyModeBanner();
   // Schedule one initial check in case the page already mounted form
   // fields (e.g., the user navigated to step 2 within the same tab).
   scheduleApplyModeFill();
@@ -1335,7 +1336,22 @@ async function runApplyModeFill() {
     if (pdfBlob) applyModePdfBytes = pdfBlob;
   }
 
-  fillForm(applyModeState.fields, pdfBlob || null);
+  const result = fillForm(applyModeState.fields, pdfBlob || null);
+  if (result?.filled > 0) {
+    applyModeState.fillCount = (applyModeState.fillCount || 0) + 1;
+    applyModeState.totalFilled = (applyModeState.totalFilled || 0) + result.filled;
+    persistApplyModeState();
+    renderApplyModeBanner();
+  }
+}
+
+function persistApplyModeState() {
+  if (!applyModeState) return;
+  try {
+    chrome.runtime.sendMessage({ type: "SET_APPLY_MODE", data: applyModeState }, () => {});
+  } catch {
+    // best-effort — banner state stays in-memory regardless
+  }
 }
 
 function hasEmptyFillableFields() {
@@ -1382,6 +1398,136 @@ async function fetchApplyModePdfBytes(pdfUrl) {
   } catch {
     return null;
   }
+}
+
+// ─── Apply Mode banner ───
+// Read the visible step indicator (e.g. "Step 2 of 4") for cosmetic
+// display only. Returns null when nothing usable is detected.
+function detectStepLabel() {
+  // ARIA progressbar with valuenow/valuemax
+  const bar = document.querySelector('[role="progressbar"][aria-valuenow]');
+  if (bar) {
+    const now = bar.getAttribute("aria-valuenow");
+    const max = bar.getAttribute("aria-valuemax");
+    if (now && max && Number(max) > 1) return `step ${now} of ${max}`;
+  }
+  // aria-current="step" inside an ordered list (Workday, modern wizards)
+  const current = document.querySelector('[aria-current="step"]');
+  if (current) {
+    const list = current.closest("ol, ul, [role='list']");
+    if (list) {
+      const items = list.querySelectorAll("li, [role='listitem']");
+      if (items.length > 1) {
+        const idx = Array.from(items).indexOf(current.closest("li, [role='listitem']")) + 1;
+        if (idx > 0) return `step ${idx} of ${items.length}`;
+      }
+    }
+  }
+  // Step indicator class with li/.step children
+  const stepIndicator = document.querySelector(
+    ".steps, .step-indicator, .wizard-progress, .progress-steps, [class*='stepper']"
+  );
+  if (stepIndicator) {
+    const items = stepIndicator.querySelectorAll("li, .step, [class*='step-item']");
+    if (items.length > 1) {
+      const activeIdx = Array.from(items).findIndex((el) =>
+        /(^|\s)(active|current|is-active|is-current|step--current)(\s|$)/.test(el.className || "")
+      );
+      if (activeIdx >= 0) return `step ${activeIdx + 1} of ${items.length}`;
+      return `${items.length} steps`;
+    }
+  }
+  // Fallback: scan visible heading text for "Step N of M"
+  const headings = document.querySelectorAll("h1, h2, h3, [aria-live]");
+  for (const h of headings) {
+    const txt = (h.textContent || "").trim();
+    const m = /step\s+(\d+)\s+(?:of|\/)\s+(\d+)/i.exec(txt);
+    if (m) return `step ${m[1]} of ${m[2]}`;
+  }
+  return null;
+}
+
+function renderApplyModeBanner() {
+  if (!applyModeState) return;
+
+  let bar = document.getElementById("rezmai-apply-mode-bar");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "rezmai-apply-mode-bar";
+    bar.style.cssText = [
+      "position:fixed",
+      "bottom:16px",
+      "right:16px",
+      "z-index:2147483646",
+      "background:#0f172a",
+      "color:#fff",
+      "border:1px solid rgba(124,58,237,0.6)",
+      "border-radius:12px",
+      "padding:12px 14px",
+      "box-shadow:0 10px 30px rgba(0,0,0,0.25)",
+      "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+      "font-size:12px",
+      "max-width:340px",
+      "line-height:1.4",
+    ].join(";");
+    document.body.appendChild(bar);
+  }
+
+  const company = applyModeState.companyName || "this job";
+  const title = applyModeState.jobTitle || "";
+  const stepLabel = detectStepLabel();
+  const fillCount = applyModeState.fillCount || 0;
+  const totalFilled = applyModeState.totalFilled || 0;
+
+  bar.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#7c3aed;box-shadow:0 0 0 4px rgba(124,58,237,0.25);"></span>
+      <strong style="font-weight:700">Apply Mode</strong>
+      <span style="opacity:0.7">·</span>
+      <span style="opacity:0.85">${escapeBannerText(company)}</span>
+    </div>
+    ${title ? `<div style="opacity:0.75;margin-bottom:6px;">${escapeBannerText(title)}</div>` : ""}
+    <div style="opacity:0.85;margin-bottom:8px;">
+      ${stepLabel ? `<span>${escapeBannerText(stepLabel)} · </span>` : ""}
+      <span>${fillCount} fill${fillCount === 1 ? "" : "s"}${totalFilled ? ` · ${totalFilled} field${totalFilled === 1 ? "" : "s"} total` : ""}</span>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button id="rezmai-apply-mode-stop" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.3);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;">Stop Apply Mode</button>
+    </div>
+  `;
+  const stopBtn = bar.querySelector("#rezmai-apply-mode-stop");
+  if (stopBtn) stopBtn.addEventListener("click", () => stopApplyMode("user-stopped"));
+}
+
+function escapeBannerText(s) {
+  return String(s).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+function removeApplyModeBanner() {
+  const bar = document.getElementById("rezmai-apply-mode-bar");
+  if (bar) bar.remove();
+}
+
+function stopApplyMode(reason) {
+  applyModeState = null;
+  applyModePdfBytes = null;
+  if (applyModeFillTimer) {
+    clearTimeout(applyModeFillTimer);
+    applyModeFillTimer = null;
+  }
+  if (applyModeObserver) {
+    applyModeObserver.disconnect();
+    applyModeObserver = null;
+  }
+  removeApplyModeBanner();
+  try {
+    chrome.runtime.sendMessage({ type: "CLEAR_APPLY_MODE" }, () => {});
+  } catch {
+    // tab may already be closing — best-effort
+  }
+  if (reason) console.info("[rezm.ai] Apply Mode stopped:", reason);
 }
 
 (function bootstrapApplyMode() {
