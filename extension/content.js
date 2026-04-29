@@ -1262,10 +1262,16 @@ let applyModeState = null;          // cached { fields, resume_pdf_url, ... }
 let applyModePdfBytes = null;       // bytes of the resume PDF, fetched lazily
 let applyModeLastFireMs = 0;        // cooldown anchor — at most one fire/s
 let applyModeFillTimer = null;      // debounce timer
+let applyModeIdleTimer = null;      // 30-min idle auto-stop
 let applyModeObserver = null;
+let applyModeSubmitHandler = null;  // capture-phase click listener (see below)
+let applyModeNavHandler = null;     // popstate listener
+let applyModeOriginalPushState = null;
+let applyModeOriginalReplaceState = null;
 
 const APPLY_MODE_DEBOUNCE_MS = 500;
 const APPLY_MODE_COOLDOWN_MS = 1000;
+const APPLY_MODE_IDLE_MS = 30 * 60 * 1000; // auto-stop after 30 min of no fills
 
 function getApplyModeState() {
   return new Promise((resolve) => {
@@ -1284,11 +1290,25 @@ async function initApplyMode() {
   const state = await getApplyModeState();
   if (!state || !state.fields) return;
   // Origin guard: if the user navigated to a different site after caching,
-  // drop the state so we don't fill the wrong app with this profile.
-  if (state.urlOrigin && state.urlOrigin !== window.location.origin) return;
+  // drop the cached state — don't risk filling the wrong app with this
+  // profile. Clear from storage too so the cache doesn't linger until
+  // the tab closes.
+  if (state.urlOrigin && state.urlOrigin !== window.location.origin) {
+    try { chrome.runtime.sendMessage({ type: "CLEAR_APPLY_MODE" }, () => {}); } catch {}
+    return;
+  }
+  // Idle timeout survives page reloads — if the cache is stale by more
+  // than the idle window, auto-stop and clear before doing any work.
+  if (state.lastFillAt && Date.now() - state.lastFillAt > APPLY_MODE_IDLE_MS) {
+    try { chrome.runtime.sendMessage({ type: "CLEAR_APPLY_MODE" }, () => {}); } catch {}
+    return;
+  }
 
   applyModeState = state;
   attachApplyModeObserver();
+  attachApplyModeSubmitGuard();
+  attachApplyModeNavGuard();
+  bumpApplyModeIdleTimer();
   renderApplyModeBanner();
   // Schedule one initial check in case the page already mounted form
   // fields (e.g., the user navigated to step 2 within the same tab).
@@ -1340,8 +1360,10 @@ async function runApplyModeFill() {
   if (result?.filled > 0) {
     applyModeState.fillCount = (applyModeState.fillCount || 0) + 1;
     applyModeState.totalFilled = (applyModeState.totalFilled || 0) + result.filled;
+    applyModeState.lastFillAt = now;
     persistApplyModeState();
     renderApplyModeBanner();
+    bumpApplyModeIdleTimer();
   }
 }
 
@@ -1510,6 +1532,94 @@ function removeApplyModeBanner() {
   if (bar) bar.remove();
 }
 
+function bumpApplyModeIdleTimer() {
+  if (applyModeIdleTimer) clearTimeout(applyModeIdleTimer);
+  applyModeIdleTimer = setTimeout(
+    () => stopApplyMode("idle-timeout"),
+    APPLY_MODE_IDLE_MS
+  );
+}
+
+// Capture-phase click listener that ends Apply Mode when the user
+// triggers an "actually submit the application" button. We deliberately
+// only match strong text/data-testid signals to avoid stopping on a
+// "Next" or "Save Draft" click.
+function attachApplyModeSubmitGuard() {
+  if (applyModeSubmitHandler) return;
+  applyModeSubmitHandler = (e) => {
+    if (!applyModeState) return;
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    const btn = t.closest('button, input[type="submit"], a[role="button"]');
+    if (!btn) return;
+    const txt = (btn.textContent || btn.value || btn.getAttribute("aria-label") || "")
+      .trim()
+      .toLowerCase();
+    const testid = (btn.getAttribute("data-testid") || "").toLowerCase();
+    const isFinalSubmit =
+      /submit\s+(?:my\s+)?application/.test(txt) ||
+      /send\s+(?:my\s+)?application/.test(txt) ||
+      /(?:finish|complete)\s+(?:my\s+)?application/.test(txt) ||
+      /submit-application|send-application|application-submit/.test(testid);
+    if (!isFinalSubmit) return;
+    // Fire-and-forget — don't block the real click handler.
+    setTimeout(() => stopApplyMode("application-submitted"), 0);
+  };
+  document.addEventListener("click", applyModeSubmitHandler, true);
+}
+
+function detachApplyModeSubmitGuard() {
+  if (applyModeSubmitHandler) {
+    document.removeEventListener("click", applyModeSubmitHandler, true);
+    applyModeSubmitHandler = null;
+  }
+}
+
+// SPA route changes don't reload the content script, so we listen for
+// pushState/replaceState/popstate and re-check origin. Same-origin
+// navigations (typical wizard step transitions) are left alone.
+function attachApplyModeNavGuard() {
+  if (applyModeNavHandler) return;
+  const checkOrigin = () => {
+    if (!applyModeState) return;
+    if (
+      applyModeState.urlOrigin &&
+      applyModeState.urlOrigin !== window.location.origin
+    ) {
+      stopApplyMode("cross-origin-nav");
+    }
+  };
+  applyModeNavHandler = checkOrigin;
+  window.addEventListener("popstate", applyModeNavHandler);
+  applyModeOriginalPushState = history.pushState;
+  applyModeOriginalReplaceState = history.replaceState;
+  history.pushState = function (...args) {
+    const r = applyModeOriginalPushState.apply(this, args);
+    try { checkOrigin(); } catch {}
+    return r;
+  };
+  history.replaceState = function (...args) {
+    const r = applyModeOriginalReplaceState.apply(this, args);
+    try { checkOrigin(); } catch {}
+    return r;
+  };
+}
+
+function detachApplyModeNavGuard() {
+  if (applyModeNavHandler) {
+    window.removeEventListener("popstate", applyModeNavHandler);
+    applyModeNavHandler = null;
+  }
+  if (applyModeOriginalPushState) {
+    history.pushState = applyModeOriginalPushState;
+    applyModeOriginalPushState = null;
+  }
+  if (applyModeOriginalReplaceState) {
+    history.replaceState = applyModeOriginalReplaceState;
+    applyModeOriginalReplaceState = null;
+  }
+}
+
 function stopApplyMode(reason) {
   applyModeState = null;
   applyModePdfBytes = null;
@@ -1517,10 +1627,16 @@ function stopApplyMode(reason) {
     clearTimeout(applyModeFillTimer);
     applyModeFillTimer = null;
   }
+  if (applyModeIdleTimer) {
+    clearTimeout(applyModeIdleTimer);
+    applyModeIdleTimer = null;
+  }
   if (applyModeObserver) {
     applyModeObserver.disconnect();
     applyModeObserver = null;
   }
+  detachApplyModeSubmitGuard();
+  detachApplyModeNavGuard();
   removeApplyModeBanner();
   try {
     chrome.runtime.sendMessage({ type: "CLEAR_APPLY_MODE" }, () => {});
