@@ -117,13 +117,31 @@ async function handleFill() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const pageUrl = tab?.url || "";
 
-    // Try to find a job application for this URL
-    const jobRes = await apiFetch(`/api/jobs?search=${encodeURIComponent(pageUrl)}`);
-    const jobData = jobRes.ok ? await jobRes.json() : null;
-    const matchingJob = jobData?.jobs?.find((j) => j.job_url === pageUrl);
+    // Reuse the banner-resolved match. Fall back to a fresh lookup in case
+    // the user clicked Auto-Fill before the banner finished loading.
+    let existing = window.__existingJob;
+    if (!existing && pageUrl) {
+      existing = await lookupExistingJob(pageUrl);
+      window.__existingJob = existing;
+    }
+    const matchingJob = existing?.job || null;
+
+    if (matchingJob?.status === "applied") {
+      const when = matchingJob.applied_date
+        ? ` on ${formatDate(matchingJob.applied_date)}`
+        : "";
+      const ok = window.confirm(
+        `You already applied to this job${when}. Re-fill the form anyway?`
+      );
+      if (!ok) {
+        resultDiv.innerHTML = `<div class="result success">Cancelled — existing application kept.</div>`;
+        return;
+      }
+    }
+
     const variantParam = matchingJob?.variant_id ? `?variant=${matchingJob.variant_id}` : "";
 
-    // Fetch profile fields
+    // Fetch profile fields (variant-aware when reusing an existing application)
     const profileRes = await apiFetch(`/api/autofill/profile${variantParam}`);
     if (!profileRes.ok) throw new Error("Failed to fetch profile");
     const { fields, resume_pdf_url } = await profileRes.json();
@@ -158,7 +176,9 @@ async function handleFill() {
     const aiBtn = document.getElementById("ai-answer-btn");
     if (aiBtn) aiBtn.addEventListener("click", () => handleAIAnswers(tab));
 
-    // Auto-track if not already tracked
+    // Auto-track only when this is a brand-new job for the user. If it
+    // was already tracked we leave the existing row (and its status)
+    // alone — the banner already showed the user what's stored.
     if (!matchingJob && pageUrl.startsWith("http")) {
       await apiFetch("/api/jobs", {
         method: "POST",
@@ -171,6 +191,8 @@ async function handleFill() {
           source: "extension",
         }),
       });
+      // Refresh the banner so the next click shows the now-tracked state.
+      loadJobBanner();
     }
   } catch (err) {
     resultDiv.innerHTML = `<div class="result error">${err.message}</div>`;
@@ -357,6 +379,10 @@ async function handleSmartFill() {
     </button>`;
     const aiBtnSmart = document.getElementById("ai-answer-btn-smart");
     if (aiBtnSmart) aiBtnSmart.addEventListener("click", () => handleAIAnswers(tab, jobDetails));
+
+    // Smart-fill creates/updates the job_application + variant — refresh
+    // the banner so a follow-up Auto-Fill click sees the new variant.
+    loadJobBanner();
   } catch (err) {
     resultDiv.innerHTML = `<div class="result error">${err.message}</div>`;
   }
