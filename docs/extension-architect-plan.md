@@ -487,16 +487,167 @@ RLS: all new columns inherit existing per-user RLS on `jobs`/`profile_variants`.
 
 ## 9. API Changes
 
-Stub.
+### 9.1 New endpoints
+
+**`POST /api/extension/session`** — issue a session id (so server can correlate telemetry, idempotency).
+```
+req:  { tabId, extVersion }
+resp: { sessionId, serverTime }
+```
+
+**`POST /api/extension/jobs/resolve`** — dedup resolver (Section 6.5). Idempotent; safe to call repeatedly.
+
+**`POST /api/extension/jobs/upsert`** — create-or-link tracking row from a resolved identity.
+```
+req: { sessionId, identity, scrapedJd, source: "extension" }
+hdr: Idempotency-Key: <sessionId>:<canonicalUrl>
+resp: { jobId, created: bool }
+```
+This replaces the popup's auto-create at `popup.js:134-146`.
+
+**`GET /api/extension/match-score`** — see Section 7.2.
+
+**`POST /api/extension/telemetry`** — batched adapter telemetry (Section 4.5).
+```
+req: { events: AdapterTelemetry[] }
+resp: { accepted: n }
+```
+
+**`HEAD /api/variants/{id}/pdf`** — for cache validation.
+
+### 9.2 Changed endpoints
+
+**`POST /api/extension/smart-fill`** — now takes `{sessionId, identity, options}` instead of raw URL; returns `{jobId, variantId, renderHash, reused}`. The `reused: true` path becomes the common case rather than the exception.
+
+**`GET /api/variants/{id}/pdf`** — adds `ETag` and `X-Variant-Render-Hash` headers (Section 5.2).
+
+**`POST /api/extension/ai-answers`** — now keyed by `(sessionId, jobId)`; idempotent; returns deterministic answers for the same `(jobId, variantId, questionsHash)`.
+
+**`POST /api/jobs/parse-url`** — augmented to return canonical identity tuple even when the page can't be opened server-side (uses URL parsers from Section 6.2).
+
+### 9.3 Deprecated
+
+- `POST /api/jobs` direct create from extension is removed. Extension only goes through `/api/extension/jobs/upsert`.
+
+
 
 ## 10. Migration / Rollout
 
-Stub.
+### 10.1 Unify `extension/` and `rezmai-extension/`
+
+`diff -rq` confirms they are byte-identical except for `extension/icons/README.md`. Steps:
+
+1. Pick `extension/` as the canonical source.
+2. Add `pnpm` workspace `packages/extension/` with TS + Vite (`@crxjs/vite-plugin`) so we get type-checked content scripts and HMR.
+3. Build outputs to `dist/extension/` (loaded unpacked in dev) and `dist/extension-zip/` for store upload.
+4. Delete `rezmai-extension/` in the same PR that adds the build pipeline; add a README pointer at the old path that survives one release.
+5. CI: a `pnpm --filter extension build` step + a `manifest-version` check.
+
+### 10.2 Manifest changes
+
+```jsonc
+{
+  "manifest_version": 3,
+  "permissions": ["activeTab", "storage", "alarms", "scripting"],
+  "host_permissions": [
+    "https://*.rezm.ai/*",
+    "https://api.rezm.ai/*",
+    "https://*.greenhouse.io/*",
+    "https://*.lever.co/*",
+    "https://*.myworkdayjobs.com/*",
+    "https://*.ashbyhq.com/*",
+    "https://*.icims.com/*",
+    "https://*.taleo.net/*",
+    "https://*.smartrecruiters.com/*",
+    "https://*.bamboohr.com/*"
+  ],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "all_frames": true,
+    "match_origin_as_fallback": true,
+    "run_at": "document_idle",
+    "js": ["content.js"]
+  }],
+  "web_accessible_resources": [{
+    "resources": ["adapters/*.js"],
+    "matches": ["<all_urls>"]
+  }]
+}
+```
+
+Adding ATS host permissions enables the **content script (and, via `chrome.scripting`, MAIN-world bridges) to fetch cross-origin if ever needed**, plus shows the user the explicit list. Note: today the brief states content cannot fetch cross-origin because there are no host permissions for arbitrary sites. The popup-mediates-fetch pattern is preserved as the default; ATS-host fetches are only for telemetry pings or future server-aided submit.
+
+### 10.3 Backward compatibility
+
+- New endpoints are additive. Old `POST /api/extension/smart-fill` keeps its old shape behind a `?legacy=1` flag for one release so unupgraded extensions still work.
+- DB migration is purely additive; no column drops in this release.
+- `chrome.storage.local` keys keep their existing names (`token`); new keys live under `session.*` and `cache.*` namespaces.
+- Extension auto-update (Chrome Web Store) handles the rollout; we gate new behavior behind a server-side feature flag (`/api/extension/config`) keyed by `extVersion + userId` so we can dark-launch and roll back.
+
+### 10.4 Versioning
+
+- `manifest.version` follows semver-ish `MAJOR.MINOR.PATCH`. `MAJOR` bumps when message-passing schema breaks compatibility.
+- Background sends `X-Ext-Version` on every request; server can refuse pre-`1.0.0` extensions for endpoints it has retired.
+
+
 
 ## 11. Risks, Open Questions, Non-Goals
 
-Stub.
+### 11.1 Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| ATS DOMs change weekly | High | Medium | Telemetry-driven healing; per-adapter version pin; soft-fail to GenericAdapter |
+| Workday tenants vary wildly | High | High | Tenant-specific overrides resolved by `tenant.subdomain`; canary cohort |
+| Service worker eviction loses in-flight tailor | Medium | Medium | Alarm heartbeat + idempotent server-side resume by `sessionId` |
+| Embedding latency spikes | Medium | Low | Cache + `stale: true` fallback; precompute on `JOB_SCRAPED` |
+| Hash chain breaks if backend re-renders PDF | Medium | High | `render_hash` is immutable per `(variant_id, render_version)`; UI shows "Re-render needed" badge if mismatch |
+| Manifest host_permissions trigger Chrome Web Store re-review | High | Low | Bundle re-review with the unification PR to amortize |
+| RLS regression from new joins | Low | High | Add policy tests in CI; new tables ship with explicit owner policies |
+| Shadow-DOM closed-shadow ATS (rare) | Low | Medium | Detect + show "manual fill" hint, no silent failure |
+| Two extension trees diverge before unification ships | Medium | Low | Add a CI check that errors if `extension/` and `rezmai-extension/` differ |
+
+### 11.2 Open questions
+
+- Do we need a side-panel UI (`chrome.sidePanel`) for long sessions, or is popup-only enough? (Owner: UX plan.)
+- Should adapter modules be remotely loaded (signed JS bundles) for hot-fix without store re-review? Trades off Chrome MV3 RemoteHostedCode policy compliance.
+- Auto-submit: does the extension press "Submit" or only pre-fill? (Owner: HR/product plan; this doc assumes pre-fill only.)
+- Multi-account: do we key sessions by `(userId, tabId)` to support concurrent test accounts? Likely yes.
+- Do we ship a Firefox build? MV3 differences (event pages vs SW) require a small abstraction layer.
+
+### 11.3 Non-goals
+
+- Building UI affordances for the new state (UX plan owns this).
+- Designing the recruiter-side / HR review experience (HR product plan owns this).
+- Replacing the tailor pipeline; we only consume its embeddings.
+- Server-mediated submission to ATSes (separate `auto-apply` system already exists at `src/app/api/auto-apply/*`).
+- Mobile or non-Chromium browsers in the first release.
+
+
 
 ## 12. Sequenced Milestones
 
-Stub.
+Sizing: **S** ≤ 3 dev-days, **M** ≤ 2 weeks, **L** ≤ 4 weeks. Dependencies are listed inline.
+
+| # | Milestone | Size | Depends on | Outcome |
+|---|-----------|------|------------|---------|
+| **M1** | Unify `extension/` and `rezmai-extension/` into `packages/extension/` with TS + Vite + CI build | M | — | One source of truth; type-checked; deletes ~850 LOC of dupes |
+| **M2** | Background-owned `ApplicationSession` + `chrome.storage.session` + alarm heartbeat; popup becomes thin view via Port | M | M1 | Fixes S5, S8; foundation for everything below |
+| **M3** | DB migration `00030_extension_dedup_and_score`; add canonical/ATS columns and indexes | S | — | Schema ready; no behavior change yet |
+| **M4** | URL canonicalizer + ATS URL parsers + `POST /api/extension/jobs/resolve` + `/jobs/upsert` with idempotency | M | M3 | Fixes S1, S2, S3 server-side |
+| **M5** | Popup + background switch from "list jobs and find" to resolver + dedup hint cache | S | M2, M4 | End-to-end dedup live |
+| **M6** | PDF artifact pipeline: `render_hash` column, ETag/HEAD endpoints, BG `ArtifactCache`, `EXECUTE_FILL{artifactRef}` with hash verify | M | M2 | Fixes S4; tamper-evident chain |
+| **M7** | Site-adapter framework + `GenericAdapter` with confidence scoring + telemetry endpoint | M | M1 | Plumbing for S7; baseline parity with current heuristics |
+| **M8** | Per-ATS adapters: Greenhouse + Lever first (high traffic, simple DOMs) | M | M7 | Visible quality jump |
+| **M9** | Per-ATS adapters: Workday + Ashby (hard DOMs: iframe, shadow, virtualized) | L | M7, M8 | Covers ~70% of remaining failures |
+| **M10** | Per-ATS adapters: iCIMS + Taleo + SmartRecruiters + BambooHR | M | M9 | Long tail closed |
+| **M11** | Match-score endpoint with embedding reuse + popup score widget; warm on `JOB_SCRAPED` | M | M2, M3 | Fixes S10; <800ms first paint |
+| **M12** | Telemetry-driven adapter healing dashboard + weekly low-confidence cluster report | S | M7+ | Continuous quality loop |
+
+Critical path: **M1 → M2 → (M4 || M6 || M7) → M5 / M8 / M11**. M3 can land any time. M9–M10 parallelize after M7. Total elapsed estimate: ~10 weeks with two engineers, assuming UX plan ships popup mocks by end of M2.
+
+---
+
+File: `/home/user/resumeapp/docs/extension-architect-plan.md`
+
