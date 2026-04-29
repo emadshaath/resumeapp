@@ -315,12 +315,16 @@ async function handleSmartFill() {
     renderFilledFields(fillResult.filledFields);
     renderPdfPreview(pdfBuffer);
 
-    const score = smartData.match_score ? ` (${smartData.match_score}% match)` : "";
-    const reused = smartData.reused ? " (reused existing)" : "";
-    const limited = smartData.limit_reached ? " ⚠️ Using default profile (variant limit reached)" : "";
+    const detailParts = [];
+    if (smartData.reused) detailParts.push("Reused existing variant");
+    if (smartData.limit_reached) detailParts.push("⚠️ variant limit reached — using default profile");
+    renderMatchBadge(
+      smartData.match_score,
+      detailParts.length ? detailParts.join(" · ") : "Resume vs. this job description"
+    );
 
     resultDiv.innerHTML = `<div class="result success">
-      Smart filled!${score}${reused}${limited}<br>
+      Smart filled!<br>
       <span style="font-size:11px;opacity:0.8">Variant saved to dashboard</span>
     </div>
     <button class="btn btn-accent" id="ai-answer-btn-smart" style="margin-top:8px;">
@@ -430,7 +434,40 @@ function clearFillUI() {
   const list = document.getElementById("filled-fields-list");
   if (fields) fields.hidden = true;
   if (list) list.innerHTML = "";
+  clearMatchBadge();
   clearPdfPreview();
+}
+
+function clearMatchBadge() {
+  const panel = document.getElementById("match-panel");
+  const badge = document.getElementById("match-badge");
+  const detail = document.getElementById("match-detail");
+  if (panel) panel.hidden = true;
+  if (badge) {
+    badge.textContent = "--%";
+    badge.classList.remove("high", "low");
+  }
+  if (detail) detail.textContent = "Resume vs. job description";
+}
+
+// Show the Smart-Tailor match score as a prominent badge. score is the
+// 0-100 integer returned by /api/extension/smart-fill; detail is an
+// optional sub-line (e.g., "Reused existing variant").
+function renderMatchBadge(score, detail) {
+  const panel = document.getElementById("match-panel");
+  const badge = document.getElementById("match-badge");
+  const detailEl = document.getElementById("match-detail");
+  if (!panel || !badge) return;
+  if (score == null || Number.isNaN(Number(score))) {
+    clearMatchBadge();
+    return;
+  }
+  const n = Math.max(0, Math.min(100, Math.round(Number(score))));
+  badge.textContent = `${n}%`;
+  badge.classList.toggle("high", n >= 75);
+  badge.classList.toggle("low", n < 50);
+  if (detailEl) detailEl.textContent = detail || "Resume vs. job description";
+  panel.hidden = false;
 }
 
 // Track the active object URL so we can revoke it before creating the next
