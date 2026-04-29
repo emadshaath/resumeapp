@@ -1250,3 +1250,147 @@ async function markCandidateSubmitted(candidateId) {
     }
   );
 }
+
+// ─── Apply Mode ───
+// Once the user runs Auto-Fill or Smart Tailor, popup.js writes a
+// per-tab cache via background.js. This script reads that cache and
+// keeps the form filled as the user navigates a multi-step wizard
+// (Apple Careers, Workday, iCIMS, etc.). It is safe-by-default — the
+// existing skip-if-non-empty checks inside fillForm mean we never
+// overwrite anything the user has typed.
+let applyModeState = null;          // cached { fields, resume_pdf_url, ... }
+let applyModePdfBytes = null;       // bytes of the resume PDF, fetched lazily
+let applyModeLastFireMs = 0;        // cooldown anchor — at most one fire/s
+let applyModeFillTimer = null;      // debounce timer
+let applyModeObserver = null;
+
+const APPLY_MODE_DEBOUNCE_MS = 500;
+const APPLY_MODE_COOLDOWN_MS = 1000;
+
+function getApplyModeState() {
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage({ type: "GET_APPLY_MODE" }, (resp) => {
+        if (chrome.runtime.lastError) resolve(null);
+        else resolve(resp || null);
+      });
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function initApplyMode() {
+  const state = await getApplyModeState();
+  if (!state || !state.fields) return;
+  // Origin guard: if the user navigated to a different site after caching,
+  // drop the state so we don't fill the wrong app with this profile.
+  if (state.urlOrigin && state.urlOrigin !== window.location.origin) return;
+
+  applyModeState = state;
+  attachApplyModeObserver();
+  // Schedule one initial check in case the page already mounted form
+  // fields (e.g., the user navigated to step 2 within the same tab).
+  scheduleApplyModeFill();
+}
+
+function attachApplyModeObserver() {
+  if (applyModeObserver) return;
+  applyModeObserver = new MutationObserver(() => scheduleApplyModeFill());
+  applyModeObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+}
+
+function scheduleApplyModeFill() {
+  if (!applyModeState) return;
+  if (applyModeFillTimer) clearTimeout(applyModeFillTimer);
+  applyModeFillTimer = setTimeout(runApplyModeFill, APPLY_MODE_DEBOUNCE_MS);
+}
+
+async function runApplyModeFill() {
+  applyModeFillTimer = null;
+  if (!applyModeState) return;
+
+  // Cooldown: never re-fire within COOLDOWN_MS of the last fill — keeps
+  // the observer from chasing its own tail when a fill mutates the DOM.
+  const now = Date.now();
+  const wait = APPLY_MODE_COOLDOWN_MS - (now - applyModeLastFireMs);
+  if (wait > 0) {
+    applyModeFillTimer = setTimeout(runApplyModeFill, wait);
+    return;
+  }
+
+  // Skip cheaply when there is nothing to do.
+  if (!hasEmptyFillableFields()) return;
+
+  applyModeLastFireMs = now;
+
+  // Fetch the PDF on demand the first time a file input appears in the
+  // wizard. Cached afterwards so subsequent steps don't re-download.
+  let pdfBlob = applyModePdfBytes;
+  if (!pdfBlob && document.querySelector('input[type="file"]') && applyModeState.resume_pdf_url) {
+    pdfBlob = await fetchApplyModePdfBytes(applyModeState.resume_pdf_url);
+    if (pdfBlob) applyModePdfBytes = pdfBlob;
+  }
+
+  fillForm(applyModeState.fields, pdfBlob || null);
+}
+
+function hasEmptyFillableFields() {
+  // Text-like inputs and textareas
+  const textInputs = document.querySelectorAll(
+    'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="image"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea'
+  );
+  for (const el of textInputs) {
+    if (!el.value || !el.value.trim()) return true;
+  }
+  // Selects with no chosen option
+  for (const sel of document.querySelectorAll("select")) {
+    if (!sel.value || sel.selectedIndex <= 0) return true;
+  }
+  // File inputs without an attached file
+  for (const file of document.querySelectorAll('input[type="file"]')) {
+    if (!file.files || file.files.length === 0) return true;
+  }
+  // Radio groups with nothing selected
+  const radios = document.querySelectorAll('input[type="radio"]');
+  const groups = new Set();
+  for (const r of radios) if (r.name) groups.add(r.name);
+  for (const name of groups) {
+    let any = false;
+    for (const r of document.querySelectorAll(`input[type="radio"][name="${CSS.escape(name)}"]`)) {
+      if (r.checked) { any = true; break; }
+    }
+    if (!any) return true;
+  }
+  return false;
+}
+
+async function fetchApplyModePdfBytes(pdfUrl) {
+  try {
+    const token = await getStoredToken();
+    if (!token) return null;
+    const url = pdfUrl.startsWith("http") ? pdfUrl : `${REZMAI_API_BASE}${pdfUrl}`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    return Array.from(new Uint8Array(buf));
+  } catch {
+    return null;
+  }
+}
+
+(function bootstrapApplyMode() {
+  // Stagger slightly so platform-specific frameworks have time to mount
+  // their initial DOM before we read it.
+  const start = () => initApplyMode().catch(() => {});
+  if (document.readyState === "complete" || document.readyState === "interactive") {
+    setTimeout(start, 400);
+  } else {
+    window.addEventListener("DOMContentLoaded", () => setTimeout(start, 400), { once: true });
+  }
+})();
