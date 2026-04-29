@@ -139,7 +139,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 function fillForm(profileFields, pdfBlob) {
   const platform = detectPlatform();
   const platformSelectors = FIELD_MAPS[platform]?.selectors || {};
-  let filledCount = 0;
+  const filledFields = [];
 
   // Add derived fields
   const fields = { ...profileFields };
@@ -161,7 +161,7 @@ function fillForm(profileFields, pdfBlob) {
     const value = fields[fieldKey];
     if (el && value) {
       setFieldValue(el, value);
-      filledCount++;
+      filledFields.push(fieldEntry(el, fieldKey, value));
     }
   }
 
@@ -179,7 +179,7 @@ function fillForm(profileFields, pdfBlob) {
     const matchedField = matchField(input);
     if (matchedField && fields[matchedField]) {
       setFieldValue(input, fields[matchedField]);
-      filledCount++;
+      filledFields.push(fieldEntry(input, matchedField, fields[matchedField]));
     }
   }
 
@@ -188,18 +188,23 @@ function fillForm(profileFields, pdfBlob) {
   for (const select of allSelects) {
     if (select.value && select.selectedIndex > 0) continue;
     const filled = fillSelect(select, fields);
-    if (filled) filledCount++;
+    if (filled) {
+      const opt = select.options[select.selectedIndex];
+      filledFields.push(fieldEntry(select, getLabel(select) || select.name || select.id, opt ? opt.text : select.value));
+    }
   }
 
   // Phase 4: Handle radio button groups
-  filledCount += fillRadioGroups(fields);
+  fillRadioGroups(fields, filledFields);
 
   // Phase 5: Handle checkboxes (e.g., "I agree to receive text messages")
-  filledCount += fillCheckboxes(fields);
+  fillCheckboxes(fields, filledFields);
 
   // Phase 6: Handle file upload (resume PDF)
   if (pdfBlob) {
-    attachPDFFromBlob(pdfBlob);
+    if (attachPDFFromBlob(pdfBlob)) {
+      filledFields.push({ label: "Resume", value: "Resume.pdf", type: "file", selector: "input[type=file]" });
+    }
   } else {
     // Try to find and fill any file input with a visual indicator
     const fileSelector = platformSelectors.resume || 'input[type="file"]';
@@ -209,7 +214,26 @@ function fillForm(profileFields, pdfBlob) {
     }
   }
 
-  return { success: true, filled: filledCount, platform };
+  return { success: true, filled: filledFields.length, filledFields, platform };
+}
+
+function fieldEntry(el, label, value) {
+  const tag = el.tagName ? el.tagName.toLowerCase() : "input";
+  const type = el.type ? `${tag}:${el.type}` : tag;
+  const labelStr = String(label || el.name || el.id || "field").trim().replace(/\s+/g, " ").slice(0, 80);
+  let valueStr;
+  if (el.tagName === "SELECT") {
+    const opt = el.options[el.selectedIndex];
+    valueStr = opt ? opt.text : String(value);
+  } else {
+    valueStr = String(value);
+  }
+  return {
+    label: labelStr,
+    value: valueStr.slice(0, 200),
+    type,
+    selector: cssPath(el),
+  };
 }
 
 // ─── Fill <select> dropdowns ───
@@ -365,9 +389,20 @@ function selectExperienceOption(select, years) {
 }
 
 // ─── Fill radio button groups ───
-function fillRadioGroups(fields) {
+function fillRadioGroups(fields, filledFields) {
   let filled = 0;
   const radioGroups = {};
+
+  const recordRadio = (radio, questionLabel) => {
+    if (filledFields) {
+      filledFields.push({
+        label: String(questionLabel || radio.name || "").trim().replace(/\s+/g, " ").slice(0, 80) || (radio.name || "radio"),
+        value: (getLabel(radio) || radio.value || "").trim().slice(0, 200),
+        type: "radio",
+        selector: cssPath(radio),
+      });
+    }
+  };
 
   // Group radios by name
   document.querySelectorAll('input[type="radio"]').forEach((radio) => {
@@ -386,6 +421,9 @@ function fillRadioGroups(fields) {
     const questionText = container
       ? container.textContent.toLowerCase()
       : getLabel(radios[0]);
+    const questionLabelDisplay = container
+      ? container.textContent.trim().replace(/\s+/g, " ").slice(0, 80)
+      : (getLabel(radios[0]) || groupName);
 
     let matched = false;
 
@@ -406,6 +444,7 @@ function fillRadioGroups(fields) {
         if (radioMatch) {
           radioMatch.checked = true;
           triggerEvents(radioMatch);
+          recordRadio(radioMatch, questionLabelDisplay);
           filled++;
           matched = true;
           break;
@@ -426,6 +465,7 @@ function fillRadioGroups(fields) {
       if (yesRadio) {
         yesRadio.checked = true;
         triggerEvents(yesRadio);
+        recordRadio(yesRadio, questionLabelDisplay);
         filled++;
         continue;
       }
@@ -444,6 +484,7 @@ function fillRadioGroups(fields) {
         if (match) {
           match.checked = true;
           triggerEvents(match);
+          recordRadio(match, questionLabelDisplay);
           filled++;
           break;
         }
@@ -461,6 +502,7 @@ function fillRadioGroups(fields) {
         if (match) {
           match.checked = true;
           triggerEvents(match);
+          recordRadio(match, questionLabelDisplay);
           filled++;
           break;
         }
@@ -472,7 +514,7 @@ function fillRadioGroups(fields) {
 }
 
 // ─── Fill checkboxes ───
-function fillCheckboxes(fields) {
+function fillCheckboxes(fields, filledFields) {
   let filled = 0;
   const checkboxes = document.querySelectorAll('input[type="checkbox"]');
 
@@ -487,6 +529,14 @@ function fillCheckboxes(fields) {
         cb.checked = true;
         triggerEvents(cb);
         filled++;
+        if (filledFields) {
+          filledFields.push({
+            label: labelText.trim().replace(/\s+/g, " ").slice(0, 80) || (cb.name || "checkbox"),
+            value: "checked",
+            type: "checkbox",
+            selector: cssPath(cb),
+          });
+        }
       }
     }
   }
@@ -589,10 +639,27 @@ function highlightElement(element, color = "#ecfdf5") {
   }, 2000);
 }
 
+// Build a short CSS-path-style selector for debugging/visibility.
+function cssPath(el) {
+  if (!el || !el.tagName) return "";
+  if (el.id) return "#" + el.id;
+  const tag = el.tagName.toLowerCase();
+  if (el.name) return `${tag}[name="${el.name}"]`;
+  const cls = (typeof el.className === "string" ? el.className : "")
+    .trim()
+    .split(/\s+/)
+    .filter((c) => c && /^[a-zA-Z0-9_-]+$/.test(c))
+    .slice(0, 2)
+    .join(".");
+  return cls ? `${tag}.${cls}` : tag;
+}
+
 // ─── PDF attachment via blob passed from background ───
+// Returns true when the file was successfully assigned to the input,
+// false when the browser couldn't accept it programmatically.
 function attachPDFFromBlob(blobData) {
   const fileInputs = document.querySelectorAll('input[type="file"]');
-  if (fileInputs.length === 0) return;
+  if (fileInputs.length === 0) return false;
 
   // Find the resume file input (first one, or one matching resume/cv patterns)
   let target = fileInputs[0];
@@ -615,9 +682,11 @@ function attachPDFFromBlob(blobData) {
     target.files = dataTransfer.files;
     triggerEvents(target);
     highlightElement(target, "#ecfdf5");
+    return true;
   } catch (e) {
     // DataTransfer may not be supported — highlight for manual upload
     highlightElement(target, "#fef3c7");
+    return false;
   }
 }
 
