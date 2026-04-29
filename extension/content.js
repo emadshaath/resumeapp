@@ -1015,6 +1015,21 @@ function scrapeJobDetails() {
 // Only accept tokens posted from the rezm.ai auth bridge — never from arbitrary
 // third-party pages. Both source-window and origin are verified.
 const TRUSTED_AUTH_ORIGIN = "https://rezm.ai";
+
+// Tag the rezm.ai dashboard so the in-app "Install the extension" prompt
+// can auto-hide for users who already have the extension. Best-effort —
+// any host that ends in rezm.ai (or is rezm.ai itself) gets the marker.
+(function markExtensionPresent() {
+  try {
+    const host = window.location.hostname;
+    if (host === "rezm.ai" || host.endsWith(".rezm.ai")) {
+      document.documentElement.setAttribute("data-rezmai-extension", "1");
+    }
+  } catch {
+    // ignore — content script may run before document.documentElement exists
+  }
+})();
+
 window.addEventListener("message", (event) => {
   if (event.source !== window) return;
   if (event.origin !== TRUSTED_AUTH_ORIGIN) return;
