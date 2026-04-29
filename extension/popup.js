@@ -45,6 +45,9 @@ function showDisconnected() {
   document.getElementById("connect-btn").addEventListener("click", () => {
     chrome.tabs.create({ url: `${API_BASE}/extension/auth` });
   });
+  clearJobBanner();
+  clearFillUI();
+  window.__existingJob = null;
 }
 
 function showConnected() {
@@ -79,6 +82,27 @@ function showConnected() {
   document.getElementById("smart-fill-btn").addEventListener("click", handleSmartFill);
   document.getElementById("track-btn").addEventListener("click", handleTrack);
   document.getElementById("disconnect-btn").addEventListener("click", handleDisconnect);
+
+  // Fire-and-forget: look up whether the active tab is already tracked
+  // and surface the banner. Failures are swallowed (banner stays hidden).
+  loadJobBanner();
+}
+
+async function loadJobBanner() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const pageUrl = tab?.url || "";
+    if (!pageUrl || !pageUrl.startsWith("http")) {
+      window.__existingJob = null;
+      clearJobBanner();
+      return;
+    }
+    const existing = await lookupExistingJob(pageUrl);
+    window.__existingJob = existing;
+    renderJobBanner(existing);
+  } catch (e) {
+    console.warn("[rezm.ai] job banner lookup failed:", e);
+  }
 }
 
 async function handleFill() {
@@ -406,6 +430,144 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => (
     { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
   ));
+}
+
+function formatDate(s) {
+  if (!s) return "";
+  try {
+    return new Date(s).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  } catch {
+    return String(s);
+  }
+}
+
+// Tracking IDs that distinguish two different postings on the same host
+// (everything else — utm_*, share params, etc. — is dropped so a
+// shared-from-LinkedIn URL still matches a directly-pasted one).
+const JOB_URL_QUERY_WHITELIST = ["gh_jid", "currentJobId", "jobId", "job_id"];
+
+function normalizeJobUrl(raw) {
+  try {
+    const u = new URL(raw);
+    u.hash = "";
+    const kept = new URLSearchParams();
+    for (const key of JOB_URL_QUERY_WHITELIST) {
+      const v = u.searchParams.get(key);
+      if (v) kept.set(key, v);
+    }
+    u.search = kept.toString();
+    let s = u.toString();
+    if (s.endsWith("/") && u.pathname.length > 1) s = s.slice(0, -1);
+    return s;
+  } catch {
+    return raw;
+  }
+}
+
+async function findJobByUrl(url) {
+  try {
+    const res = await apiFetch(`/api/jobs?job_url=${encodeURIComponent(url)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const jobs = (data && data.jobs) || [];
+    if (jobs.length === 0) return null;
+    if (jobs.length === 1) return jobs[0];
+    // Prefer rows that already have a variant attached, then most recent.
+    const sorted = [...jobs].sort((a, b) => {
+      const variantBias = (b.variant_id ? 1 : 0) - (a.variant_id ? 1 : 0);
+      if (variantBias !== 0) return variantBias;
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+    });
+    return sorted[0];
+  } catch {
+    return null;
+  }
+}
+
+// Resolve whether the active tab matches an existing job_application row.
+// Tries the exact tab URL first (uses the new ?job_url= server filter),
+// then falls back to a normalized variant for share-param cases.
+// Enriches with the variant's display name when one is attached.
+async function lookupExistingJob(pageUrl) {
+  if (!pageUrl) return null;
+  let job = await findJobByUrl(pageUrl);
+  if (!job) {
+    const normalized = normalizeJobUrl(pageUrl);
+    if (normalized && normalized !== pageUrl) {
+      job = await findJobByUrl(normalized);
+    }
+  }
+  if (!job) return null;
+
+  let variant = null;
+  if (job.variant_id) {
+    try {
+      const r = await apiFetch(`/api/variants/${job.variant_id}`);
+      if (r.ok) {
+        const data = await r.json();
+        variant = data.variant || null;
+      }
+    } catch {
+      // Variant deleted or unreachable — fall through with id-only display.
+    }
+  }
+  return { job, variant };
+}
+
+function clearJobBanner() {
+  const el = document.getElementById("job-banner");
+  if (!el) return;
+  el.hidden = true;
+  el.innerHTML = "";
+  el.className = "";
+}
+
+function renderJobBanner(existing) {
+  const el = document.getElementById("job-banner");
+  if (!el) return;
+  if (!existing || !existing.job) {
+    clearJobBanner();
+    return;
+  }
+  const { job, variant } = existing;
+  const status = String(job.status || "saved").toLowerCase();
+  const statusClass = status === "applied" ? "applied strong" : "saved";
+  const statusBadge = status.toUpperCase();
+  const dateLine = job.applied_date
+    ? `Applied ${formatDate(job.applied_date)}`
+    : (job.created_at ? `Tracked ${formatDate(job.created_at)}` : "");
+  const variantName = variant?.name
+    ? variant.name
+    : (job.variant_id ? "(unnamed variant)" : "—");
+  const score =
+    job.match_score != null
+      ? `${job.match_score}% match`
+      : (variant?.match_score != null ? `${variant.match_score}% match` : "score n/a");
+
+  el.className = `banner ${statusClass}`;
+  el.hidden = false;
+  el.innerHTML = `
+    <div class="row">
+      <div>
+        <div class="title">${escapeHtml(job.company_name || "(unknown)")} · ${escapeHtml(job.job_title || "")}</div>
+        ${dateLine ? `<div class="meta">${escapeHtml(dateLine)}</div>` : ""}
+      </div>
+      <span class="badge">${escapeHtml(statusBadge)}</span>
+    </div>
+    <div class="meta" style="margin-top:6px;">
+      Variant: <strong>${escapeHtml(variantName)}</strong> · ${escapeHtml(score)}
+    </div>
+    <div class="actions">
+      <button class="btn-small" id="regen-variant-btn">Generate new variant</button>
+    </div>
+  `;
+
+  const regen = document.getElementById("regen-variant-btn");
+  if (regen) regen.addEventListener("click", () => {
+    window.__existingJob = null;
+    clearJobBanner();
+    handleSmartFill();
+  });
 }
 
 // Wrap chrome.tabs.sendMessage so we can await the structured response
