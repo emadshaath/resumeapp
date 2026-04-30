@@ -703,9 +703,20 @@ function attachPDFFromBlob(blobData) {
   }
 
   try {
-    const uint8 = new Uint8Array(blobData);
-    const blob = new Blob([uint8], { type: "application/pdf" });
-    const file = new File([blob], "Resume.pdf", { type: "application/pdf" });
+    // Accept both shapes: a plain Array<number> from popup.js, or
+    // { data, type, name } from runAutoApply / older callers.
+    const bytes = Array.isArray(blobData)
+      ? blobData
+      : (blobData && Array.isArray(blobData.data) ? blobData.data : []);
+    const fileType = (blobData && blobData.type) || "application/pdf";
+    const fileName = (blobData && blobData.name) || "Resume.pdf";
+    if (!bytes.length) {
+      console.warn("[rezm.ai] attachPDFFromBlob: empty PDF bytes — skipping");
+      return false;
+    }
+    const uint8 = new Uint8Array(bytes);
+    const blob = new Blob([uint8], { type: fileType });
+    const file = new File([blob], fileName, { type: fileType });
     const dataTransfer = new DataTransfer();
     dataTransfer.items.add(file);
     target.files = dataTransfer.files;
@@ -1124,26 +1135,35 @@ async function runAutoApply(candidateId) {
     return;
   }
 
-  const res = await fetch(`${REZMAI_API_BASE}/api/extension/candidate/${candidateId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) {
-    throw new Error(`candidate fetch ${res.status}`);
+  const candidateResp = await backgroundFetch(
+    `${REZMAI_API_BASE}/api/extension/candidate/${candidateId}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!candidateResp.ok) {
+    throw new Error(`candidate fetch ${candidateResp.status}`);
   }
-  const data = await res.json();
+  let data;
+  try {
+    data = JSON.parse(candidateResp.body);
+  } catch {
+    throw new Error("candidate response not JSON");
+  }
 
   // Fetch resume PDF as blob (optional — not all pages need the upload)
   let pdfBlob = null;
   if (data.resume_pdf_url) {
     try {
-      const pdfRes = await fetch(`${REZMAI_API_BASE}${data.resume_pdf_url}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (pdfRes.ok) {
-        const buf = await pdfRes.arrayBuffer();
+      const pdfResp = await backgroundFetch(
+        `${REZMAI_API_BASE}${data.resume_pdf_url}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          binary: true,
+        }
+      );
+      if (pdfResp.ok && Array.isArray(pdfResp.body)) {
         // Convert to structure fillForm expects (see attachPDFFromBlob)
         pdfBlob = {
-          data: Array.from(new Uint8Array(buf)),
+          data: pdfResp.body,
           type: "application/pdf",
           name: "resume.pdf",
         };
@@ -1329,7 +1349,7 @@ async function runAIAnswersOnPage(jobContext) {
       job_title: document.title,
       company_name: window.location.hostname,
     };
-    const res = await fetch(`${REZMAI_API_BASE}/api/extension/ai-answers`, {
+    const resp = await backgroundFetch(`${REZMAI_API_BASE}/api/extension/ai-answers`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1337,8 +1357,9 @@ async function runAIAnswersOnPage(jobContext) {
       },
       body: JSON.stringify({ questions, job_context: ctx }),
     });
-    if (!res.ok) return 0; // 403 (free tier), 429, etc. — silently skip
-    const data = await res.json();
+    if (!resp.ok) return 0; // 403 (free tier), 429, etc. — silently skip
+    let data;
+    try { data = JSON.parse(resp.body); } catch { return 0; }
     if (!Array.isArray(data.answers) || data.answers.length === 0) return 0;
     const filled = applyAIAnswers(data.answers);
     return filled || 0;
@@ -1352,7 +1373,7 @@ async function runAIAnswersOnPage(jobContext) {
 async function markCandidateSubmitted(candidateId) {
   const token = await getStoredToken();
   if (!token) return;
-  await fetch(
+  await backgroundFetch(
     `${REZMAI_API_BASE}/api/auto-apply/candidates/${candidateId}/mark-submitted`,
     {
       method: "POST",
@@ -1368,6 +1389,41 @@ async function markCandidateSubmitted(candidateId) {
 // (Apple Careers, Workday, iCIMS, etc.). It is safe-by-default — the
 // existing skip-if-non-empty checks inside fillForm mean we never
 // overwrite anything the user has typed.
+
+// Relay every rezm.ai fetch through the background service worker.
+// MV3 forces content-script fetches to inherit the host page's CORS
+// posture, so a direct fetch from e.g. jobs.apple.com is preflight-
+// rejected even though the manifest grants us host_permissions for
+// rezm.ai. The background service worker has access to those host
+// permissions so it can issue the request as the extension origin
+// without CORS restrictions.
+function backgroundFetch(url, init) {
+  init = init || {};
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage(
+        {
+          type: "API_FETCH",
+          url,
+          method: init.method || "GET",
+          headers: init.headers || {},
+          body: init.body !== undefined ? init.body : null,
+          binary: init.binary === true,
+        },
+        (resp) => {
+          if (chrome.runtime.lastError || !resp) {
+            resolve({ ok: false, status: 0, body: "", binary: !!init.binary });
+            return;
+          }
+          resolve(resp);
+        }
+      );
+    } catch {
+      resolve({ ok: false, status: 0, body: "", binary: !!init.binary });
+    }
+  });
+}
+
 let applyModeState = null;          // cached { fields, resume_pdf_url, ... }
 let applyModePdfBytes = null;       // bytes of the resume PDF, fetched lazily
 let applyModeLastFireMs = 0;        // cooldown anchor — at most one fire/s
@@ -1565,12 +1621,12 @@ async function fetchApplyModePdfBytes(pdfUrl) {
     const token = await getStoredToken();
     if (!token) return null;
     const url = pdfUrl.startsWith("http") ? pdfUrl : `${REZMAI_API_BASE}${pdfUrl}`;
-    const res = await fetch(url, {
+    const resp = await backgroundFetch(url, {
       headers: { Authorization: `Bearer ${token}` },
+      binary: true,
     });
-    if (!res.ok) return null;
-    const buf = await res.arrayBuffer();
-    return Array.from(new Uint8Array(buf));
+    if (!resp.ok || !Array.isArray(resp.body)) return null;
+    return resp.body; // already a plain Array<number> of bytes
   } catch {
     return null;
   }

@@ -77,6 +77,47 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     );
     return true;
   }
+
+  // Generic CORS-bypassing relay for content scripts.
+  // MV3 content scripts inherit the host page's CORS posture, so direct
+  // fetch() to rezm.ai from a page like jobs.apple.com is rejected by
+  // the browser's preflight check. Routing the request through the
+  // service worker (which runs in the extension's own origin and gets
+  // the manifest's host_permissions) bypasses that.
+  // Caller passes { url, method?, headers?, body?, binary? }.
+  // Response: { ok, status, body, binary }; for binary requests `body`
+  // is a plain Array<number> of bytes (JSON-serializable so it can
+  // travel across the message bridge), otherwise it is the response text.
+  if (message.type === "API_FETCH") {
+    fetch(message.url, {
+      method: message.method || "GET",
+      headers: message.headers || {},
+      body:
+        message.body !== undefined && message.body !== null
+          ? message.body
+          : undefined,
+    })
+      .then(async (response) => {
+        const isBinary = !!message.binary;
+        let body;
+        if (isBinary) {
+          const buf = await response.arrayBuffer();
+          body = Array.from(new Uint8Array(buf));
+        } else {
+          body = await response.text();
+        }
+        sendResponse({
+          ok: response.ok,
+          status: response.status,
+          body,
+          binary: isBinary,
+        });
+      })
+      .catch((err) => {
+        sendResponse({ ok: false, status: 0, error: String(err) });
+      });
+    return true;
+  }
 });
 
 // Drop the cache the moment a tab closes — keeps storage tidy and prevents
