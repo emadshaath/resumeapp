@@ -216,9 +216,11 @@ function fillForm(profileFields, pdfBlob) {
   fillCheckboxes(fields, filledFields);
 
   // Phase 6: Handle file upload (resume PDF)
+  let pdfAttached = false;
   if (pdfBlob) {
     if (attachPDFFromBlob(pdfBlob)) {
       filledFields.push({ label: "Resume", value: "Resume.pdf", type: "file", selector: "input[type=file]" });
+      pdfAttached = true;
     }
   } else {
     // Try to find and fill any file input with a visual indicator
@@ -229,7 +231,7 @@ function fillForm(profileFields, pdfBlob) {
     }
   }
 
-  return { success: true, filled: filledFields.length, filledFields, platform };
+  return { success: true, filled: filledFields.length, filledFields, pdfAttached, platform };
 }
 
 function fieldEntry(el, label, value) {
@@ -684,7 +686,9 @@ function cssPath(el) {
 // Returns true when the file was successfully assigned to the input,
 // false when the browser couldn't accept it programmatically.
 function attachPDFFromBlob(blobData) {
-  const fileInputs = findAllFileInputs(document);
+  // Disabled file inputs are typically read-only display rows (Apple's
+  // "Additional Files" list is a perfect example). Never write to those.
+  const fileInputs = findAllFileInputs(document).filter((fi) => !fi.disabled);
   if (fileInputs.length === 0) {
     console.info("[rezm.ai] attachPDFFromBlob: no <input type=file> found on page");
     return false;
@@ -1527,27 +1531,34 @@ async function runApplyModeFill() {
 
   applyModeLastFireMs = now;
 
-  // Fetch the PDF on demand the first time a file input appears in the
-  // wizard (including ones nested in open shadow roots, common on Apple
-  // Careers' upload widget). Cached afterwards so subsequent steps don't
-  // re-download.
-  let pdfBlob = applyModePdfBytes;
-  const fileInputs = findAllFileInputs(document);
-  if (!pdfBlob && fileInputs.length > 0 && applyModeState.resume_pdf_url) {
-    console.info(
-      "[rezm.ai] Apply Mode: fetching tailored PDF from", applyModeState.resume_pdf_url,
-      "for", fileInputs.length, "file input(s)"
-    );
-    pdfBlob = await fetchApplyModePdfBytes(applyModeState.resume_pdf_url);
-    if (pdfBlob) {
-      applyModePdfBytes = pdfBlob;
-      console.info("[rezm.ai] Apply Mode: PDF cached (", pdfBlob.length, "bytes)");
-    } else {
-      console.warn("[rezm.ai] Apply Mode: PDF fetch failed — file input will not be auto-attached");
+  // PDF latch: once we successfully attach the resume in this Apply
+  // Mode session, never re-attach. Apple's "Additional Files" widget
+  // clears the hidden <input type=file> after each upload, so the
+  // observer would otherwise see an empty file input on every DOM
+  // mutation and add another Resume.pdf entry, then another, and so on.
+  let pdfBlob = null;
+  if (!applyModeState.pdfAttached) {
+    pdfBlob = applyModePdfBytes;
+    const fileInputs = findAllFileInputs(document).filter((fi) => !fi.disabled);
+    if (!pdfBlob && fileInputs.length > 0 && applyModeState.resume_pdf_url) {
+      console.info(
+        "[rezm.ai] Apply Mode: fetching tailored PDF from", applyModeState.resume_pdf_url,
+        "for", fileInputs.length, "file input(s)"
+      );
+      pdfBlob = await fetchApplyModePdfBytes(applyModeState.resume_pdf_url);
+      if (pdfBlob) {
+        applyModePdfBytes = pdfBlob;
+        console.info("[rezm.ai] Apply Mode: PDF cached (", pdfBlob.length, "bytes)");
+      } else {
+        console.warn("[rezm.ai] Apply Mode: PDF fetch failed — file input will not be auto-attached");
+      }
     }
   }
 
   const result = fillForm(applyModeState.fields, pdfBlob || null);
+  if (result?.pdfAttached && !applyModeState.pdfAttached) {
+    applyModeState.pdfAttached = true;
+  }
   console.info(
     "[rezm.ai] Apply Mode: fill attempt — filled", result?.filled || 0,
     "field(s) on", applyModeState.companyName || window.location.hostname,
@@ -1587,23 +1598,28 @@ function persistApplyModeState() {
 }
 
 function hasEmptyFillableFields() {
+  // Disabled / read-only fields are display-only — Apple's
+  // "Additional Files" list is a textbook case (disabled <input>
+  // rows that show the filename of files already uploaded). They
+  // should never count as empty or trigger another fill cycle.
+  const enabled = ":not([disabled]):not([readonly])";
   // Text-like inputs and textareas
   const textInputs = document.querySelectorAll(
-    'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="image"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea'
+    `input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="image"]):not([type="checkbox"]):not([type="radio"]):not([type="file"])${enabled}, textarea${enabled}`
   );
   for (const el of textInputs) {
     if (!el.value || !el.value.trim()) return true;
   }
   // Selects with no chosen option
-  for (const sel of document.querySelectorAll("select")) {
+  for (const sel of document.querySelectorAll(`select${enabled}`)) {
     if (!sel.value || sel.selectedIndex <= 0) return true;
   }
   // File inputs without an attached file
-  for (const file of document.querySelectorAll('input[type="file"]')) {
+  for (const file of document.querySelectorAll(`input[type="file"]${enabled}`)) {
     if (!file.files || file.files.length === 0) return true;
   }
   // Radio groups with nothing selected
-  const radios = document.querySelectorAll('input[type="radio"]');
+  const radios = document.querySelectorAll(`input[type="radio"]${enabled}`);
   const groups = new Set();
   for (const r of radios) if (r.name) groups.add(r.name);
   for (const name of groups) {
