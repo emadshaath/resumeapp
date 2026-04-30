@@ -174,8 +174,35 @@ async function loadJobBanner() {
     window.__existingJob = existing;
     renderJobBanner(existing);
     renderApplyModePill(applyMode, tab?.id);
+    if (applyMode) restoreApplyModeUI(applyMode);
   } catch (e) {
     console.warn("[rezm.ai] job banner lookup failed:", e);
+  }
+}
+
+// Re-paint the filled-fields list, PDF preview, and (when present) the
+// match score from the cached Apply Mode state so closing-and-
+// reopening the popup mid-application doesn't blank the panels.
+async function restoreApplyModeUI(state) {
+  if (!state) return;
+  if (Array.isArray(state.lastFilledFields) && state.lastFilledFields.length > 0) {
+    renderFilledFields(state.lastFilledFields);
+  }
+  if (typeof state.matchScore === "number") {
+    renderMatchBadge(state.matchScore, state.matchScoreDetail);
+  }
+  if (state.resume_pdf_url) {
+    try {
+      const res = await apiFetch(state.resume_pdf_url);
+      if (res.ok) {
+        const buffer = await res.arrayBuffer();
+        renderPdfPreview(buffer);
+      }
+    } catch (e) {
+      // Network blip on restore — leave the preview blank rather than
+      // erroring out the whole popup load.
+      console.warn("[rezm.ai] failed to restore PDF preview:", e);
+    }
   }
 }
 
@@ -309,6 +336,9 @@ async function handleFill() {
         lastFillAt: Date.now(),
         fillCount: 1,
         totalFilled: fillResult?.filled || 0,
+        lastFilledFields: Array.isArray(fillResult?.filledFields)
+          ? fillResult.filledFields
+          : [],
       });
       await startApplyModeOnTab(tab.id);
     }
@@ -521,6 +551,17 @@ async function handleSmartFill() {
         lastFillAt: Date.now(),
         fillCount: 1,
         totalFilled: fillResult?.filled || 0,
+        lastFilledFields: Array.isArray(fillResult?.filledFields)
+          ? fillResult.filledFields
+          : [],
+        matchScore:
+          typeof smartData.match_score === "number" ? smartData.match_score : null,
+        matchScoreDetail:
+          smartData.reused
+            ? "Reused existing variant"
+            : (smartData.limit_reached
+              ? "⚠️ variant limit reached — using default profile"
+              : "Resume vs. this job description"),
       });
       await startApplyModeOnTab(tab.id);
     }

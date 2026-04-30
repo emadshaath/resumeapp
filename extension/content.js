@@ -1387,6 +1387,12 @@ async function runApplyModeFill() {
     applyModeState.fillCount = (applyModeState.fillCount || 0) + 1;
     applyModeState.totalFilled = (applyModeState.totalFilled || 0) + result.filled;
     applyModeState.lastFillAt = now;
+    if (Array.isArray(result.filledFields) && result.filledFields.length > 0) {
+      // Latest step's fields — what the user sees in the popup if they
+      // close and reopen mid-wizard. Cumulative counts stay on the
+      // on-page banner.
+      applyModeState.lastFilledFields = result.filledFields;
+    }
     persistApplyModeState();
     renderApplyModeBanner();
     bumpApplyModeIdleTimer();
