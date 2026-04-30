@@ -115,6 +115,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "EXECUTE_FILL") {
     const result = fillForm(message.fields, message.pdfBlob);
     sendResponse(result);
+    // Async: fill anything the regex pass left empty via AI Answers.
+    // Fires after sendResponse so the popup's filled-fields list is
+    // not blocked on the AI round-trip.
+    runAIAnswersOnPage(message.job_context).catch(() => {});
   }
   if (message.type === "ATTACH_PDF") {
     attachPDFFromBlob(message.blob);
@@ -640,6 +644,17 @@ function triggerEvents(element) {
   element.dispatchEvent(nativeEvent);
 }
 
+// Cheap visibility test for the AI-question scan — skips hidden steps
+// of multi-step wizards where the future fields are mounted but not yet
+// shown.
+function isVisibleInput(el) {
+  if (!el) return false;
+  const r = el.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return false;
+  const style = window.getComputedStyle(el);
+  return style.display !== "none" && style.visibility !== "hidden";
+}
+
 function highlightElement(element, color = "#ecfdf5") {
   element.style.transition = "background-color 0.3s, outline 0.3s";
   element.style.backgroundColor = color;
@@ -729,25 +744,26 @@ function extractFormQuestions() {
     idx++;
   });
 
-  // Text inputs that look like questions (long labels, not standard fields)
-  const standardFields = /^(first|last|full|given|family).?name|email|phone|tel|city|state|zip|postal|address|linkedin|website|portfolio|url$/i;
-  document.querySelectorAll('input[type="text"], input:not([type])').forEach((el) => {
+  // Text-like inputs — anything left empty after the regex pass goes to
+  // the AI, regardless of whether it looks like a "question". This is
+  // what catches LinkedIn URL, personal website, salary, custom company
+  // questions, etc. The AI Answers endpoint already loads the user's
+  // full profile + preferences, so it can map "LinkedIn URL" → the
+  // stored linkedin_url just as well as it composes essay answers.
+  const textInputSel =
+    'input[type="text"]:not([type="hidden"]), input[type="email"], input[type="tel"], input[type="url"], input[type="number"], input:not([type])';
+  document.querySelectorAll(textInputSel).forEach((el) => {
     if (el.value && el.value.trim()) return; // already filled
+    if (!isVisibleInput(el)) return;
     const label = getLabel(el);
-    const name = (el.name || "").toLowerCase();
-    if (!label || label.length < 10) return;
-    // Skip standard profile fields we already handle
-    if (standardFields.test(name) || standardFields.test(label)) return;
-    // Only include if label looks like a question
-    if (/\?|please|describe|explain|tell|why|what|how|share|elaborate/i.test(label)) {
-      questions.push({
-        id: el.id || el.name || `text_${idx}`,
-        question: label,
-        type: "text",
-        required: el.required || el.getAttribute("aria-required") === "true",
-      });
-      idx++;
-    }
+    if (!label || label.length < 3) return;
+    questions.push({
+      id: el.id || el.name || `text_${idx}`,
+      question: label,
+      type: "text",
+      required: el.required || el.getAttribute("aria-required") === "true",
+    });
+    idx++;
   });
 
   // Unfilled selects (that weren't handled by basic fill)
@@ -1265,6 +1281,48 @@ function showAutoApplyToast(message, isError) {
   setTimeout(() => el.remove(), 6000);
 }
 
+// ─── AI Answers (auto, in-page) ───
+// Run /api/extension/ai-answers from the content script after every
+// fillForm so any field the regex pass missed (LinkedIn URL, custom
+// questions, free-text essays, exotic dropdowns) gets a second pass
+// from Claude. The endpoint is Premium-gated — on 403 we silently
+// no-op so free-tier users see no error.
+let aiAnswersInFlight = false;
+
+async function runAIAnswersOnPage(jobContext) {
+  if (aiAnswersInFlight) return 0;
+  aiAnswersInFlight = true;
+  try {
+    const token = await getStoredToken();
+    if (!token) return 0;
+    const rawQuestions = extractFormQuestions();
+    const questions = rawQuestions.map(({ _element, ...rest }) => rest);
+    if (questions.length === 0) return 0;
+
+    const ctx = jobContext || {
+      job_title: document.title,
+      company_name: window.location.hostname,
+    };
+    const res = await fetch(`${REZMAI_API_BASE}/api/extension/ai-answers`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ questions, job_context: ctx }),
+    });
+    if (!res.ok) return 0; // 403 (free tier), 429, etc. — silently skip
+    const data = await res.json();
+    if (!Array.isArray(data.answers) || data.answers.length === 0) return 0;
+    const filled = applyAIAnswers(data.answers);
+    return filled || 0;
+  } catch {
+    return 0;
+  } finally {
+    aiAnswersInFlight = false;
+  }
+}
+
 async function markCandidateSubmitted(candidateId) {
   const token = await getStoredToken();
   if (!token) return;
@@ -1397,6 +1455,14 @@ async function runApplyModeFill() {
     renderApplyModeBanner();
     bumpApplyModeIdleTimer();
   }
+
+  // Run AI Answers on whatever the regex pass left empty — same auto-
+  // trigger as the popup-driven path, but fired per wizard step so
+  // each new mount of fields gets the AI second pass too.
+  runAIAnswersOnPage({
+    job_title: applyModeState.jobTitle,
+    company_name: applyModeState.companyName,
+  }).catch(() => {});
 }
 
 function persistApplyModeState() {

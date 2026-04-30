@@ -309,6 +309,10 @@ async function handleFill() {
       type: "EXECUTE_FILL",
       fields,
       pdfBlob,
+      job_context: {
+        job_title: matchingJob?.job_title || tab.title || null,
+        company_name: matchingJob?.company_name || null,
+      },
     });
     renderFilledFields(fillResult.filledFields);
     renderPdfPreview(pdfBuffer);
@@ -532,6 +536,11 @@ async function handleSmartFill() {
       type: "EXECUTE_FILL",
       fields: smartData.fields,
       pdfBlob,
+      job_context: {
+        job_title: jobDetails.job_title || null,
+        company_name: jobDetails.company_name || null,
+        description: jobDetails.description || null,
+      },
     });
     renderFilledFields(fillResult.filledFields);
     renderPdfPreview(pdfBuffer);
