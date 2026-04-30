@@ -552,7 +552,7 @@ async function handleSmartFill() {
         fields: smartData.fields,
         resume_pdf_url: smartData.resume_pdf_url,
         variantId: smartData.variant_id || null,
-        jobApplicationId: smartData.job_application_id || null,
+        jobApplicationId: smartData.job_id || smartData.job_application_id || null,
         jobTitle: jobDetails.job_title || tab.title || null,
         companyName: jobDetails.company_name || null,
         urlOrigin: safeOrigin(tab.url),

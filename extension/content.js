@@ -684,8 +684,11 @@ function cssPath(el) {
 // Returns true when the file was successfully assigned to the input,
 // false when the browser couldn't accept it programmatically.
 function attachPDFFromBlob(blobData) {
-  const fileInputs = document.querySelectorAll('input[type="file"]');
-  if (fileInputs.length === 0) return false;
+  const fileInputs = findAllFileInputs(document);
+  if (fileInputs.length === 0) {
+    console.info("[rezm.ai] attachPDFFromBlob: no <input type=file> found on page");
+    return false;
+  }
 
   // Find the resume file input (first one, or one matching resume/cv patterns)
   let target = fileInputs[0];
@@ -708,12 +711,35 @@ function attachPDFFromBlob(blobData) {
     target.files = dataTransfer.files;
     triggerEvents(target);
     highlightElement(target, "#ecfdf5");
+    console.info("[rezm.ai] attachPDFFromBlob: attached", file.name, "to", cssPath(target));
     return true;
   } catch (e) {
     // DataTransfer may not be supported — highlight for manual upload
     highlightElement(target, "#fef3c7");
+    console.warn("[rezm.ai] attachPDFFromBlob: DataTransfer failed", e);
     return false;
   }
+}
+
+// Walk into open Shadow DOM roots so we can find file inputs that
+// modern career portals (Apple, some Workday widgets) hide inside
+// custom upload elements. Closed shadow roots remain inaccessible —
+// that's a hard browser limitation.
+function findAllFileInputs(root) {
+  const out = [];
+  const walk = (node) => {
+    if (!node) return;
+    const inputs = node.querySelectorAll
+      ? node.querySelectorAll('input[type="file"]')
+      : [];
+    for (const i of inputs) out.push(i);
+    const all = node.querySelectorAll ? node.querySelectorAll("*") : [];
+    for (const el of all) {
+      if (el.shadowRoot) walk(el.shadowRoot);
+    }
+  };
+  walk(root);
+  return out;
 }
 
 // ─── Platform detection ───
@@ -1373,23 +1399,35 @@ function getApplyModeState() {
 
 async function initApplyMode() {
   const state = await getApplyModeState();
-  if (!state || !state.fields) return;
+  if (!state || !state.fields) {
+    console.info("[rezm.ai] Apply Mode: no cache for this tab");
+    return;
+  }
   // Origin guard: if the user navigated to a different site after caching,
   // drop the cached state — don't risk filling the wrong app with this
   // profile. Clear from storage too so the cache doesn't linger until
   // the tab closes.
   if (state.urlOrigin && state.urlOrigin !== window.location.origin) {
+    console.info(
+      "[rezm.ai] Apply Mode: cache origin mismatch — cached", state.urlOrigin,
+      "now", window.location.origin, "— clearing"
+    );
     try { chrome.runtime.sendMessage({ type: "CLEAR_APPLY_MODE" }, () => {}); } catch {}
     return;
   }
   // Idle timeout survives page reloads — if the cache is stale by more
   // than the idle window, auto-stop and clear before doing any work.
   if (state.lastFillAt && Date.now() - state.lastFillAt > APPLY_MODE_IDLE_MS) {
+    console.info("[rezm.ai] Apply Mode: cache idle-expired — clearing");
     try { chrome.runtime.sendMessage({ type: "CLEAR_APPLY_MODE" }, () => {}); } catch {}
     return;
   }
 
   applyModeState = state;
+  console.info(
+    "[rezm.ai] Apply Mode: started for", state.companyName || "?", "·",
+    state.jobTitle || "?", "· variant", state.variantId || "(none)"
+  );
   attachApplyModeObserver();
   attachApplyModeSubmitGuard();
   attachApplyModeNavGuard();
@@ -1434,14 +1472,31 @@ async function runApplyModeFill() {
   applyModeLastFireMs = now;
 
   // Fetch the PDF on demand the first time a file input appears in the
-  // wizard. Cached afterwards so subsequent steps don't re-download.
+  // wizard (including ones nested in open shadow roots, common on Apple
+  // Careers' upload widget). Cached afterwards so subsequent steps don't
+  // re-download.
   let pdfBlob = applyModePdfBytes;
-  if (!pdfBlob && document.querySelector('input[type="file"]') && applyModeState.resume_pdf_url) {
+  const fileInputs = findAllFileInputs(document);
+  if (!pdfBlob && fileInputs.length > 0 && applyModeState.resume_pdf_url) {
+    console.info(
+      "[rezm.ai] Apply Mode: fetching tailored PDF from", applyModeState.resume_pdf_url,
+      "for", fileInputs.length, "file input(s)"
+    );
     pdfBlob = await fetchApplyModePdfBytes(applyModeState.resume_pdf_url);
-    if (pdfBlob) applyModePdfBytes = pdfBlob;
+    if (pdfBlob) {
+      applyModePdfBytes = pdfBlob;
+      console.info("[rezm.ai] Apply Mode: PDF cached (", pdfBlob.length, "bytes)");
+    } else {
+      console.warn("[rezm.ai] Apply Mode: PDF fetch failed — file input will not be auto-attached");
+    }
   }
 
   const result = fillForm(applyModeState.fields, pdfBlob || null);
+  console.info(
+    "[rezm.ai] Apply Mode: fill attempt — filled", result?.filled || 0,
+    "field(s) on", applyModeState.companyName || window.location.hostname,
+    "platform", result?.platform
+  );
   if (result?.filled > 0) {
     applyModeState.fillCount = (applyModeState.fillCount || 0) + 1;
     applyModeState.totalFilled = (applyModeState.totalFilled || 0) + result.filled;
@@ -1564,6 +1619,15 @@ function detectStepLabel() {
     const txt = (h.textContent || "").trim();
     const m = /step\s+(\d+)\s+(?:of|\/)\s+(\d+)/i.exec(txt);
     if (m) return `step ${m[1]} of ${m[2]}`;
+  }
+  // Last resort: URL search params used by some wizards (Apple uses
+  // ?stepName=resume on jobs.apple.com, Workday uses /step/<n>/, etc.)
+  try {
+    const params = new URL(window.location.href).searchParams;
+    const stepName = params.get("stepName") || params.get("step") || params.get("page");
+    if (stepName) return `step: ${stepName}`;
+  } catch {
+    // ignore — URL parsing fail is fine
   }
   return null;
 }
