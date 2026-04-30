@@ -115,6 +115,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "EXECUTE_FILL") {
     const result = fillForm(message.fields, message.pdfBlob);
     sendResponse(result);
+    // Async: fill anything the regex pass left empty via AI Answers.
+    // Fires after sendResponse so the popup's filled-fields list is
+    // not blocked on the AI round-trip.
+    runAIAnswersOnPage(message.job_context).catch(() => {});
   }
   if (message.type === "ATTACH_PDF") {
     attachPDFFromBlob(message.blob);
@@ -133,13 +137,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const filled = applyAIAnswers(message.answers);
     sendResponse({ success: true, filled });
   }
+  if (message.type === "APPLY_MODE_START") {
+    // Idempotent — initApplyMode's attach helpers all guard against
+    // double-binding. Forces the observer to attach right away even when
+    // the wizard opens inline without a navigation (Apple, modal flows).
+    initApplyMode().catch(() => {});
+    sendResponse({ success: true });
+  }
+  if (message.type === "APPLY_MODE_STOP") {
+    stopApplyMode("popup-stopped");
+    sendResponse({ success: true });
+  }
 });
 
 // ─── Main fill logic ───
 function fillForm(profileFields, pdfBlob) {
   const platform = detectPlatform();
   const platformSelectors = FIELD_MAPS[platform]?.selectors || {};
-  let filledCount = 0;
+  const filledFields = [];
 
   // Add derived fields
   const fields = { ...profileFields };
@@ -161,7 +176,7 @@ function fillForm(profileFields, pdfBlob) {
     const value = fields[fieldKey];
     if (el && value) {
       setFieldValue(el, value);
-      filledCount++;
+      filledFields.push(fieldEntry(el, fieldKey, value));
     }
   }
 
@@ -179,7 +194,7 @@ function fillForm(profileFields, pdfBlob) {
     const matchedField = matchField(input);
     if (matchedField && fields[matchedField]) {
       setFieldValue(input, fields[matchedField]);
-      filledCount++;
+      filledFields.push(fieldEntry(input, matchedField, fields[matchedField]));
     }
   }
 
@@ -188,18 +203,25 @@ function fillForm(profileFields, pdfBlob) {
   for (const select of allSelects) {
     if (select.value && select.selectedIndex > 0) continue;
     const filled = fillSelect(select, fields);
-    if (filled) filledCount++;
+    if (filled) {
+      const opt = select.options[select.selectedIndex];
+      filledFields.push(fieldEntry(select, getLabel(select) || select.name || select.id, opt ? opt.text : select.value));
+    }
   }
 
   // Phase 4: Handle radio button groups
-  filledCount += fillRadioGroups(fields);
+  fillRadioGroups(fields, filledFields);
 
   // Phase 5: Handle checkboxes (e.g., "I agree to receive text messages")
-  filledCount += fillCheckboxes(fields);
+  fillCheckboxes(fields, filledFields);
 
   // Phase 6: Handle file upload (resume PDF)
+  let pdfAttached = false;
   if (pdfBlob) {
-    attachPDFFromBlob(pdfBlob);
+    if (attachPDFFromBlob(pdfBlob)) {
+      filledFields.push({ label: "Resume", value: "Resume.pdf", type: "file", selector: "input[type=file]" });
+      pdfAttached = true;
+    }
   } else {
     // Try to find and fill any file input with a visual indicator
     const fileSelector = platformSelectors.resume || 'input[type="file"]';
@@ -209,7 +231,26 @@ function fillForm(profileFields, pdfBlob) {
     }
   }
 
-  return { success: true, filled: filledCount, platform };
+  return { success: true, filled: filledFields.length, filledFields, pdfAttached, platform };
+}
+
+function fieldEntry(el, label, value) {
+  const tag = el.tagName ? el.tagName.toLowerCase() : "input";
+  const type = el.type ? `${tag}:${el.type}` : tag;
+  const labelStr = String(label || el.name || el.id || "field").trim().replace(/\s+/g, " ").slice(0, 80);
+  let valueStr;
+  if (el.tagName === "SELECT") {
+    const opt = el.options[el.selectedIndex];
+    valueStr = opt ? opt.text : String(value);
+  } else {
+    valueStr = String(value);
+  }
+  return {
+    label: labelStr,
+    value: valueStr.slice(0, 200),
+    type,
+    selector: cssPath(el),
+  };
 }
 
 // ─── Fill <select> dropdowns ───
@@ -365,9 +406,20 @@ function selectExperienceOption(select, years) {
 }
 
 // ─── Fill radio button groups ───
-function fillRadioGroups(fields) {
+function fillRadioGroups(fields, filledFields) {
   let filled = 0;
   const radioGroups = {};
+
+  const recordRadio = (radio, questionLabel) => {
+    if (filledFields) {
+      filledFields.push({
+        label: String(questionLabel || radio.name || "").trim().replace(/\s+/g, " ").slice(0, 80) || (radio.name || "radio"),
+        value: (getLabel(radio) || radio.value || "").trim().slice(0, 200),
+        type: "radio",
+        selector: cssPath(radio),
+      });
+    }
+  };
 
   // Group radios by name
   document.querySelectorAll('input[type="radio"]').forEach((radio) => {
@@ -386,6 +438,9 @@ function fillRadioGroups(fields) {
     const questionText = container
       ? container.textContent.toLowerCase()
       : getLabel(radios[0]);
+    const questionLabelDisplay = container
+      ? container.textContent.trim().replace(/\s+/g, " ").slice(0, 80)
+      : (getLabel(radios[0]) || groupName);
 
     let matched = false;
 
@@ -406,6 +461,7 @@ function fillRadioGroups(fields) {
         if (radioMatch) {
           radioMatch.checked = true;
           triggerEvents(radioMatch);
+          recordRadio(radioMatch, questionLabelDisplay);
           filled++;
           matched = true;
           break;
@@ -426,6 +482,7 @@ function fillRadioGroups(fields) {
       if (yesRadio) {
         yesRadio.checked = true;
         triggerEvents(yesRadio);
+        recordRadio(yesRadio, questionLabelDisplay);
         filled++;
         continue;
       }
@@ -444,6 +501,7 @@ function fillRadioGroups(fields) {
         if (match) {
           match.checked = true;
           triggerEvents(match);
+          recordRadio(match, questionLabelDisplay);
           filled++;
           break;
         }
@@ -461,6 +519,7 @@ function fillRadioGroups(fields) {
         if (match) {
           match.checked = true;
           triggerEvents(match);
+          recordRadio(match, questionLabelDisplay);
           filled++;
           break;
         }
@@ -472,7 +531,7 @@ function fillRadioGroups(fields) {
 }
 
 // ─── Fill checkboxes ───
-function fillCheckboxes(fields) {
+function fillCheckboxes(fields, filledFields) {
   let filled = 0;
   const checkboxes = document.querySelectorAll('input[type="checkbox"]');
 
@@ -487,6 +546,14 @@ function fillCheckboxes(fields) {
         cb.checked = true;
         triggerEvents(cb);
         filled++;
+        if (filledFields) {
+          filledFields.push({
+            label: labelText.trim().replace(/\s+/g, " ").slice(0, 80) || (cb.name || "checkbox"),
+            value: "checked",
+            type: "checkbox",
+            selector: cssPath(cb),
+          });
+        }
       }
     }
   }
@@ -579,6 +646,17 @@ function triggerEvents(element) {
   element.dispatchEvent(nativeEvent);
 }
 
+// Cheap visibility test for the AI-question scan — skips hidden steps
+// of multi-step wizards where the future fields are mounted but not yet
+// shown.
+function isVisibleInput(el) {
+  if (!el) return false;
+  const r = el.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return false;
+  const style = window.getComputedStyle(el);
+  return style.display !== "none" && style.visibility !== "hidden";
+}
+
 function highlightElement(element, color = "#ecfdf5") {
   element.style.transition = "background-color 0.3s, outline 0.3s";
   element.style.backgroundColor = color;
@@ -589,10 +667,32 @@ function highlightElement(element, color = "#ecfdf5") {
   }, 2000);
 }
 
+// Build a short CSS-path-style selector for debugging/visibility.
+function cssPath(el) {
+  if (!el || !el.tagName) return "";
+  if (el.id) return "#" + el.id;
+  const tag = el.tagName.toLowerCase();
+  if (el.name) return `${tag}[name="${el.name}"]`;
+  const cls = (typeof el.className === "string" ? el.className : "")
+    .trim()
+    .split(/\s+/)
+    .filter((c) => c && /^[a-zA-Z0-9_-]+$/.test(c))
+    .slice(0, 2)
+    .join(".");
+  return cls ? `${tag}.${cls}` : tag;
+}
+
 // ─── PDF attachment via blob passed from background ───
+// Returns true when the file was successfully assigned to the input,
+// false when the browser couldn't accept it programmatically.
 function attachPDFFromBlob(blobData) {
-  const fileInputs = document.querySelectorAll('input[type="file"]');
-  if (fileInputs.length === 0) return;
+  // Disabled file inputs are typically read-only display rows (Apple's
+  // "Additional Files" list is a perfect example). Never write to those.
+  const fileInputs = findAllFileInputs(document).filter((fi) => !fi.disabled);
+  if (fileInputs.length === 0) {
+    console.info("[rezm.ai] attachPDFFromBlob: no <input type=file> found on page");
+    return false;
+  }
 
   // Find the resume file input (first one, or one matching resume/cv patterns)
   let target = fileInputs[0];
@@ -607,18 +707,54 @@ function attachPDFFromBlob(blobData) {
   }
 
   try {
-    const uint8 = new Uint8Array(blobData);
-    const blob = new Blob([uint8], { type: "application/pdf" });
-    const file = new File([blob], "Resume.pdf", { type: "application/pdf" });
+    // Accept both shapes: a plain Array<number> from popup.js, or
+    // { data, type, name } from runAutoApply / older callers.
+    const bytes = Array.isArray(blobData)
+      ? blobData
+      : (blobData && Array.isArray(blobData.data) ? blobData.data : []);
+    const fileType = (blobData && blobData.type) || "application/pdf";
+    const fileName = (blobData && blobData.name) || "Resume.pdf";
+    if (!bytes.length) {
+      console.warn("[rezm.ai] attachPDFFromBlob: empty PDF bytes — skipping");
+      return false;
+    }
+    const uint8 = new Uint8Array(bytes);
+    const blob = new Blob([uint8], { type: fileType });
+    const file = new File([blob], fileName, { type: fileType });
     const dataTransfer = new DataTransfer();
     dataTransfer.items.add(file);
     target.files = dataTransfer.files;
     triggerEvents(target);
     highlightElement(target, "#ecfdf5");
+    console.info("[rezm.ai] attachPDFFromBlob: attached", file.name, "to", cssPath(target));
+    return true;
   } catch (e) {
     // DataTransfer may not be supported — highlight for manual upload
     highlightElement(target, "#fef3c7");
+    console.warn("[rezm.ai] attachPDFFromBlob: DataTransfer failed", e);
+    return false;
   }
+}
+
+// Walk into open Shadow DOM roots so we can find file inputs that
+// modern career portals (Apple, some Workday widgets) hide inside
+// custom upload elements. Closed shadow roots remain inaccessible —
+// that's a hard browser limitation.
+function findAllFileInputs(root) {
+  const out = [];
+  const walk = (node) => {
+    if (!node) return;
+    const inputs = node.querySelectorAll
+      ? node.querySelectorAll('input[type="file"]')
+      : [];
+    for (const i of inputs) out.push(i);
+    const all = node.querySelectorAll ? node.querySelectorAll("*") : [];
+    for (const el of all) {
+      if (el.shadowRoot) walk(el.shadowRoot);
+    }
+  };
+  walk(root);
+  return out;
 }
 
 // ─── Platform detection ───
@@ -649,25 +785,26 @@ function extractFormQuestions() {
     idx++;
   });
 
-  // Text inputs that look like questions (long labels, not standard fields)
-  const standardFields = /^(first|last|full|given|family).?name|email|phone|tel|city|state|zip|postal|address|linkedin|website|portfolio|url$/i;
-  document.querySelectorAll('input[type="text"], input:not([type])').forEach((el) => {
+  // Text-like inputs — anything left empty after the regex pass goes to
+  // the AI, regardless of whether it looks like a "question". This is
+  // what catches LinkedIn URL, personal website, salary, custom company
+  // questions, etc. The AI Answers endpoint already loads the user's
+  // full profile + preferences, so it can map "LinkedIn URL" → the
+  // stored linkedin_url just as well as it composes essay answers.
+  const textInputSel =
+    'input[type="text"]:not([type="hidden"]), input[type="email"], input[type="tel"], input[type="url"], input[type="number"], input:not([type])';
+  document.querySelectorAll(textInputSel).forEach((el) => {
     if (el.value && el.value.trim()) return; // already filled
+    if (!isVisibleInput(el)) return;
     const label = getLabel(el);
-    const name = (el.name || "").toLowerCase();
-    if (!label || label.length < 10) return;
-    // Skip standard profile fields we already handle
-    if (standardFields.test(name) || standardFields.test(label)) return;
-    // Only include if label looks like a question
-    if (/\?|please|describe|explain|tell|why|what|how|share|elaborate/i.test(label)) {
-      questions.push({
-        id: el.id || el.name || `text_${idx}`,
-        question: label,
-        type: "text",
-        required: el.required || el.getAttribute("aria-required") === "true",
-      });
-      idx++;
-    }
+    if (!label || label.length < 3) return;
+    questions.push({
+      id: el.id || el.name || `text_${idx}`,
+      question: label,
+      type: "text",
+      required: el.required || el.getAttribute("aria-required") === "true",
+    });
+    idx++;
   });
 
   // Unfilled selects (that weren't handled by basic fill)
@@ -935,6 +1072,21 @@ function scrapeJobDetails() {
 // Only accept tokens posted from the rezm.ai auth bridge — never from arbitrary
 // third-party pages. Both source-window and origin are verified.
 const TRUSTED_AUTH_ORIGIN = "https://rezm.ai";
+
+// Tag the rezm.ai dashboard so the in-app "Install the extension" prompt
+// can auto-hide for users who already have the extension. Best-effort —
+// any host that ends in rezm.ai (or is rezm.ai itself) gets the marker.
+(function markExtensionPresent() {
+  try {
+    const host = window.location.hostname;
+    if (host === "rezm.ai" || host.endsWith(".rezm.ai")) {
+      document.documentElement.setAttribute("data-rezmai-extension", "1");
+    }
+  } catch {
+    // ignore — content script may run before document.documentElement exists
+  }
+})();
+
 window.addEventListener("message", (event) => {
   if (event.source !== window) return;
   if (event.origin !== TRUSTED_AUTH_ORIGIN) return;
@@ -987,26 +1139,35 @@ async function runAutoApply(candidateId) {
     return;
   }
 
-  const res = await fetch(`${REZMAI_API_BASE}/api/extension/candidate/${candidateId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) {
-    throw new Error(`candidate fetch ${res.status}`);
+  const candidateResp = await backgroundFetch(
+    `${REZMAI_API_BASE}/api/extension/candidate/${candidateId}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!candidateResp.ok) {
+    throw new Error(`candidate fetch ${candidateResp.status}`);
   }
-  const data = await res.json();
+  let data;
+  try {
+    data = JSON.parse(candidateResp.body);
+  } catch {
+    throw new Error("candidate response not JSON");
+  }
 
   // Fetch resume PDF as blob (optional — not all pages need the upload)
   let pdfBlob = null;
   if (data.resume_pdf_url) {
     try {
-      const pdfRes = await fetch(`${REZMAI_API_BASE}${data.resume_pdf_url}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (pdfRes.ok) {
-        const buf = await pdfRes.arrayBuffer();
+      const pdfResp = await backgroundFetch(
+        `${REZMAI_API_BASE}${data.resume_pdf_url}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          binary: true,
+        }
+      );
+      if (pdfResp.ok && Array.isArray(pdfResp.body)) {
         // Convert to structure fillForm expects (see attachPDFFromBlob)
         pdfBlob = {
-          data: Array.from(new Uint8Array(buf)),
+          data: pdfResp.body,
           type: "application/pdf",
           name: "resume.pdf",
         };
@@ -1170,10 +1331,53 @@ function showAutoApplyToast(message, isError) {
   setTimeout(() => el.remove(), 6000);
 }
 
+// ─── AI Answers (auto, in-page) ───
+// Run /api/extension/ai-answers from the content script after every
+// fillForm so any field the regex pass missed (LinkedIn URL, custom
+// questions, free-text essays, exotic dropdowns) gets a second pass
+// from Claude. The endpoint is Premium-gated — on 403 we silently
+// no-op so free-tier users see no error.
+let aiAnswersInFlight = false;
+
+async function runAIAnswersOnPage(jobContext) {
+  if (aiAnswersInFlight) return 0;
+  aiAnswersInFlight = true;
+  try {
+    const token = await getStoredToken();
+    if (!token) return 0;
+    const rawQuestions = extractFormQuestions();
+    const questions = rawQuestions.map(({ _element, ...rest }) => rest);
+    if (questions.length === 0) return 0;
+
+    const ctx = jobContext || {
+      job_title: document.title,
+      company_name: window.location.hostname,
+    };
+    const resp = await backgroundFetch(`${REZMAI_API_BASE}/api/extension/ai-answers`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ questions, job_context: ctx }),
+    });
+    if (!resp.ok) return 0; // 403 (free tier), 429, etc. — silently skip
+    let data;
+    try { data = JSON.parse(resp.body); } catch { return 0; }
+    if (!Array.isArray(data.answers) || data.answers.length === 0) return 0;
+    const filled = applyAIAnswers(data.answers);
+    return filled || 0;
+  } catch {
+    return 0;
+  } finally {
+    aiAnswersInFlight = false;
+  }
+}
+
 async function markCandidateSubmitted(candidateId) {
   const token = await getStoredToken();
   if (!token) return;
-  await fetch(
+  await backgroundFetch(
     `${REZMAI_API_BASE}/api/auto-apply/candidates/${candidateId}/mark-submitted`,
     {
       method: "POST",
@@ -1181,3 +1385,593 @@ async function markCandidateSubmitted(candidateId) {
     }
   );
 }
+
+// ─── Apply Mode ───
+// Once the user runs Auto-Fill or Smart Tailor, popup.js writes a
+// per-tab cache via background.js. This script reads that cache and
+// keeps the form filled as the user navigates a multi-step wizard
+// (Apple Careers, Workday, iCIMS, etc.). It is safe-by-default — the
+// existing skip-if-non-empty checks inside fillForm mean we never
+// overwrite anything the user has typed.
+
+// Relay every rezm.ai fetch through the background service worker.
+// MV3 forces content-script fetches to inherit the host page's CORS
+// posture, so a direct fetch from e.g. jobs.apple.com is preflight-
+// rejected even though the manifest grants us host_permissions for
+// rezm.ai. The background service worker has access to those host
+// permissions so it can issue the request as the extension origin
+// without CORS restrictions.
+function backgroundFetch(url, init) {
+  init = init || {};
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage(
+        {
+          type: "API_FETCH",
+          url,
+          method: init.method || "GET",
+          headers: init.headers || {},
+          body: init.body !== undefined ? init.body : null,
+          binary: init.binary === true,
+        },
+        (resp) => {
+          if (chrome.runtime.lastError || !resp) {
+            resolve({ ok: false, status: 0, body: "", binary: !!init.binary });
+            return;
+          }
+          resolve(resp);
+        }
+      );
+    } catch {
+      resolve({ ok: false, status: 0, body: "", binary: !!init.binary });
+    }
+  });
+}
+
+let applyModeState = null;          // cached { fields, resume_pdf_url, ... }
+let applyModePdfBytes = null;       // bytes of the resume PDF, fetched lazily
+let applyModeLastFireMs = 0;        // cooldown anchor — at most one fire/s
+let applyModeFillTimer = null;      // debounce timer
+let applyModeIdleTimer = null;      // 30-min idle auto-stop
+let applyModeObserver = null;
+let applyModeSubmitHandler = null;  // capture-phase click listener (see below)
+let applyModeNavHandler = null;     // popstate listener
+let applyModeOriginalPushState = null;
+let applyModeOriginalReplaceState = null;
+let applyModeShadowRoot = null;     // ShadowRoot for the on-page banner (CSS isolation)
+
+const APPLY_MODE_DEBOUNCE_MS = 500;
+const APPLY_MODE_COOLDOWN_MS = 1000;
+const APPLY_MODE_IDLE_MS = 30 * 60 * 1000; // auto-stop after 30 min of no fills
+
+function getApplyModeState() {
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage({ type: "GET_APPLY_MODE" }, (resp) => {
+        if (chrome.runtime.lastError) resolve(null);
+        else resolve(resp || null);
+      });
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function initApplyMode() {
+  const state = await getApplyModeState();
+  if (!state || !state.fields) {
+    console.info("[rezm.ai] Apply Mode: no cache for this tab");
+    return;
+  }
+  // Origin guard: if the user navigated to a different site after caching,
+  // drop the cached state — don't risk filling the wrong app with this
+  // profile. Clear from storage too so the cache doesn't linger until
+  // the tab closes.
+  if (state.urlOrigin && state.urlOrigin !== window.location.origin) {
+    console.info(
+      "[rezm.ai] Apply Mode: cache origin mismatch — cached", state.urlOrigin,
+      "now", window.location.origin, "— clearing"
+    );
+    try { chrome.runtime.sendMessage({ type: "CLEAR_APPLY_MODE" }, () => {}); } catch {}
+    return;
+  }
+  // Idle timeout survives page reloads — if the cache is stale by more
+  // than the idle window, auto-stop and clear before doing any work.
+  if (state.lastFillAt && Date.now() - state.lastFillAt > APPLY_MODE_IDLE_MS) {
+    console.info("[rezm.ai] Apply Mode: cache idle-expired — clearing");
+    try { chrome.runtime.sendMessage({ type: "CLEAR_APPLY_MODE" }, () => {}); } catch {}
+    return;
+  }
+
+  applyModeState = state;
+  console.info(
+    "[rezm.ai] Apply Mode: started for", state.companyName || "?", "·",
+    state.jobTitle || "?", "· variant", state.variantId || "(none)"
+  );
+  attachApplyModeObserver();
+  attachApplyModeSubmitGuard();
+  attachApplyModeNavGuard();
+  bumpApplyModeIdleTimer();
+  renderApplyModeBanner();
+  // Schedule one initial check in case the page already mounted form
+  // fields (e.g., the user navigated to step 2 within the same tab).
+  scheduleApplyModeFill();
+}
+
+function attachApplyModeObserver() {
+  if (applyModeObserver) return;
+  applyModeObserver = new MutationObserver(() => scheduleApplyModeFill());
+  applyModeObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+}
+
+function scheduleApplyModeFill() {
+  if (!applyModeState) return;
+  if (applyModeFillTimer) clearTimeout(applyModeFillTimer);
+  applyModeFillTimer = setTimeout(runApplyModeFill, APPLY_MODE_DEBOUNCE_MS);
+}
+
+async function runApplyModeFill() {
+  applyModeFillTimer = null;
+  if (!applyModeState) return;
+
+  // Cooldown: never re-fire within COOLDOWN_MS of the last fill — keeps
+  // the observer from chasing its own tail when a fill mutates the DOM.
+  const now = Date.now();
+  const wait = APPLY_MODE_COOLDOWN_MS - (now - applyModeLastFireMs);
+  if (wait > 0) {
+    applyModeFillTimer = setTimeout(runApplyModeFill, wait);
+    return;
+  }
+
+  // Skip cheaply when there is nothing to do.
+  if (!hasEmptyFillableFields()) return;
+
+  applyModeLastFireMs = now;
+
+  // PDF latch: once we successfully attach the resume in this Apply
+  // Mode session, never re-attach. Apple's "Additional Files" widget
+  // clears the hidden <input type=file> after each upload, so the
+  // observer would otherwise see an empty file input on every DOM
+  // mutation and add another Resume.pdf entry, then another, and so on.
+  let pdfBlob = null;
+  if (!applyModeState.pdfAttached) {
+    pdfBlob = applyModePdfBytes;
+    const fileInputs = findAllFileInputs(document).filter((fi) => !fi.disabled);
+    if (!pdfBlob && fileInputs.length > 0 && applyModeState.resume_pdf_url) {
+      console.info(
+        "[rezm.ai] Apply Mode: fetching tailored PDF from", applyModeState.resume_pdf_url,
+        "for", fileInputs.length, "file input(s)"
+      );
+      pdfBlob = await fetchApplyModePdfBytes(applyModeState.resume_pdf_url);
+      if (pdfBlob) {
+        applyModePdfBytes = pdfBlob;
+        console.info("[rezm.ai] Apply Mode: PDF cached (", pdfBlob.length, "bytes)");
+      } else {
+        console.warn("[rezm.ai] Apply Mode: PDF fetch failed — file input will not be auto-attached");
+      }
+    }
+  }
+
+  const result = fillForm(applyModeState.fields, pdfBlob || null);
+  if (result?.pdfAttached && !applyModeState.pdfAttached) {
+    applyModeState.pdfAttached = true;
+  }
+  console.info(
+    "[rezm.ai] Apply Mode: fill attempt — filled", result?.filled || 0,
+    "field(s) on", applyModeState.companyName || window.location.hostname,
+    "platform", result?.platform
+  );
+  if (result?.filled > 0) {
+    applyModeState.fillCount = (applyModeState.fillCount || 0) + 1;
+    applyModeState.totalFilled = (applyModeState.totalFilled || 0) + result.filled;
+    applyModeState.lastFillAt = now;
+    if (Array.isArray(result.filledFields) && result.filledFields.length > 0) {
+      // Latest step's fields — what the user sees in the popup if they
+      // close and reopen mid-wizard. Cumulative counts stay on the
+      // on-page banner.
+      applyModeState.lastFilledFields = result.filledFields;
+    }
+    persistApplyModeState();
+    renderApplyModeBanner();
+    bumpApplyModeIdleTimer();
+  }
+
+  // Run AI Answers on whatever the regex pass left empty — same auto-
+  // trigger as the popup-driven path, but fired per wizard step so
+  // each new mount of fields gets the AI second pass too.
+  runAIAnswersOnPage({
+    job_title: applyModeState.jobTitle,
+    company_name: applyModeState.companyName,
+  }).catch(() => {});
+}
+
+function persistApplyModeState() {
+  if (!applyModeState) return;
+  try {
+    chrome.runtime.sendMessage({ type: "SET_APPLY_MODE", data: applyModeState }, () => {});
+  } catch {
+    // best-effort — banner state stays in-memory regardless
+  }
+}
+
+function hasEmptyFillableFields() {
+  // Disabled / read-only fields are display-only — Apple's
+  // "Additional Files" list is a textbook case (disabled <input>
+  // rows that show the filename of files already uploaded). They
+  // should never count as empty or trigger another fill cycle.
+  const enabled = ":not([disabled]):not([readonly])";
+  // Text-like inputs and textareas
+  const textInputs = document.querySelectorAll(
+    `input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="image"]):not([type="checkbox"]):not([type="radio"]):not([type="file"])${enabled}, textarea${enabled}`
+  );
+  for (const el of textInputs) {
+    if (!el.value || !el.value.trim()) return true;
+  }
+  // Selects with no chosen option
+  for (const sel of document.querySelectorAll(`select${enabled}`)) {
+    if (!sel.value || sel.selectedIndex <= 0) return true;
+  }
+  // File inputs without an attached file
+  for (const file of document.querySelectorAll(`input[type="file"]${enabled}`)) {
+    if (!file.files || file.files.length === 0) return true;
+  }
+  // Radio groups with nothing selected
+  const radios = document.querySelectorAll(`input[type="radio"]${enabled}`);
+  const groups = new Set();
+  for (const r of radios) if (r.name) groups.add(r.name);
+  for (const name of groups) {
+    let any = false;
+    for (const r of document.querySelectorAll(`input[type="radio"][name="${CSS.escape(name)}"]`)) {
+      if (r.checked) { any = true; break; }
+    }
+    if (!any) return true;
+  }
+  return false;
+}
+
+async function fetchApplyModePdfBytes(pdfUrl) {
+  try {
+    const token = await getStoredToken();
+    if (!token) return null;
+    const url = pdfUrl.startsWith("http") ? pdfUrl : `${REZMAI_API_BASE}${pdfUrl}`;
+    const resp = await backgroundFetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      binary: true,
+    });
+    if (!resp.ok || !Array.isArray(resp.body)) return null;
+    return resp.body; // already a plain Array<number> of bytes
+  } catch {
+    return null;
+  }
+}
+
+// ─── Apply Mode banner ───
+// Read the visible step indicator (e.g. "Step 2 of 4") for cosmetic
+// display only. Returns null when nothing usable is detected.
+function detectStepLabel() {
+  // ARIA progressbar with valuenow/valuemax
+  const bar = document.querySelector('[role="progressbar"][aria-valuenow]');
+  if (bar) {
+    const now = bar.getAttribute("aria-valuenow");
+    const max = bar.getAttribute("aria-valuemax");
+    if (now && max && Number(max) > 1) return `step ${now} of ${max}`;
+  }
+  // aria-current="step" inside an ordered list (Workday, modern wizards)
+  const current = document.querySelector('[aria-current="step"]');
+  if (current) {
+    const list = current.closest("ol, ul, [role='list']");
+    if (list) {
+      const items = list.querySelectorAll("li, [role='listitem']");
+      if (items.length > 1) {
+        const idx = Array.from(items).indexOf(current.closest("li, [role='listitem']")) + 1;
+        if (idx > 0) return `step ${idx} of ${items.length}`;
+      }
+    }
+  }
+  // Step indicator class with li/.step children
+  const stepIndicator = document.querySelector(
+    ".steps, .step-indicator, .wizard-progress, .progress-steps, [class*='stepper']"
+  );
+  if (stepIndicator) {
+    const items = stepIndicator.querySelectorAll("li, .step, [class*='step-item']");
+    if (items.length > 1) {
+      const activeIdx = Array.from(items).findIndex((el) =>
+        /(^|\s)(active|current|is-active|is-current|step--current)(\s|$)/.test(el.className || "")
+      );
+      if (activeIdx >= 0) return `step ${activeIdx + 1} of ${items.length}`;
+      return `${items.length} steps`;
+    }
+  }
+  // Fallback: scan visible heading text for "Step N of M"
+  const headings = document.querySelectorAll("h1, h2, h3, [aria-live]");
+  for (const h of headings) {
+    const txt = (h.textContent || "").trim();
+    const m = /step\s+(\d+)\s+(?:of|\/)\s+(\d+)/i.exec(txt);
+    if (m) return `step ${m[1]} of ${m[2]}`;
+  }
+  // Last resort: URL search params used by some wizards (Apple uses
+  // ?stepName=resume on jobs.apple.com, Workday uses /step/<n>/, etc.)
+  try {
+    const params = new URL(window.location.href).searchParams;
+    const stepName = params.get("stepName") || params.get("step") || params.get("page");
+    if (stepName) return `step: ${stepName}`;
+  } catch {
+    // ignore — URL parsing fail is fine
+  }
+  return null;
+}
+
+function renderApplyModeBanner() {
+  if (!applyModeState) return;
+
+  // Mount once; subsequent calls just re-paint the inner content. The
+  // banner lives in a closed Shadow DOM so the host page's CSS (Apple,
+  // Workday, etc.) cannot touch it. This was needed because some sites
+  // ship aggressive resets like `* { line-height: 0 }` that collapsed
+  // the banner's text on top of itself.
+  let host = document.getElementById("rezmai-apply-mode-host");
+  let shadow;
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "rezmai-apply-mode-host";
+    host.style.cssText = [
+      "all:initial",
+      "position:fixed",
+      "bottom:16px",
+      "right:16px",
+      "z-index:2147483646",
+    ].join(";") + ";";
+    shadow = host.attachShadow({ mode: "closed" });
+    applyModeShadowRoot = shadow;
+    const style = document.createElement("style");
+    style.textContent = `
+      :host { all: initial; }
+      * { box-sizing: border-box; }
+      .bar {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-size: 12px;
+        line-height: 1.4;
+        color: #fff;
+        background: #0f172a;
+        border: 1px solid rgba(124, 58, 237, 0.6);
+        border-radius: 12px;
+        padding: 12px 14px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+        max-width: 340px;
+        min-width: 240px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 6px 0;
+        line-height: 1.4;
+      }
+      .row + .row { margin-top: 0; }
+      .dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #7c3aed;
+        box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.25);
+        flex-shrink: 0;
+      }
+      .label { font-weight: 700; }
+      .sep { opacity: 0.5; }
+      .company {
+        opacity: 0.85;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+        flex: 1;
+      }
+      .title {
+        opacity: 0.75;
+        margin: 0 0 6px 0;
+        line-height: 1.4;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .stats {
+        opacity: 0.85;
+        margin: 0 0 8px 0;
+        line-height: 1.4;
+      }
+      .actions { display: flex; gap: 6px; margin: 0; padding: 0; }
+      button.stop {
+        appearance: none;
+        background: transparent;
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        padding: 5px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 600;
+        font-family: inherit;
+        line-height: 1.2;
+      }
+      button.stop:hover { background: rgba(255, 255, 255, 0.08); }
+    `;
+    shadow.appendChild(style);
+    const root = document.createElement("div");
+    root.className = "bar";
+    shadow.appendChild(root);
+    document.body.appendChild(host);
+  } else {
+    shadow = applyModeShadowRoot;
+  }
+
+  const company = applyModeState.companyName || "this job";
+  const title = applyModeState.jobTitle || "";
+  const stepLabel = detectStepLabel();
+  const fillCount = applyModeState.fillCount || 0;
+  const totalFilled = applyModeState.totalFilled || 0;
+  const root = shadow.querySelector(".bar");
+  if (!root) return;
+
+  root.innerHTML = `
+    <div class="row">
+      <span class="dot"></span>
+      <span class="label">Apply Mode</span>
+      <span class="sep">·</span>
+      <span class="company">${escapeBannerText(company)}</span>
+    </div>
+    ${title ? `<div class="title">${escapeBannerText(title)}</div>` : ""}
+    <div class="stats">
+      ${stepLabel ? `${escapeBannerText(stepLabel)} · ` : ""}${fillCount} fill${fillCount === 1 ? "" : "s"}${totalFilled ? ` · ${totalFilled} field${totalFilled === 1 ? "" : "s"} total` : ""}
+    </div>
+    <div class="actions">
+      <button type="button" class="stop">Stop Apply Mode</button>
+    </div>
+  `;
+  const stopBtn = root.querySelector("button.stop");
+  if (stopBtn) stopBtn.addEventListener("click", () => stopApplyMode("user-stopped"));
+}
+
+function escapeBannerText(s) {
+  return String(s).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+function removeApplyModeBanner() {
+  const host = document.getElementById("rezmai-apply-mode-host");
+  if (host) host.remove();
+  applyModeShadowRoot = null;
+  // Tidy up any old DOM left behind by a pre-Shadow-DOM build of the
+  // extension if it's still mounted in this tab.
+  const legacy = document.getElementById("rezmai-apply-mode-bar");
+  if (legacy) legacy.remove();
+}
+
+function bumpApplyModeIdleTimer() {
+  if (applyModeIdleTimer) clearTimeout(applyModeIdleTimer);
+  applyModeIdleTimer = setTimeout(
+    () => stopApplyMode("idle-timeout"),
+    APPLY_MODE_IDLE_MS
+  );
+}
+
+// Capture-phase click listener that ends Apply Mode when the user
+// triggers an "actually submit the application" button. We deliberately
+// only match strong text/data-testid signals to avoid stopping on a
+// "Next" or "Save Draft" click.
+function attachApplyModeSubmitGuard() {
+  if (applyModeSubmitHandler) return;
+  applyModeSubmitHandler = (e) => {
+    if (!applyModeState) return;
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    const btn = t.closest('button, input[type="submit"], a[role="button"]');
+    if (!btn) return;
+    const txt = (btn.textContent || btn.value || btn.getAttribute("aria-label") || "")
+      .trim()
+      .toLowerCase();
+    const testid = (btn.getAttribute("data-testid") || "").toLowerCase();
+    const isFinalSubmit =
+      /submit\s+(?:my\s+)?application/.test(txt) ||
+      /send\s+(?:my\s+)?application/.test(txt) ||
+      /(?:finish|complete)\s+(?:my\s+)?application/.test(txt) ||
+      /submit-application|send-application|application-submit/.test(testid);
+    if (!isFinalSubmit) return;
+    // Fire-and-forget — don't block the real click handler.
+    setTimeout(() => stopApplyMode("application-submitted"), 0);
+  };
+  document.addEventListener("click", applyModeSubmitHandler, true);
+}
+
+function detachApplyModeSubmitGuard() {
+  if (applyModeSubmitHandler) {
+    document.removeEventListener("click", applyModeSubmitHandler, true);
+    applyModeSubmitHandler = null;
+  }
+}
+
+// SPA route changes don't reload the content script, so we listen for
+// pushState/replaceState/popstate and re-check origin. Same-origin
+// navigations (typical wizard step transitions) are left alone.
+function attachApplyModeNavGuard() {
+  if (applyModeNavHandler) return;
+  const checkOrigin = () => {
+    if (!applyModeState) return;
+    if (
+      applyModeState.urlOrigin &&
+      applyModeState.urlOrigin !== window.location.origin
+    ) {
+      stopApplyMode("cross-origin-nav");
+    }
+  };
+  applyModeNavHandler = checkOrigin;
+  window.addEventListener("popstate", applyModeNavHandler);
+  applyModeOriginalPushState = history.pushState;
+  applyModeOriginalReplaceState = history.replaceState;
+  history.pushState = function (...args) {
+    const r = applyModeOriginalPushState.apply(this, args);
+    try { checkOrigin(); } catch {}
+    return r;
+  };
+  history.replaceState = function (...args) {
+    const r = applyModeOriginalReplaceState.apply(this, args);
+    try { checkOrigin(); } catch {}
+    return r;
+  };
+}
+
+function detachApplyModeNavGuard() {
+  if (applyModeNavHandler) {
+    window.removeEventListener("popstate", applyModeNavHandler);
+    applyModeNavHandler = null;
+  }
+  if (applyModeOriginalPushState) {
+    history.pushState = applyModeOriginalPushState;
+    applyModeOriginalPushState = null;
+  }
+  if (applyModeOriginalReplaceState) {
+    history.replaceState = applyModeOriginalReplaceState;
+    applyModeOriginalReplaceState = null;
+  }
+}
+
+function stopApplyMode(reason) {
+  applyModeState = null;
+  applyModePdfBytes = null;
+  if (applyModeFillTimer) {
+    clearTimeout(applyModeFillTimer);
+    applyModeFillTimer = null;
+  }
+  if (applyModeIdleTimer) {
+    clearTimeout(applyModeIdleTimer);
+    applyModeIdleTimer = null;
+  }
+  if (applyModeObserver) {
+    applyModeObserver.disconnect();
+    applyModeObserver = null;
+  }
+  detachApplyModeSubmitGuard();
+  detachApplyModeNavGuard();
+  removeApplyModeBanner();
+  try {
+    chrome.runtime.sendMessage({ type: "CLEAR_APPLY_MODE" }, () => {});
+  } catch {
+    // tab may already be closing — best-effort
+  }
+  if (reason) console.info("[rezm.ai] Apply Mode stopped:", reason);
+}
+
+(function bootstrapApplyMode() {
+  // Stagger slightly so platform-specific frameworks have time to mount
+  // their initial DOM before we read it.
+  const start = () => initApplyMode().catch(() => {});
+  if (document.readyState === "complete" || document.readyState === "interactive") {
+    setTimeout(start, 400);
+  } else {
+    window.addEventListener("DOMContentLoaded", () => setTimeout(start, 400), { once: true });
+  }
+})();

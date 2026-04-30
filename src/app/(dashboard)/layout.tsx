@@ -1,5 +1,5 @@
 import { Sidebar, MobileNav } from "@/components/dashboard/sidebar";
-import { PwaInstallPrompt } from "@/components/dashboard/pwa-install-prompt";
+import { ExtensionInstallPrompt } from "@/components/dashboard/extension-install-prompt";
 import { DashboardContentWrap } from "@/components/dashboard/dashboard-content-wrap";
 
 export const dynamic = "force-dynamic";
@@ -18,8 +18,8 @@ export default function DashboardLayout({
       <main className="flex-1 overflow-y-auto bg-zinc-50 dark:bg-zinc-900">
         <DashboardContentWrap>{children}</DashboardContentWrap>
       </main>
-      {/* PWA install prompt for mobile */}
-      <PwaInstallPrompt />
+      {/* Chromium-only: nudge users to install the rezm.ai extension */}
+      <ExtensionInstallPrompt />
     </div>
   );
 }

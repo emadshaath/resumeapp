@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
   const search = searchParams.get("search");
+  const jobUrl = searchParams.get("job_url");
   const limit = parseInt(searchParams.get("limit") || "100");
 
   let query = supabase
@@ -23,6 +24,9 @@ export async function GET(req: NextRequest) {
 
   if (status && status !== "all") {
     query = query.eq("status", status);
+  }
+  if (jobUrl) {
+    query = query.eq("job_url", jobUrl);
   }
   if (search) {
     query = query.or(`company_name.ilike.%${search}%,job_title.ilike.%${search}%`);
