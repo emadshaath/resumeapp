@@ -1352,6 +1352,7 @@ let applyModeSubmitHandler = null;  // capture-phase click listener (see below)
 let applyModeNavHandler = null;     // popstate listener
 let applyModeOriginalPushState = null;
 let applyModeOriginalReplaceState = null;
+let applyModeShadowRoot = null;     // ShadowRoot for the on-page banner (CSS isolation)
 
 const APPLY_MODE_DEBOUNCE_MS = 500;
 const APPLY_MODE_COOLDOWN_MS = 1000;
@@ -1570,27 +1571,105 @@ function detectStepLabel() {
 function renderApplyModeBanner() {
   if (!applyModeState) return;
 
-  let bar = document.getElementById("rezmai-apply-mode-bar");
-  if (!bar) {
-    bar = document.createElement("div");
-    bar.id = "rezmai-apply-mode-bar";
-    bar.style.cssText = [
+  // Mount once; subsequent calls just re-paint the inner content. The
+  // banner lives in a closed Shadow DOM so the host page's CSS (Apple,
+  // Workday, etc.) cannot touch it. This was needed because some sites
+  // ship aggressive resets like `* { line-height: 0 }` that collapsed
+  // the banner's text on top of itself.
+  let host = document.getElementById("rezmai-apply-mode-host");
+  let shadow;
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "rezmai-apply-mode-host";
+    host.style.cssText = [
+      "all:initial",
       "position:fixed",
       "bottom:16px",
       "right:16px",
       "z-index:2147483646",
-      "background:#0f172a",
-      "color:#fff",
-      "border:1px solid rgba(124,58,237,0.6)",
-      "border-radius:12px",
-      "padding:12px 14px",
-      "box-shadow:0 10px 30px rgba(0,0,0,0.25)",
-      "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
-      "font-size:12px",
-      "max-width:340px",
-      "line-height:1.4",
-    ].join(";");
-    document.body.appendChild(bar);
+    ].join(";") + ";";
+    shadow = host.attachShadow({ mode: "closed" });
+    applyModeShadowRoot = shadow;
+    const style = document.createElement("style");
+    style.textContent = `
+      :host { all: initial; }
+      * { box-sizing: border-box; }
+      .bar {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-size: 12px;
+        line-height: 1.4;
+        color: #fff;
+        background: #0f172a;
+        border: 1px solid rgba(124, 58, 237, 0.6);
+        border-radius: 12px;
+        padding: 12px 14px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+        max-width: 340px;
+        min-width: 240px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 6px 0;
+        line-height: 1.4;
+      }
+      .row + .row { margin-top: 0; }
+      .dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #7c3aed;
+        box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.25);
+        flex-shrink: 0;
+      }
+      .label { font-weight: 700; }
+      .sep { opacity: 0.5; }
+      .company {
+        opacity: 0.85;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+        flex: 1;
+      }
+      .title {
+        opacity: 0.75;
+        margin: 0 0 6px 0;
+        line-height: 1.4;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .stats {
+        opacity: 0.85;
+        margin: 0 0 8px 0;
+        line-height: 1.4;
+      }
+      .actions { display: flex; gap: 6px; margin: 0; padding: 0; }
+      button.stop {
+        appearance: none;
+        background: transparent;
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        padding: 5px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 600;
+        font-family: inherit;
+        line-height: 1.2;
+      }
+      button.stop:hover { background: rgba(255, 255, 255, 0.08); }
+    `;
+    shadow.appendChild(style);
+    const root = document.createElement("div");
+    root.className = "bar";
+    shadow.appendChild(root);
+    document.body.appendChild(host);
+  } else {
+    shadow = applyModeShadowRoot;
   }
 
   const company = applyModeState.companyName || "this job";
@@ -1598,24 +1677,25 @@ function renderApplyModeBanner() {
   const stepLabel = detectStepLabel();
   const fillCount = applyModeState.fillCount || 0;
   const totalFilled = applyModeState.totalFilled || 0;
+  const root = shadow.querySelector(".bar");
+  if (!root) return;
 
-  bar.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#7c3aed;box-shadow:0 0 0 4px rgba(124,58,237,0.25);"></span>
-      <strong style="font-weight:700">Apply Mode</strong>
-      <span style="opacity:0.7">·</span>
-      <span style="opacity:0.85">${escapeBannerText(company)}</span>
+  root.innerHTML = `
+    <div class="row">
+      <span class="dot"></span>
+      <span class="label">Apply Mode</span>
+      <span class="sep">·</span>
+      <span class="company">${escapeBannerText(company)}</span>
     </div>
-    ${title ? `<div style="opacity:0.75;margin-bottom:6px;">${escapeBannerText(title)}</div>` : ""}
-    <div style="opacity:0.85;margin-bottom:8px;">
-      ${stepLabel ? `<span>${escapeBannerText(stepLabel)} · </span>` : ""}
-      <span>${fillCount} fill${fillCount === 1 ? "" : "s"}${totalFilled ? ` · ${totalFilled} field${totalFilled === 1 ? "" : "s"} total` : ""}</span>
+    ${title ? `<div class="title">${escapeBannerText(title)}</div>` : ""}
+    <div class="stats">
+      ${stepLabel ? `${escapeBannerText(stepLabel)} · ` : ""}${fillCount} fill${fillCount === 1 ? "" : "s"}${totalFilled ? ` · ${totalFilled} field${totalFilled === 1 ? "" : "s"} total` : ""}
     </div>
-    <div style="display:flex;gap:6px;">
-      <button id="rezmai-apply-mode-stop" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.3);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;">Stop Apply Mode</button>
+    <div class="actions">
+      <button type="button" class="stop">Stop Apply Mode</button>
     </div>
   `;
-  const stopBtn = bar.querySelector("#rezmai-apply-mode-stop");
+  const stopBtn = root.querySelector("button.stop");
   if (stopBtn) stopBtn.addEventListener("click", () => stopApplyMode("user-stopped"));
 }
 
@@ -1626,8 +1706,13 @@ function escapeBannerText(s) {
 }
 
 function removeApplyModeBanner() {
-  const bar = document.getElementById("rezmai-apply-mode-bar");
-  if (bar) bar.remove();
+  const host = document.getElementById("rezmai-apply-mode-host");
+  if (host) host.remove();
+  applyModeShadowRoot = null;
+  // Tidy up any old DOM left behind by a pre-Shadow-DOM build of the
+  // extension if it's still mounted in this tab.
+  const legacy = document.getElementById("rezmai-apply-mode-bar");
+  if (legacy) legacy.remove();
 }
 
 function bumpApplyModeIdleTimer() {
