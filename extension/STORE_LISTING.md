@@ -28,41 +28,29 @@ Auto-fill job applications with your rezm.ai profile. AI tailors your resume to 
 ## Detailed description
 
 ```
-Apply to more jobs in less time. rezm.ai Smart Apply fills out job applications for you, tailors your resume to each role with AI, and drafts thoughtful answers to open-ended questions — so you can focus on the interviews, not the paperwork.
+Apply to jobs faster, with less typing and a better-targeted resume for every role.
+
+The rezm.ai Smart Apply extension reads your rezm.ai profile, fills application forms in one click, and attaches your resume PDF — no more copy-pasting your name, email, work history, or LinkedIn URL on every site.
 
 What it does
 
-One-click auto-fill — Completes the standard fields on any job application: name, email, phone, address, LinkedIn, portfolio, work authorization, years of experience, demographic/EEO questions, and more. Your resume PDF is attached automatically.
+• One-click Auto-Fill. Populates standard fields (contact info, location, work authorization, EEO questions, and more) using the data already in your profile.
 
-Smart Tailor & Fill — Reads the job posting from the page, uses AI to generate a resume variant matched to the role, shows a match score, and fills the form with the tailored version. The variant is saved to your dashboard for later.
+• Smart Tailor & Fill. Generates a resume variant tailored to the specific job description before filling, and reports an honest match score so you know how well your background fits the role.
 
-AI Answer Remaining Questions — Detects the open-ended questions left on the page ("Why do you want to work here?", "Tell us about a challenge you overcame", custom screener questions) and drafts answers grounded in your profile and the job description. AI-written fields are highlighted so you can review before submitting.
+• Apply Mode for multi-step wizards. After your first click, the extension keeps filling fields as you move through each step of the application — resume upload, personal info, additional files, screening questions — without another click.
 
-Track every application — Save jobs to your rezm.ai dashboard in one click. Tracked jobs sync with status, company, title, and URL so nothing falls through the cracks.
+• AI answers for open-ended questions. For prompts like "Why this company?" the extension drafts a response from your real profile data and the job description. You review before submitting.
 
-Why install it
+• Job tracking. Every application is saved to your rezm.ai dashboard with company, role, status, applied date, and the variant used. The extension detects duplicates so you don't track the same job twice.
 
-Save hours per week. A typical application takes 10–20 minutes to fill out by hand. Smart Apply gets you to Review & Submit in seconds.
+• PDF preview. See the exact resume PDF that will be uploaded before you submit.
 
-Send a tailored resume every time. Generic resumes get ignored. AI-tailored variants match the keywords and priorities recruiters and ATS filters are looking for — without you rewriting from scratch.
+Works on standard HTML application forms and on major application platforms used across the industry. You stay in control — the extension only fills fields and attaches your resume; it never submits the application on your behalf.
 
-Never stare at a blank essay box. Long-form questions are the #1 reason candidates abandon applications. AI drafts give you a strong starting point you can edit in seconds.
+A free rezm.ai account is required to sign in. Smart Tailor and AI-answered questions are included in the Pro and Premium plans.
 
-Works where you already apply. Compatible with most application platforms — standard HTML forms, modern career sites, and custom company portals.
-
-You stay in control. The extension never clicks Submit for you. Every field is highlighted, every AI answer is marked for review, and you approve each application before it's sent.
-
-Your data stays yours. The extension talks only to your rezm.ai account over HTTPS. It doesn't read pages you aren't applying on, and it doesn't sell or share your data.
-
-How it works
-
-Sign in once with your rezm.ai account from the extension popup.
-
-Navigate to any job posting or application page.
-
-Click Auto-Fill for standard fields, or Smart Tailor & Fill to generate a role-specific resume first.
-
-Review the filled fields (highlighted green; AI answers highlighted purple), then click the site's own Submit button.
+Privacy: your profile data only leaves your browser to talk to rezm.ai's own servers. The extension never reads or transmits page content from sites unrelated to job applications.
 ```
 
 ## Category
