@@ -74,6 +74,13 @@ export function getRequiredTier(feature: Feature): Tier {
 // Limits that vary by tier
 export const TIER_LIMITS = {
   ai_reviews_per_month: { free: 1, pro: 10, premium: 999 },
+  ai_suggests_per_month: { free: 5, pro: 100, premium: 999 },
+  ai_applies_per_month: { free: 0, pro: 20, premium: 999 },
+  ai_form_answers_per_month: { free: 0, pro: 0, premium: 200 },
+  job_parses_per_month: { free: 5, pro: 50, premium: 500 },
+  linkedin_analyses_per_month: { free: 1, pro: 10, premium: 100 },
+  resume_imports_per_month: { free: 3, pro: 30, premium: 300 },
+  smart_tailors_per_month: { free: 0, pro: 20, premium: 200 },
   sections_max: { free: 3, pro: 999, premium: 999 },
   contacts_per_day: { free: 5, pro: 50, premium: 999 },
   snapshots_max: { free: 5, pro: 50, premium: 999 },
@@ -81,7 +88,6 @@ export const TIER_LIMITS = {
   variants_per_month: { free: 0, pro: 3, premium: 999 },
   jobs_max: { free: 5, pro: 50, premium: 999 },
   review_links_max: { free: 0, pro: 0, premium: 999 },
-  ai_applies_per_month: { free: 0, pro: 20, premium: 999 },
   auto_applies_per_month: { free: 5, pro: 50, premium: 500 },
   auto_apply_rules_max: { free: 1, pro: 5, premium: 20 },
   auto_apply_server_submits_per_month: { free: 0, pro: 20, premium: 200 },
@@ -90,3 +96,26 @@ export const TIER_LIMITS = {
 export function getLimit(tier: Tier, limit: keyof typeof TIER_LIMITS): number {
   return TIER_LIMITS[limit][tier];
 }
+
+// AI feature identifiers — string values match the `feature` CHECK
+// constraint on ai_usage_events.
+export type AIFeature =
+  | "ai_review"
+  | "ai_suggest"
+  | "ai_apply"
+  | "ai_form_answers"
+  | "job_parse"
+  | "linkedin_analyze"
+  | "resume_import"
+  | "smart_tailor";
+
+export const AI_FEATURE_TO_LIMIT_KEY: Record<AIFeature, keyof typeof TIER_LIMITS> = {
+  ai_review: "ai_reviews_per_month",
+  ai_suggest: "ai_suggests_per_month",
+  ai_apply: "ai_applies_per_month",
+  ai_form_answers: "ai_form_answers_per_month",
+  job_parse: "job_parses_per_month",
+  linkedin_analyze: "linkedin_analyses_per_month",
+  resume_import: "resume_imports_per_month",
+  smart_tailor: "smart_tailors_per_month",
+};

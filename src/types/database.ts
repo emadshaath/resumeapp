@@ -469,3 +469,34 @@ export interface AutoApplyEvent {
   detail: Record<string, unknown>;
   created_at: string;
 }
+
+export type AIUsageFeature =
+  | "ai_review"
+  | "ai_suggest"
+  | "ai_apply"
+  | "ai_form_answers"
+  | "job_parse"
+  | "linkedin_analyze"
+  | "resume_import"
+  | "smart_tailor";
+
+export type AIUsageStatus = "ok" | "error" | "rate_limited";
+
+export interface AIUsageEvent {
+  id: string;
+  profile_id: string;
+  feature: AIUsageFeature;
+  status: AIUsageStatus;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  model: string | null;
+  request_id: string | null;
+  created_at: string;
+}
+
+export interface AIThrottleBucket {
+  profile_id: string;
+  feature: AIUsageFeature;
+  window_start: string;
+  count: number;
+}
