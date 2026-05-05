@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getAnthropicClient, AI_MODEL } from "@/lib/claude/client";
 import { SECTION_SUGGEST_SYSTEM_PROMPT, buildSectionSuggestPrompt } from "@/lib/claude/prompts";
-import { rateLimit } from "@/lib/rate-limit";
+import { enforceAILimit, logUsage } from "@/lib/ai/usage";
 import { z } from "zod";
 import type { SectionSuggestions } from "@/lib/claude/schemas";
 import { buildAutoApplyJobContext } from "@/lib/auto-apply/job-context";
@@ -14,23 +15,28 @@ const suggestSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const admin = createAdminClient();
+
+  const gate = await enforceAILimit(admin, user.id, "ai_suggest");
+  if (!gate.ok) {
+    return NextResponse.json(
+      { error: gate.message, code: gate.code, upgradeTo: gate.upgradeTo },
+      { status: 429 }
+    );
+  }
+
+  let logStatus: "ok" | "error" = "ok";
+  let tokensIn = 0;
+  let tokensOut = 0;
+
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Rate limit: 10 suggestions per 10 minutes
-    const { success: rateLimitOk } = rateLimit(`ai-suggest:${user.id}`, 10, 10 * 60 * 1000);
-    if (!rateLimitOk) {
-      return NextResponse.json(
-        { error: "Too many requests. Please wait a few minutes." },
-        { status: 429 }
-      );
-    }
-
     const body = await request.json();
     const parsed = suggestSchema.safeParse(body);
 
@@ -58,6 +64,9 @@ export async function POST(request: Request) {
       }],
     });
 
+    tokensIn = response.usage.input_tokens;
+    tokensOut = response.usage.output_tokens;
+
     const textBlock = response.content.find((b) => b.type === "text");
     if (!textBlock || textBlock.type !== "text") {
       throw new Error("No text response from AI");
@@ -78,10 +87,20 @@ export async function POST(request: Request) {
         : null,
     });
   } catch (error) {
+    logStatus = "error";
     console.error("AI suggest error:", error);
     return NextResponse.json(
       { error: "Failed to generate suggestions." },
       { status: 500 }
     );
+  } finally {
+    await logUsage(admin, {
+      profileId: user.id,
+      feature: "ai_suggest",
+      status: logStatus,
+      tokensIn,
+      tokensOut,
+      model: AI_MODEL,
+    });
   }
 }

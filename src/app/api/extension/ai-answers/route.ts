@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
 import { hasFeature, getRequiredTier, getEffectiveTier } from "@/lib/stripe/feature-gate";
+import { enforceAILimit, logUsage } from "@/lib/ai/usage";
 import type { Tier } from "@/types/database";
 
 interface FormQuestion {
@@ -42,8 +44,18 @@ export async function POST(req: NextRequest) {
       {
         error: `AI Form Answers requires the ${requiredTier.charAt(0).toUpperCase() + requiredTier.slice(1)} plan. Your current plan: ${tier}.`,
         upgrade_required: true,
+        upgradeTo: requiredTier,
       },
       { status: 403 }
+    );
+  }
+
+  const admin = createAdminClient();
+  const gate = await enforceAILimit(admin, user.id, "ai_form_answers");
+  if (!gate.ok) {
+    return NextResponse.json(
+      { error: gate.message, code: gate.code, upgradeTo: gate.upgradeTo },
+      { status: 429 }
     );
   }
 
@@ -129,6 +141,10 @@ Respond with ONLY valid JSON — an array of objects, one per question:
 
 REMINDER: For select/radio questions, the "answer" MUST be copied verbatim from the Options list. Any answer not matching an option will fail to fill the form.`;
 
+  let logStatus: "ok" | "error" = "ok";
+  let tokensIn = 0;
+  let tokensOut = 0;
+
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) throw new Error("AI service not configured");
@@ -153,6 +169,8 @@ REMINDER: For select/radio questions, the "answer" MUST be copied verbatim from 
     }
 
     const aiData = await aiResponse.json();
+    tokensIn = aiData.usage?.input_tokens ?? 0;
+    tokensOut = aiData.usage?.output_tokens ?? 0;
     const aiText = aiData.content?.[0]?.text || "";
 
     const jsonMatch = aiText.match(/\[[\s\S]*\]/);
@@ -162,9 +180,19 @@ REMINDER: For select/radio questions, the "answer" MUST be copied verbatim from 
 
     return NextResponse.json({ answers });
   } catch (err) {
+    logStatus = "error";
     const message =
       err instanceof Error ? err.message : "AI answer generation failed";
     return NextResponse.json({ error: message }, { status: 500 });
+  } finally {
+    await logUsage(admin, {
+      profileId: user.id,
+      feature: "ai_form_answers",
+      status: logStatus,
+      tokensIn,
+      tokensOut,
+      model: "claude-sonnet-4-20250514",
+    });
   }
 }
 

@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { enforceAILimit, logUsage } from "@/lib/ai/usage";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+const RESUME_MODEL = "claude-sonnet-4-20250514";
 
 const RESUME_PARSE_PROMPT = `You are an expert resume parser. Extract all structured information from the following resume text.
 
@@ -88,6 +93,15 @@ export async function POST(req: NextRequest) {
   if (!user)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const admin = createAdminClient();
+  const gate = await enforceAILimit(admin, user.id, "resume_import");
+  if (!gate.ok) {
+    return NextResponse.json(
+      { error: gate.message, code: gate.code, upgradeTo: gate.upgradeTo },
+      { status: 429 }
+    );
+  }
+
   let resumeText: string;
 
   const contentType = req.headers.get("content-type") || "";
@@ -126,7 +140,7 @@ export async function POST(req: NextRequest) {
       // For PDFs, send as base64 to Claude with document support
       const arrayBuffer = await file.arrayBuffer();
       const base64 = Buffer.from(arrayBuffer).toString("base64");
-      return parsePdfWithClaude(base64);
+      return parsePdfWithClaude(base64, admin, user.id);
     }
 
     // For text files and docx, extract text content
@@ -144,10 +158,10 @@ export async function POST(req: NextRequest) {
     resumeText = (body.text as string).slice(0, 30000);
   }
 
-  return parseTextWithClaude(resumeText);
+  return parseTextWithClaude(resumeText, admin, user.id);
 }
 
-async function parseTextWithClaude(resumeText: string) {
+async function parseTextWithClaude(resumeText: string, admin: SupabaseClient, profileId: string) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -155,6 +169,10 @@ async function parseTextWithClaude(resumeText: string) {
       { status: 500 },
     );
   }
+
+  let logStatus: "ok" | "error" = "ok";
+  let tokensIn = 0;
+  let tokensOut = 0;
 
   try {
     const aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
@@ -165,7 +183,7 @@ async function parseTextWithClaude(resumeText: string) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: RESUME_MODEL,
         max_tokens: 4096,
         messages: [
           {
@@ -177,6 +195,7 @@ async function parseTextWithClaude(resumeText: string) {
     });
 
     if (!aiResponse.ok) {
+      logStatus = "error";
       return NextResponse.json(
         { error: "AI parsing failed" },
         { status: 500 },
@@ -184,17 +203,29 @@ async function parseTextWithClaude(resumeText: string) {
     }
 
     const aiData = await aiResponse.json();
+    tokensIn = aiData.usage?.input_tokens ?? 0;
+    tokensOut = aiData.usage?.output_tokens ?? 0;
     const aiText = aiData.content?.[0]?.text || "";
     return extractAndReturnJson(aiText);
   } catch {
+    logStatus = "error";
     return NextResponse.json(
       { error: "Failed to parse resume" },
       { status: 500 },
     );
+  } finally {
+    await logUsage(admin, {
+      profileId,
+      feature: "resume_import",
+      status: logStatus,
+      tokensIn,
+      tokensOut,
+      model: RESUME_MODEL,
+    });
   }
 }
 
-async function parsePdfWithClaude(base64: string) {
+async function parsePdfWithClaude(base64: string, admin: SupabaseClient, profileId: string) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -202,6 +233,10 @@ async function parsePdfWithClaude(base64: string) {
       { status: 500 },
     );
   }
+
+  let logStatus: "ok" | "error" = "ok";
+  let tokensIn = 0;
+  let tokensOut = 0;
 
   try {
     const aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
@@ -212,7 +247,7 @@ async function parsePdfWithClaude(base64: string) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: RESUME_MODEL,
         max_tokens: 4096,
         messages: [
           {
@@ -237,6 +272,7 @@ async function parsePdfWithClaude(base64: string) {
     });
 
     if (!aiResponse.ok) {
+      logStatus = "error";
       return NextResponse.json(
         { error: "AI parsing failed" },
         { status: 500 },
@@ -244,13 +280,25 @@ async function parsePdfWithClaude(base64: string) {
     }
 
     const aiData = await aiResponse.json();
+    tokensIn = aiData.usage?.input_tokens ?? 0;
+    tokensOut = aiData.usage?.output_tokens ?? 0;
     const aiText = aiData.content?.[0]?.text || "";
     return extractAndReturnJson(aiText);
   } catch {
+    logStatus = "error";
     return NextResponse.json(
       { error: "Failed to parse resume PDF" },
       { status: 500 },
     );
+  } finally {
+    await logUsage(admin, {
+      profileId,
+      feature: "resume_import",
+      status: logStatus,
+      tokensIn,
+      tokensOut,
+      model: RESUME_MODEL,
+    });
   }
 }
 

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
 import { snapshotPdfSettings } from "@/lib/pdf/snapshot";
 import { snapshotResumeBlocks } from "@/lib/blocks/snapshot";
 import { generateTailoredVariant, applyVariantToResume } from "@/lib/tailor";
 import { hasFeature, getLimit, getRequiredTier, getEffectiveTier } from "@/lib/stripe/feature-gate";
+import { enforceAILimit, logUsage } from "@/lib/ai/usage";
 import { sanitizeJobDescription } from "@/lib/jobs/sanitize-description";
 import { buildVariantFields } from "@/lib/extension/build-fields";
 import type { Tier } from "@/types/database";
@@ -46,8 +48,18 @@ export async function POST(req: NextRequest) {
       {
         error: `Smart Tailor requires the ${requiredTier.charAt(0).toUpperCase() + requiredTier.slice(1)} plan. Your current plan: ${tier}.`,
         upgrade_required: true,
+        upgradeTo: requiredTier,
       },
       { status: 403 }
+    );
+  }
+
+  const admin = createAdminClient();
+  const gate = await enforceAILimit(admin, user.id, "smart_tailor");
+  if (!gate.ok) {
+    return NextResponse.json(
+      { error: gate.message, code: gate.code, upgradeTo: gate.upgradeTo },
+      { status: 429 }
     );
   }
 
@@ -68,6 +80,8 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+
+  let logStatus: "ok" | "error" = "ok";
 
   try {
     // Step 1: Find or create job application
@@ -271,8 +285,16 @@ export async function POST(req: NextRequest) {
       job_id: jobId,
     });
   } catch (err) {
+    logStatus = "error";
     const message = err instanceof Error ? err.message : "Smart fill failed";
     return NextResponse.json({ error: message }, { status: 500 });
+  } finally {
+    await logUsage(admin, {
+      profileId: user.id,
+      feature: "smart_tailor",
+      status: logStatus,
+      model: "claude-sonnet-4-20250514",
+    });
   }
 }
 

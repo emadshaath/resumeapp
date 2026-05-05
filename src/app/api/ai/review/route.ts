@@ -3,29 +3,32 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAnthropicClient, AI_MODEL, AI_MAX_TOKENS } from "@/lib/claude/client";
 import { FULL_REVIEW_SYSTEM_PROMPT, buildFullReviewUserPrompt } from "@/lib/claude/prompts";
-import { rateLimit } from "@/lib/rate-limit";
-import { getEffectiveTier } from "@/lib/stripe/feature-gate";
+import { enforceAILimit, logUsage } from "@/lib/ai/usage";
 import type { FullReviewResult } from "@/lib/claude/schemas";
-import type { Tier } from "@/types/database";
-
-// Tier-based monthly limits
-const TIER_LIMITS: Record<string, number> = {
-  free: 1,
-  pro: 10,
-  premium: 999,
-};
 
 export async function POST(request: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const admin = createAdminClient();
+
+  const gate = await enforceAILimit(admin, user.id, "ai_review");
+  if (!gate.ok) {
+    return NextResponse.json(
+      { error: gate.message, code: gate.code, upgradeTo: gate.upgradeTo },
+      { status: 429 }
+    );
+  }
+
+  let logStatus: "ok" | "error" = "ok";
+  let tokensIn = 0;
+  let tokensOut = 0;
+
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Get profile with tier
-    const admin = createAdminClient();
     const { data: profile } = await admin
       .from("profiles")
       .select("*, resume_sections(*)")
@@ -34,41 +37,6 @@ export async function POST(request: Request) {
 
     if (!profile) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
-    }
-
-    // Check tier-based rate limit (monthly)
-    const tier = getEffectiveTier((profile.tier || "free") as Tier, profile.tier_override as Tier | null);
-    const monthlyLimit = TIER_LIMITS[tier] || 1;
-
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-
-    const { count: reviewsThisMonth } = await admin
-      .from("ai_reviews")
-      .select("*", { count: "exact", head: true })
-      .eq("profile_id", user.id)
-      .eq("review_type", "full")
-      .gte("created_at", startOfMonth.toISOString());
-
-    if ((reviewsThisMonth || 0) >= monthlyLimit) {
-      return NextResponse.json(
-        {
-          error: `You've used all ${monthlyLimit} AI review${monthlyLimit > 1 ? "s" : ""} for this month. ${
-            tier === "free" ? "Upgrade to Pro for more reviews." : tier === "pro" ? "Upgrade to Premium for unlimited reviews." : ""
-          }`,
-        },
-        { status: 429 }
-      );
-    }
-
-    // Also apply a short-term rate limit to prevent abuse
-    const { success: rateLimitOk } = rateLimit(`ai-review:${user.id}`, 3, 5 * 60 * 1000);
-    if (!rateLimitOk) {
-      return NextResponse.json(
-        { error: "Please wait a few minutes before requesting another review." },
-        { status: 429 }
-      );
     }
 
     // Fetch all resume content
@@ -141,6 +109,9 @@ export async function POST(request: Request) {
       messages: [{ role: "user", content: userPrompt }],
     });
 
+    tokensIn = response.usage.input_tokens;
+    tokensOut = response.usage.output_tokens;
+
     // Extract text response
     const textBlock = response.content.find((b) => b.type === "text");
     if (!textBlock || textBlock.type !== "text") {
@@ -166,7 +137,7 @@ export async function POST(request: Request) {
         recommendations: review,
         raw_response: response,
         model_used: AI_MODEL,
-        tokens_used: response.usage.input_tokens + response.usage.output_tokens,
+        tokens_used: tokensIn + tokensOut,
       })
       .select()
       .single();
@@ -180,11 +151,12 @@ export async function POST(request: Request) {
       review,
       review_id: savedReview?.id,
       usage: {
-        reviews_used: (reviewsThisMonth || 0) + 1,
-        reviews_limit: monthlyLimit,
+        reviews_used: gate.used + 1,
+        reviews_limit: gate.limit,
       },
     });
   } catch (error) {
+    logStatus = "error";
     console.error("AI review error:", error);
 
     if (error instanceof SyntaxError) {
@@ -198,5 +170,14 @@ export async function POST(request: Request) {
       { error: "Failed to generate review. Please try again." },
       { status: 500 }
     );
+  } finally {
+    await logUsage(admin, {
+      profileId: user.id,
+      feature: "ai_review",
+      status: logStatus,
+      tokensIn,
+      tokensOut,
+      model: AI_MODEL,
+    });
   }
 }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitizeJobDescription } from "@/lib/jobs/sanitize-description";
+import { enforceAILimit, logUsage } from "@/lib/ai/usage";
 
 // POST /api/jobs/parse-url — AI extracts job details from a URL
 export async function POST(req: NextRequest) {
@@ -17,6 +19,19 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
   }
+
+  const admin = createAdminClient();
+  const gate = await enforceAILimit(admin, user.id, "job_parse");
+  if (!gate.ok) {
+    return NextResponse.json(
+      { error: gate.message, code: gate.code, upgradeTo: gate.upgradeTo },
+      { status: 429 }
+    );
+  }
+
+  let logStatus: "ok" | "error" = "ok";
+  let tokensIn = 0;
+  let tokensOut = 0;
 
   try {
     // Fetch the job page content
@@ -98,10 +113,13 @@ ${textContent}`,
     });
 
     if (!aiResponse.ok) {
+      logStatus = "error";
       return NextResponse.json({ error: "AI parsing failed" }, { status: 500 });
     }
 
     const aiData = await aiResponse.json();
+    tokensIn = aiData.usage?.input_tokens ?? 0;
+    tokensOut = aiData.usage?.output_tokens ?? 0;
     const aiText = aiData.content?.[0]?.text || "";
 
     // Extract JSON from response
@@ -114,9 +132,19 @@ ${textContent}`,
 
     return NextResponse.json({ parsed, description_html: descriptionHtml });
   } catch (err) {
+    logStatus = "error";
     if (err instanceof Error && err.name === "AbortError") {
       return NextResponse.json({ error: "Request timed out fetching the URL" }, { status: 408 });
     }
     return NextResponse.json({ error: "Failed to parse job posting" }, { status: 500 });
+  } finally {
+    await logUsage(admin, {
+      profileId: user.id,
+      feature: "job_parse",
+      status: logStatus,
+      tokensIn,
+      tokensOut,
+      model: "claude-sonnet-4-20250514",
+    });
   }
 }

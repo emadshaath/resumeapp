@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchResumeData } from "@/lib/pdf/fetch-resume-data";
 import { generateTailoredVariant } from "@/lib/tailor";
 import { hasFeature, getRequiredTier, getEffectiveTier } from "@/lib/stripe/feature-gate";
+import { enforceAILimit, logUsage } from "@/lib/ai/usage";
 import type { Tier } from "@/types/database";
 
 // POST /api/variants/generate — AI generates a tailored variant for a job
@@ -22,7 +24,17 @@ export async function POST(req: NextRequest) {
     const requiredTier = getRequiredTier("smart_apply");
     return NextResponse.json({
       error: `Smart Tailor requires the ${requiredTier.charAt(0).toUpperCase() + requiredTier.slice(1)} plan. Your current plan: ${tier}.`,
+      upgradeTo: requiredTier,
     }, { status: 403 });
+  }
+
+  const admin = createAdminClient();
+  const gate = await enforceAILimit(admin, user.id, "smart_tailor");
+  if (!gate.ok) {
+    return NextResponse.json(
+      { error: gate.message, code: gate.code, upgradeTo: gate.upgradeTo },
+      { status: 429 }
+    );
   }
 
   const { job_application_id } = await req.json();
@@ -67,6 +79,8 @@ export async function POST(req: NextRequest) {
     job_description: jobDescriptionText,
   };
 
+  let logStatus: "ok" | "error" = "ok";
+
   try {
     const { variant_data, match_score } = await generateTailoredVariant(
       resumeData,
@@ -90,7 +104,15 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
+    logStatus = "error";
     const message = err instanceof Error ? err.message : "AI tailoring failed";
     return NextResponse.json({ error: message }, { status: 500 });
+  } finally {
+    await logUsage(admin, {
+      profileId: user.id,
+      feature: "smart_tailor",
+      status: logStatus,
+      model: "claude-sonnet-4-20250514",
+    });
   }
 }

@@ -3,46 +3,49 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAnthropicClient, AI_MODEL, AI_MAX_TOKENS } from "@/lib/claude/client";
 import { LINKEDIN_COMPARE_SYSTEM_PROMPT, buildLinkedInComparePrompt } from "@/lib/claude/prompts";
-import { rateLimit } from "@/lib/rate-limit";
+import { enforceAILimit, logUsage } from "@/lib/ai/usage";
 import type { LinkedInComparisonResult } from "@/lib/claude/schemas";
 
 export async function POST(request: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await request.json();
+  const linkedinText = body.linkedin_text?.trim();
+
+  if (!linkedinText || linkedinText.length < 50) {
+    return NextResponse.json(
+      { error: "Please paste your full LinkedIn profile text (at least 50 characters)." },
+      { status: 400 }
+    );
+  }
+
+  if (linkedinText.length > 30000) {
+    return NextResponse.json(
+      { error: "LinkedIn text is too long. Please paste only the main profile content." },
+      { status: 400 }
+    );
+  }
+
+  const admin = createAdminClient();
+
+  const gate = await enforceAILimit(admin, user.id, "linkedin_analyze");
+  if (!gate.ok) {
+    return NextResponse.json(
+      { error: gate.message, code: gate.code, upgradeTo: gate.upgradeTo },
+      { status: 429 }
+    );
+  }
+
+  let logStatus: "ok" | "error" = "ok";
+  let tokensIn = 0;
+  let tokensOut = 0;
+
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const body = await request.json();
-    const linkedinText = body.linkedin_text?.trim();
-
-    if (!linkedinText || linkedinText.length < 50) {
-      return NextResponse.json(
-        { error: "Please paste your full LinkedIn profile text (at least 50 characters)." },
-        { status: 400 }
-      );
-    }
-
-    if (linkedinText.length > 30000) {
-      return NextResponse.json(
-        { error: "LinkedIn text is too long. Please paste only the main profile content." },
-        { status: 400 }
-      );
-    }
-
-    // Rate limit: 5 analyses per 10 minutes
-    const { success: rateLimitOk } = rateLimit(`linkedin-analyze:${user.id}`, 5, 10 * 60 * 1000);
-    if (!rateLimitOk) {
-      return NextResponse.json(
-        { error: "Please wait a few minutes before running another analysis." },
-        { status: 429 }
-      );
-    }
-
-    // Fetch profile and resume data
-    const admin = createAdminClient();
     const { data: profile } = await admin
       .from("profiles")
       .select("*, resume_sections(*)")
@@ -122,6 +125,9 @@ export async function POST(request: Request) {
       messages: [{ role: "user", content: userPrompt }],
     });
 
+    tokensIn = response.usage.input_tokens;
+    tokensOut = response.usage.output_tokens;
+
     const textBlock = response.content.find((b) => b.type === "text");
     if (!textBlock || textBlock.type !== "text") {
       throw new Error("No text response from AI");
@@ -137,9 +143,10 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       comparison,
-      tokens_used: response.usage.input_tokens + response.usage.output_tokens,
+      tokens_used: tokensIn + tokensOut,
     });
   } catch (error) {
+    logStatus = "error";
     console.error("LinkedIn analysis error:", error);
 
     if (error instanceof SyntaxError) {
@@ -153,5 +160,14 @@ export async function POST(request: Request) {
       { error: "Failed to analyze LinkedIn profile. Please try again." },
       { status: 500 }
     );
+  } finally {
+    await logUsage(admin, {
+      profileId: user.id,
+      feature: "linkedin_analyze",
+      status: logStatus,
+      tokensIn,
+      tokensOut,
+      model: AI_MODEL,
+    });
   }
 }
