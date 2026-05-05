@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
+import { PostHogProvider } from "@/components/analytics/posthog-provider";
+import { CookieConsent } from "@/components/analytics/cookie-consent";
 import "./globals.css";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://rezm.ai";
@@ -76,7 +78,10 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="min-h-full flex flex-col font-sans">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <PostHogProvider>{children}</PostHogProvider>
+          <CookieConsent />
+        </ThemeProvider>
       </body>
     </html>
   );

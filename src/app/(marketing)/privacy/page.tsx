@@ -64,8 +64,10 @@ export default function PrivacyPage() {
             We do not show ads and do not share your data with advertisers.
           </li>
           <li>
-            Our analytics are cookie-free and aggregate; we do not track you
-            across the web.
+            We use product analytics (PostHog) to understand how rezm.ai is
+            used. These cookies only load after you click <em>Accept</em> in
+            the consent banner; we never share this data with advertisers and
+            do not track you across the web.
           </li>
           <li>
             You can export or delete your data at any time from the dashboard
@@ -185,9 +187,12 @@ export default function PrivacyPage() {
             5.
           </li>
           <li>
-            <strong>Improve the product.</strong> Aggregate, anonymized
-            metrics about feature usage so we know what to build next. We do
-            not use your resume content for product analytics.
+            <strong>Improve the product.</strong> Aggregate metrics about
+            feature usage so we know what to build next. When you accept
+            cookies, this includes PostHog product analytics events keyed to
+            an anonymous distinct ID (and, if you are signed in, to your
+            account ID). We do not use your resume content for product
+            analytics.
           </li>
           <li>
             <strong>Security and abuse prevention.</strong> Detect fraud, rate
@@ -272,6 +277,10 @@ export default function PrivacyPage() {
               <li>Resend — transactional email delivery.</li>
               <li>Twilio — phone and SMS routing for paid platform numbers.</li>
               <li>Cloudflare — DNS, CDN, and DDoS protection.</li>
+              <li>
+                PostHog — product analytics. Only receives data after you
+                accept cookies.
+              </li>
             </ul>
           </li>
           <li>
@@ -364,11 +373,31 @@ export default function PrivacyPage() {
 
         <h2 id="cookies">9. Cookies and similar technologies</h2>
         <p>
-          rezm.ai uses a small number of strictly necessary cookies to keep
-          you signed in and to remember your theme preference. We do not use
-          third-party advertising or cross-site tracking cookies. Our
-          first-party analytics are aggregate and do not require consent
-          banners under EU/UK rules.
+          rezm.ai uses two categories of cookies and local storage:
+        </p>
+        <ul>
+          <li>
+            <strong>Strictly necessary.</strong> Authentication cookies that
+            keep you signed in, your theme preference, and the cookie-consent
+            choice itself. These load without consent because the product
+            cannot function without them.
+          </li>
+          <li>
+            <strong>Product analytics (PostHog).</strong> When you click
+            <em> Accept</em> in our cookie banner, we load PostHog, which sets
+            first-party cookies and uses local storage to assign you an
+            anonymous distinct ID, capture pageviews and clicks, and — once
+            you sign in — associate that ID with your account so we can debug
+            issues and improve the product. If you click <em>Reject</em>, or
+            close the banner without choosing, PostHog is not loaded and no
+            analytics cookies are set. You can change your choice at any time
+            by clearing rezm.ai site data in your browser; the banner will
+            reappear on your next visit.
+          </li>
+        </ul>
+        <p>
+          We do not use third-party advertising cookies and do not allow our
+          analytics provider to share your data with advertisers.
         </p>
 
         <h2 id="children">10. Children</h2>
