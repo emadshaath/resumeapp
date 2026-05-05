@@ -18,6 +18,11 @@ import {
   FileText,
 } from "lucide-react";
 import type { FullReviewResult, SectionReview } from "@/lib/claude/schemas";
+import {
+  LimitReachedBanner,
+  parseAIError,
+  type LimitError,
+} from "@/components/billing/limit-reached-banner";
 
 interface SavedReview {
   id: string;
@@ -36,7 +41,7 @@ interface AIReviewDrawerProps {
 
 export function AIReviewDrawer({ open, onClose }: AIReviewDrawerProps) {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<LimitError | null>(null);
   const [review, setReview] = useState<FullReviewResult | null>(null);
   const [usage, setUsage] = useState<{ reviews_used: number; reviews_limit: number } | null>(null);
   const [history, setHistory] = useState<SavedReview[]>([]);
@@ -71,7 +76,7 @@ export function AIReviewDrawer({ open, onClose }: AIReviewDrawerProps) {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Failed to generate review.");
+        setError(parseAIError(data, "Failed to generate review."));
         return;
       }
 
@@ -79,7 +84,7 @@ export function AIReviewDrawer({ open, onClose }: AIReviewDrawerProps) {
       setUsage(data.usage);
       loadHistory();
     } catch {
-      setError("Network error. Please try again.");
+      setError({ message: "Network error. Please try again." });
     } finally {
       setLoading(false);
     }
@@ -115,11 +120,7 @@ export function AIReviewDrawer({ open, onClose }: AIReviewDrawerProps) {
           )}
         </div>
 
-        {error && (
-          <div className="rounded-md bg-red-50 dark:bg-red-950 p-3 text-sm text-red-600 dark:text-red-400">
-            {error}
-          </div>
-        )}
+        <LimitReachedBanner error={error} />
 
         {loading && (
           <div className="flex flex-col items-center justify-center py-12">

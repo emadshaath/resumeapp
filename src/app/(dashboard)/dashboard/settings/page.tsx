@@ -17,6 +17,7 @@ import {
   Sparkles,
   Crown,
 } from "lucide-react";
+import { UsageMeters } from "@/components/billing/usage-meters";
 
 interface ProfileBilling {
   tier: string;
@@ -278,6 +279,9 @@ function BillingTab() {
           {error}
         </div>
       )}
+
+      {/* Usage Meters */}
+      <UsageMeters />
 
       {/* Current Plan */}
       <Card>

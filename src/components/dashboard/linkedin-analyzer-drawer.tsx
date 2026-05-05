@@ -17,6 +17,11 @@ import {
   Check,
 } from "lucide-react";
 import type { LinkedInComparisonResult } from "@/lib/claude/schemas";
+import {
+  LimitReachedBanner,
+  parseAIError,
+  type LimitError,
+} from "@/components/billing/limit-reached-banner";
 
 interface LinkedInAnalyzerDrawerProps {
   open: boolean;
@@ -30,7 +35,7 @@ export function LinkedInAnalyzerDrawer({ open, onClose, onApplyComplete }: Linke
   const [step, setStep] = useState<Step>("paste");
   const [linkedinText, setLinkedinText] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<LimitError | null>(null);
   const [comparison, setComparison] = useState<LinkedInComparisonResult | null>(null);
 
   // Selection state for applying changes
@@ -40,7 +45,7 @@ export function LinkedInAnalyzerDrawer({ open, onClose, onApplyComplete }: Linke
   const [selectedSkills, setSelectedSkills] = useState<Set<number>>(new Set());
   const [selectedCerts, setSelectedCerts] = useState<Set<number>>(new Set());
 
-  const [applyError, setApplyError] = useState<string | null>(null);
+  const [applyError, setApplyError] = useState<LimitError | null>(null);
 
   function reset() {
     setStep("paste");
@@ -58,7 +63,10 @@ export function LinkedInAnalyzerDrawer({ open, onClose, onApplyComplete }: Linke
 
   async function analyze() {
     if (linkedinText.trim().length < 50) {
-      setError("Please paste more content from your LinkedIn profile (at least 50 characters).");
+      setError({
+        message:
+          "Please paste more content from your LinkedIn profile (at least 50 characters).",
+      });
       return;
     }
 
@@ -74,14 +82,14 @@ export function LinkedInAnalyzerDrawer({ open, onClose, onApplyComplete }: Linke
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Failed to analyze.");
+        setError(parseAIError(data, "Failed to analyze."));
         return;
       }
 
       setComparison(data.comparison);
       setStep("results");
     } catch {
-      setError("Network error. Please try again.");
+      setError({ message: "Network error. Please try again." });
     } finally {
       setLoading(false);
     }
@@ -185,14 +193,14 @@ export function LinkedInAnalyzerDrawer({ open, onClose, onApplyComplete }: Linke
       const data = await res.json();
 
       if (!res.ok) {
-        setApplyError(data.error || "Failed to apply changes.");
+        setApplyError(parseAIError(data, "Failed to apply changes."));
         setStep("results");
         return;
       }
 
       setStep("done");
     } catch {
-      setApplyError("Network error. Please try again.");
+      setApplyError({ message: "Network error. Please try again." });
       setStep("results");
     }
   }
@@ -251,11 +259,7 @@ export function LinkedInAnalyzerDrawer({ open, onClose, onApplyComplete }: Linke
               )}
             </div>
 
-            {error && (
-              <div className="rounded-md bg-red-50 dark:bg-red-950 p-3 text-sm text-red-600 dark:text-red-400">
-                {error}
-              </div>
-            )}
+            <LimitReachedBanner error={error} />
 
             <Button onClick={analyze} disabled={loading || linkedinText.trim().length < 50} className="w-full">
               {loading ? (
@@ -282,11 +286,7 @@ export function LinkedInAnalyzerDrawer({ open, onClose, onApplyComplete }: Linke
               {comparison.summary}
             </p>
 
-            {applyError && (
-              <div className="rounded-md bg-red-50 dark:bg-red-950 p-3 text-sm text-red-600 dark:text-red-400">
-                {applyError}
-              </div>
-            )}
+            <LimitReachedBanner error={applyError} />
 
             <p className="text-xs text-zinc-500">Select the changes you want to apply to your resume:</p>
 

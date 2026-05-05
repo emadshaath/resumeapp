@@ -13,7 +13,6 @@ import {
   FileText,
   Loader2,
   Check,
-  AlertCircle,
   User,
   Briefcase,
   GraduationCap,
@@ -25,6 +24,11 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import {
+  LimitReachedBanner,
+  parseAIError,
+  type LimitError,
+} from "@/components/billing/limit-reached-banner";
 
 interface ParsedProfile {
   first_name?: string;
@@ -103,7 +107,7 @@ interface ImportResumeDialogProps {
 export function ImportResumeDialog({ open, onOpenChange, onImportComplete }: ImportResumeDialogProps) {
   const [step, setStep] = useState<Step>("upload");
   const [parsing, setParsing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<LimitError | null>(null);
   const [parsed, setParsed] = useState<ParsedResume | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
@@ -148,7 +152,7 @@ export function ImportResumeDialog({ open, onOpenChange, onImportComplete }: Imp
 
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Failed to parse resume");
+        setError(parseAIError(data, "Failed to parse resume"));
         setParsing(false);
         return;
       }
@@ -165,7 +169,7 @@ export function ImportResumeDialog({ open, onOpenChange, onImportComplete }: Imp
       if (data.parsed.projects?.length) sections.add("projects");
       setExpandedSections(sections);
     } catch {
-      setError("Network error. Please try again.");
+      setError({ message: "Network error. Please try again." });
     } finally {
       setParsing(false);
     }
@@ -185,7 +189,7 @@ export function ImportResumeDialog({ open, onOpenChange, onImportComplete }: Imp
 
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Failed to parse resume");
+        setError(parseAIError(data, "Failed to parse resume"));
         setParsing(false);
         return;
       }
@@ -202,7 +206,7 @@ export function ImportResumeDialog({ open, onOpenChange, onImportComplete }: Imp
       if (data.parsed.projects?.length) sections.add("projects");
       setExpandedSections(sections);
     } catch {
-      setError("Network error. Please try again.");
+      setError({ message: "Network error. Please try again." });
     } finally {
       setParsing(false);
     }
@@ -222,14 +226,14 @@ export function ImportResumeDialog({ open, onOpenChange, onImportComplete }: Imp
 
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Failed to save resume data");
+        setError(parseAIError(data, "Failed to save resume data"));
         setStep("review");
         return;
       }
 
       setStep("done");
     } catch {
-      setError("Network error. Please try again.");
+      setError({ message: "Network error. Please try again." });
       setStep("review");
     }
   }
@@ -291,12 +295,7 @@ export function ImportResumeDialog({ open, onOpenChange, onImportComplete }: Imp
       </DialogHeader>
 
       <div className="p-6 pt-4 space-y-4">
-        {error && (
-          <div className="rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300 flex items-start gap-2">
-            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-            {error}
-          </div>
-        )}
+        <LimitReachedBanner error={error} />
 
         {/* Step 1: Upload */}
         {step === "upload" && (

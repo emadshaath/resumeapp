@@ -12,6 +12,11 @@ import { Check, Loader2, Plus, Trash2, Sparkles, X, ChevronUp, ChevronDown, Aler
 import type { ResumeSection, Experience, Education, Skill, Certification, Project } from "@/types/database";
 import type { SuggestionItem } from "@/lib/claude/schemas";
 import { parseHighlights } from "@/lib/utils";
+import {
+  LimitReachedBanner,
+  parseAIError,
+  type LimitError,
+} from "@/components/billing/limit-reached-banner";
 
 interface SectionContentEditorProps {
   section: ResumeSection;
@@ -289,12 +294,12 @@ function AISuggestButton({
 }) {
   const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<LimitError | null>(null);
   const [open, setOpen] = useState(false);
   const [targetedCount, setTargetedCount] = useState<number | null>(null);
   const [previewingIndex, setPreviewingIndex] = useState<number | null>(null);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<LimitError | null>(null);
   const [committing, setCommitting] = useState(false);
   const [appliedIndexes, setAppliedIndexes] = useState<Set<number>>(new Set());
   const [supabase] = useState(() => createClient());
@@ -323,7 +328,7 @@ function AISuggestButton({
         .order("display_order");
 
       if (!items || items.length === 0) {
-        setError("Add some content to this section first.");
+        setError({ message: "Add some content to this section first." });
         setLoading(false);
         return;
       }
@@ -347,13 +352,13 @@ function AISuggestButton({
 
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Failed to get suggestions.");
+        setError(parseAIError(data, "Failed to get suggestions."));
       } else {
         setSuggestions(data.suggestions || []);
         setTargetedCount(data.targeted?.candidate_count ?? null);
       }
     } catch {
-      setError("Network error. Please try again.");
+      setError({ message: "Network error. Please try again." });
     } finally {
       setLoading(false);
     }
@@ -379,7 +384,7 @@ function AISuggestButton({
       });
       const data = await res.json();
       if (!res.ok) {
-        setPreviewError(data.error || "Preview failed.");
+        setPreviewError(parseAIError(data, "Preview failed."));
       } else {
         setPreview({
           section_id: data.section_id,
@@ -392,7 +397,7 @@ function AISuggestButton({
         });
       }
     } catch {
-      setPreviewError("Network error. Please try again.");
+      setPreviewError({ message: "Network error. Please try again." });
     }
   }
 
@@ -412,7 +417,7 @@ function AISuggestButton({
       });
       const data = await res.json();
       if (!res.ok) {
-        setPreviewError(data.error || "Failed to apply.");
+        setPreviewError(parseAIError(data, "Failed to apply."));
       } else {
         if (previewingIndex !== null) {
           setAppliedIndexes((prev) => new Set(prev).add(previewingIndex));
@@ -422,7 +427,7 @@ function AISuggestButton({
         onUpdate();
       }
     } catch {
-      setPreviewError("Network error. Please try again.");
+      setPreviewError({ message: "Network error. Please try again." });
     } finally {
       setCommitting(false);
     }
@@ -479,7 +484,7 @@ function AISuggestButton({
               {targetedCount === 1 ? "" : "s"}.
             </p>
           )}
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          <LimitReachedBanner error={error} />
           {suggestions.map((s, i) => {
             const isPreviewingThis = previewingIndex === i;
             const applied = appliedIndexes.has(i);
@@ -528,9 +533,7 @@ function AISuggestButton({
                           <Loader2 className="h-3 w-3 animate-spin" /> Drafting changes…
                         </p>
                       )}
-                      {previewError && (
-                        <p className="text-sm text-red-600 dark:text-red-400">{previewError}</p>
-                      )}
+                      <LimitReachedBanner error={previewError} />
                       {preview && (
                         <div className="space-y-3">
                           {preview.updates.length === 0 && preview.inserts.length === 0 ? (
