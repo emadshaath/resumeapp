@@ -1,5 +1,6 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   sendConfirmEmail,
@@ -9,6 +10,11 @@ import {
 } from "@/lib/resend/send";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://rezm.ai";
+
+// Cookie that survives the email-confirm round-trip: when set, the auth
+// callback redirects the user into Stripe Checkout instead of /dashboard.
+const PENDING_PLAN_COOKIE = "rezm_pending_plan";
+const PENDING_PLAN_TTL_SECONDS = 60 * 60 * 24; // 24h
 
 function buildCallbackUrl(tokenHash: string, type: string, redirectTo?: string): string {
   const url = new URL("/callback", BASE_URL);
@@ -26,6 +32,7 @@ export async function signupAction(formData: {
   firstName: string;
   lastName: string;
   slug: string;
+  plan?: "pro" | "premium" | null;
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const admin = createAdminClient();
@@ -79,6 +86,20 @@ export async function signupAction(formData: {
     if (emailResult.error) {
       console.error("Resend sendConfirmEmail error:", emailResult.error);
       return { success: false, error: "Failed to send confirmation email. Please try again." };
+    }
+
+    // Stash the chosen paid plan in an HTTP-only cookie so the auth
+    // callback can redirect into Stripe Checkout right after the user
+    // clicks the confirmation link.
+    if (formData.plan === "pro" || formData.plan === "premium") {
+      const cookieStore = await cookies();
+      cookieStore.set(PENDING_PLAN_COOKIE, formData.plan, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: PENDING_PLAN_TTL_SECONDS,
+      });
     }
 
     return { success: true };

@@ -1,16 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Sparkles, Crown } from "lucide-react";
 import { isValidSlug, slugify } from "@/lib/utils";
 import { signupAction } from "../actions";
 
+type PendingPlan = "pro" | "premium" | null;
+
+function readPendingPlan(value: string | null): PendingPlan {
+  if (value === "pro" || value === "premium") return value;
+  return null;
+}
+
 export default function SignupPage() {
+  const searchParams = useSearchParams();
+  const pendingPlan: PendingPlan = readPendingPlan(searchParams.get("plan"));
+
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -54,6 +66,7 @@ export default function SignupPage() {
       firstName,
       lastName,
       slug,
+      plan: pendingPlan,
     });
 
     if (!result.success) {
@@ -87,10 +100,29 @@ export default function SignupPage() {
     <Card>
       <CardHeader>
         <CardTitle>Create your account</CardTitle>
-        <CardDescription>Get your professional profile in minutes</CardDescription>
+        <CardDescription>
+          {pendingPlan
+            ? `You'll be sent to checkout after confirming your email.`
+            : "Get your professional profile in minutes"}
+        </CardDescription>
       </CardHeader>
       <form onSubmit={handleSignup}>
         <CardContent className="space-y-4">
+          {pendingPlan && (
+            <div className="rounded-md bg-brand-muted p-3 text-sm text-brand flex items-center gap-2">
+              {pendingPlan === "premium" ? (
+                <Crown className="h-4 w-4 flex-shrink-0" />
+              ) : (
+                <Sparkles className="h-4 w-4 flex-shrink-0" />
+              )}
+              <span>
+                Selected plan:{" "}
+                <Badge variant="secondary" className="ml-1">
+                  {pendingPlan === "premium" ? "Premium" : "Pro"}
+                </Badge>
+              </span>
+            </div>
+          )}
           {error && (
             <div className="rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
               {error}

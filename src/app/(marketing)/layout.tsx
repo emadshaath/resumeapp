@@ -17,6 +17,7 @@ export default function MarketingLayout({
           </Link>
           <nav aria-label="Main navigation" className="hidden md:flex items-center gap-6 text-sm text-zinc-600 dark:text-zinc-400">
             <Link href="/how-it-works" className="hover:text-zinc-900 dark:hover:text-white transition-colors">How It Works</Link>
+            <Link href="/pricing" className="hover:text-zinc-900 dark:hover:text-white transition-colors">Pricing</Link>
             <Link href="/blog" className="hover:text-zinc-900 dark:hover:text-white transition-colors">Blog</Link>
             <Link href="/about" className="hover:text-zinc-900 dark:hover:text-white transition-colors">About</Link>
           </nav>
@@ -39,7 +40,7 @@ export default function MarketingLayout({
               <nav aria-label="Product links" className="space-y-2 text-sm text-zinc-500">
                 <Link href="/how-it-works" className="block hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">How It Works</Link>
                 <a href="/#features" className="block hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Features</a>
-                <a href="/#pricing" className="block hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Pricing</a>
+                <Link href="/pricing" className="block hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Pricing</Link>
               </nav>
             </div>
             <div>

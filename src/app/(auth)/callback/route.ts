@@ -1,5 +1,18 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+
+const PENDING_PLAN_COOKIE = "rezm_pending_plan";
+
+async function consumePendingPlan(): Promise<"pro" | "premium" | null> {
+  const cookieStore = await cookies();
+  const value = cookieStore.get(PENDING_PLAN_COOKIE)?.value;
+  if (value === "pro" || value === "premium") {
+    cookieStore.delete(PENDING_PLAN_COOKIE);
+    return value;
+  }
+  return null;
+}
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -76,6 +89,15 @@ export async function GET(request: Request) {
           }
         } catch {
           // Don't block the redirect if welcome email fails
+        }
+
+        // If the user signed up with ?plan=pro|premium, send them straight
+        // to Stripe Checkout instead of the dashboard.
+        const pendingPlan = await consumePendingPlan();
+        if (pendingPlan) {
+          return NextResponse.redirect(
+            `${origin}/api/billing/checkout?plan=${pendingPlan}`
+          );
         }
       }
 
