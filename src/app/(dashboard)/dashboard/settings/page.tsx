@@ -23,6 +23,11 @@ interface ProfileBilling {
   tier: string;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
+  subscription_status: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  last_payment_at: string | null;
+  payment_failed_at: string | null;
 }
 
 const PLANS = [
@@ -195,7 +200,9 @@ function BillingTab() {
 
       const { data } = await supabase
         .from("profiles")
-        .select("tier, stripe_customer_id, stripe_subscription_id")
+        .select(
+          "tier, stripe_customer_id, stripe_subscription_id, subscription_status, current_period_end, cancel_at_period_end, last_payment_at, payment_failed_at"
+        )
         .eq("id", user.id)
         .single();
 
@@ -280,6 +287,32 @@ function BillingTab() {
         </div>
       )}
 
+      {/* Payment-failed alert (shown when last failure is more recent than last success) */}
+      {profile && isPaymentInDunning(profile) && (
+        <div className="rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="font-medium">Your last payment failed.</p>
+              <p className="mt-1">
+                Stripe will retry automatically. To avoid losing your{" "}
+                {currentTier} plan, update your payment method.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handlePortal}
+            disabled={portalLoading}
+            className="mt-2"
+          >
+            {portalLoading ? "Opening..." : "Update payment method"}
+            <ExternalLink className="h-3.5 w-3.5 ml-1" />
+          </Button>
+        </div>
+      )}
+
       {/* Usage Meters */}
       <UsageMeters />
 
@@ -321,6 +354,9 @@ function BillingTab() {
               </Button>
             )}
           </div>
+          {profile && (
+            <SubscriptionStatusLine profile={profile} />
+          )}
         </CardContent>
       </Card>
 
@@ -415,4 +451,46 @@ function BillingTab() {
       )}
     </div>
   );
+}
+
+function SubscriptionStatusLine({ profile }: { profile: ProfileBilling }) {
+  if (profile.tier === "free" || !profile.stripe_subscription_id) return null;
+
+  const periodEnd = profile.current_period_end
+    ? new Date(profile.current_period_end)
+    : null;
+  const lastPayment = profile.last_payment_at
+    ? new Date(profile.last_payment_at)
+    : null;
+
+  const items: string[] = [];
+  if (profile.cancel_at_period_end && periodEnd) {
+    items.push(`Cancels on ${formatShortDate(periodEnd)}`);
+  } else if (periodEnd) {
+    items.push(`Renews ${formatShortDate(periodEnd)}`);
+  }
+  if (lastPayment) {
+    items.push(`Last payment ${formatShortDate(lastPayment)}`);
+  }
+  if (items.length === 0) return null;
+
+  return (
+    <p className="mt-2 text-xs text-zinc-500">{items.join(" • ")}</p>
+  );
+}
+
+function isPaymentInDunning(profile: ProfileBilling): boolean {
+  if (!profile.payment_failed_at) return false;
+  // If we've succeeded since the failure, the alert is stale.
+  if (
+    profile.last_payment_at &&
+    new Date(profile.last_payment_at) >= new Date(profile.payment_failed_at)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function formatShortDate(d: Date): string {
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }

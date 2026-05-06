@@ -5,6 +5,9 @@ import { MagicLinkEmail } from "@/emails/magic-link";
 import { WelcomeEmail } from "@/emails/welcome";
 import { ContactNotificationEmail } from "@/emails/contact-notification";
 import { EmailChangedEmail } from "@/emails/email-changed";
+import { SubscriptionReceiptEmail } from "@/emails/subscription-receipt";
+import { PaymentFailedEmail } from "@/emails/payment-failed";
+import { SubscriptionCanceledEmail } from "@/emails/subscription-canceled";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://rezm.ai";
 
@@ -124,6 +127,80 @@ export async function sendEmailChangedEmail(params: {
       firstName: params.firstName,
       newEmail: params.newEmail,
       confirmUrl: params.confirmUrl,
+    }),
+  });
+  return result as SendResult;
+}
+
+export async function sendSubscriptionReceipt(params: {
+  to: string;
+  firstName: string;
+  planName: string;
+  amountFormatted: string;
+  invoiceNumber: string | null;
+  paidAt: string;
+  periodEnd: string;
+}): Promise<SendResult> {
+  const resend = getResend();
+  const result = await resend.emails.send({
+    from: EMAIL_FROM,
+    to: params.to,
+    subject: `Receipt for your rezm.ai ${params.planName} subscription`,
+    react: SubscriptionReceiptEmail({
+      firstName: params.firstName,
+      planName: params.planName,
+      amountFormatted: params.amountFormatted,
+      invoiceNumber: params.invoiceNumber,
+      paidAt: params.paidAt,
+      periodEnd: params.periodEnd,
+      portalUrl: `${APP_URL}/dashboard/settings?tab=billing`,
+    }),
+  });
+  return result as SendResult;
+}
+
+export async function sendPaymentFailedEmail(params: {
+  to: string;
+  firstName: string;
+  planName: string;
+  amountFormatted: string;
+  attemptCount: number;
+  nextRetryAt: string | null;
+}): Promise<SendResult> {
+  const resend = getResend();
+  const isFirstAttempt = params.attemptCount <= 1;
+  const result = await resend.emails.send({
+    from: EMAIL_FROM,
+    to: params.to,
+    subject: isFirstAttempt
+      ? "We couldn't process your payment"
+      : "Action needed: payment is still failing",
+    react: PaymentFailedEmail({
+      firstName: params.firstName,
+      planName: params.planName,
+      amountFormatted: params.amountFormatted,
+      attemptCount: params.attemptCount,
+      nextRetryAt: params.nextRetryAt,
+      portalUrl: `${APP_URL}/dashboard/settings?tab=billing`,
+    }),
+  });
+  return result as SendResult;
+}
+
+export async function sendSubscriptionCanceledEmail(params: {
+  to: string;
+  firstName: string;
+  previousPlan: string;
+}): Promise<SendResult> {
+  const resend = getResend();
+  const result = await resend.emails.send({
+    from: EMAIL_FROM,
+    to: params.to,
+    subject: "Your rezm.ai subscription has ended",
+    react: SubscriptionCanceledEmail({
+      firstName: params.firstName,
+      previousPlan: params.previousPlan,
+      reactivateUrl: `${APP_URL}/dashboard/settings?tab=billing`,
     }),
   });
   return result as SendResult;

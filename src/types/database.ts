@@ -33,6 +33,11 @@ export interface Profile {
   tier_override: Tier | null;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
+  subscription_status: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  last_payment_at: string | null;
+  payment_failed_at: string | null;
   is_published: boolean;
   onboarding_completed: boolean;
   // Application preferences (EEO & common form fields)
@@ -499,4 +504,10 @@ export interface AIThrottleBucket {
   feature: AIUsageFeature;
   window_start: string;
   count: number;
+}
+
+export interface StripeWebhookEvent {
+  event_id: string;
+  type: string;
+  received_at: string;
 }
